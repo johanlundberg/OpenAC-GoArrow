@@ -1,0 +1,53 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test output and coverage
+TestResults/
+*.trx
+coverage/
+coverage-report/
+
+# NuGet and package artifacts
+*.nupkg
+*.snupkg
+packages/
+
+# Generated restore and tooling files
+project.assets.json
+*.nuget.g.props
+*.nuget.g.targets
+*.csproj.nuget.dgspec.json
+*.csproj.nuget.cache
+
+# Generated documentation and symbols
+*.pdb
+*.mdb
+
+# Local plugin deployment/publish directories
+publish/
+dist/
+plugins-local/
+
+# Local reference repositories
+/reference_repos/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Temporary/editor files
+*.tmp
+*.temp
+*.swp
+*~

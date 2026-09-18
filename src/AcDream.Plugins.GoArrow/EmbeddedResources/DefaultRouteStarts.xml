@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RouteStarts>
+  <Start Destination="Holtburg" From="APortal" Via="APortal" />
+  <Start Destination="Shoushi" From="APortal" Via="APortal" />
+  <Start Destination="Yaraq" From="APortal" Via="APortal" />
+  <Start Destination="Rithwic" From="APortal" Via="APortal" />
+  <Start Destination="Cragstone" From="APortal" Via="APortal" />
+  <Start Destination="Hebian-to" From="APortal" Via="APortal" />
+  <Start Destination="Qalaba'r" From="APortal" Via="APortal" />
+  <Start Destination="Mayoi" From="APortal" Via="APortal" />
+  <Start Destination="Dryreach" From="APortal" Via="APortal" />
+  <Start Destination="Sawato" From="APortal" Via="APortal" />
+  <Start Destination="Arwic" From="APortal" Via="APortal" />
+  <Start Destination="Baishi" From="APortal" Via="APortal" />
+  <Start Destination="Tou-Tou" From="APortal" Via="APortal" />
+  <Start Destination="Nanto" From="APortal" Via="APortal" />
+  <Start Destination="Eastham" From="APortal" Via="APortal" />
+  <Start Destination="Candeth Keep" From="APortal" Via="APortal" />
+  <Start Destination="Yanshi" From="APortal" Via="APortal" />
+  <Start Destination="Tufa" From="APortal" Via="APortal" />
+  <Start Destination="Ayan Baqur" From="APortal" Via="APortal" />
+  <Start Destination="Lin" From="APortal" Via="APortal" />
+  <Start Destination="Omban" From="APortal" Via="APortal" />
+  <Start Destination="Zaikhal" From="APortal" Via="APortal" />
+  <Start Destination="Al-Jalima" From="APortal" Via="APortal" />
+</RouteStarts>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Locations>
+  <!-- Major Towns -->
+  <Location name="Holtburg">
+    <Coords NS="42.1" EW="33.6" />
+  </Location>
+  <Location name="Shoushi">
+    <Coords NS="33.4" EW="72.0" />
+  </Location>
+  <Location name="Yaraq">
+    <Coords NS="21.7" EW="55.9" />
+  </Location>
+  <Location name="Rithwic">
+    <Coords NS="42.7" EW="34.0" />
+  </Location>
+  <Location name="Cragstone">
+    <Coords NS="57.1" EW="59.7" />
+  </Location>
+  <Location name="Hebian-to">
+    <Coords NS="51.5" EW="82.0" />
+  </Location>
+  <Location name="Qalaba'r">
+    <Coords NS="52.0" EW="53.6" />
+  </Location>
+  <Location name="Mayoi">
+    <Coords NS="42.0" EW="96.8" />
+  </Location>
+  <Location name="Dryreach">
+    <Coords NS="66.4" EW="43.0" />
+  </Location>
+  <Location name="Sawato">
+    <Coords NS="27.3" EW="49.5" />
+  </Location>
+  <Location name="Arwic">
+    <Coords NS="53.2" EW="26.7" />
+  </Location>
+  <Location name="Baishi">
+    <Coords NS="54.2" EW="3.4" />
+  </Location>
+  <Location name="Tou-Tou">
+    <Coords NS="33.9" EW="106.0" />
+  </Location>
+  <Location name="Nanto">
+    <Coords NS="50.4" EW="64.1" />
+  </Location>
+  <Location name="Eastham">
+    <Coords NS="43.8" EW="40.8" />
+  </Location>
+  <Location name="Candeth Keep">
+    <Coords NS="59.9" EW="83.3" />
+  </Location>
+  <Location name="Yanshi">
+    <Coords NS="39.3" EW="39.2" />
+  </Location>
+  <Location name="Tufa">
+    <Coords NS="13.4" EW="5.6" />
+  </Location>
+  <Location name="Ayan Baqur">
+    <Coords NS="58.1" EW="93.2" />
+  </Location>
+  <Location name="Lin">
+    <Coords NS="53.5" EW="69.3" />
+  </Location>
+  <Location name="Omban">
+    <Coords NS="45.3" EW="88.1" />
+  </Location>
+  <Location name="Zaikhal">
+    <Coords NS="52.5" EW="17.7" />
+  </Location>
+  <Location name="Al-Jalima">
+    <Coords NS="45.1" EW="20.7" />
+  </Location>
+
+  <!-- Notable Dungeon/Landmark Entrances -->
+  <Location name="Mountain Sewer">
+    <Coords NS="42.2" EW="30.9" />
+  </Location>
+  <Location name="Olthoi Citadel">
+    <Coords NS="43.1" EW="33.3" />
+  </Location>
+  <Location name="Gredaline Consulate">
+    <Coords NS="55.5" EW="62.7" />
+  </Location>
+
+  <!-- Starting points for route starts -->
+  <Location name="APortal">
+    <Coords NS="50.0" EW="50.0" />
+  </Location>
+</Locations>

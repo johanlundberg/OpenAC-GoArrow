@@ -1,0 +1,8 @@
+{
+  "id": "openac.goarrow",
+  "displayName": "GoArrow",
+  "version": "0.1.0",
+  "entryDll": "AcDream.Plugins.GoArrow.dll",
+  "apiVersion": 1,
+  "kinds": ["Navigation"]
+}

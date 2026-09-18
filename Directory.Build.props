@@ -1,0 +1,26 @@
+<Project>
+  <!-- Repository-wide language and warning policy. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Plugins are loaded by the host; dependencies must not be copied locally. -->
+    <!-- Override with -p:OpenAcDir=/path/to/OpenAC when OpenAC is elsewhere. -->
+    <OpenAcDir Condition="'$(OpenAcDir)' == ''">$(MSBuildThisFileDirectory)../OpenAC</OpenAcDir>
+  </PropertyGroup>
+
+  <Target Name="ExcludeOwnDocumentationFilesFromPublish" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(PublishOwnDocumentationFiles)' != 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Extension)' == '.xml' and $([System.String]::new('%(Filename)').StartsWith('AcDream.'))" />
+    </ItemGroup>
+  </Target>
+</Project>

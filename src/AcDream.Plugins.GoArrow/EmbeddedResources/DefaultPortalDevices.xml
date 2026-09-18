@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PortalDevices>
+  <Device Destination="Holtburg" Via="Holtburg" Landmass="Dereth" />
+  <Device Destination="Shoushi" Via="Shoushi" Landmass="Dereth" />
+  <Device Destination="Yaraq" Via="Yaraq" Landmass="Dereth" />
+  <Device Destination="Rithwic" Via="Rithwic" Landmass="Dereth" />
+  <Device Destination="Cragstone" Via="Cragstone" Landmass="Dereth" />
+  <Device Destination="Hebian-to" Via="Hebian-to" Landmass="Dereth" />
+  <Device Destination="Qalaba'r" Via="Qalabar" Landmass="Dereth" />
+  <Device Destination="Mayoi" Via="Mayoi" Landmass="Dereth" />
+  <Device Destination="Dryreach" Via="Dryreach" Landmass="Dereth" />
+  <Device Destination="Sawato" Via="Sawato" Landmass="Dereth" />
+  <Device Destination="Arwic" Via="Arwic" Landmass="Dereth" />
+  <Device Destination="Baishi" Via="Baishi" Landmass="Dereth" />
+  <Device Destination="Tou-Tou" Via="Tou-Tou" Landmass="Dereth" />
+  <Device Destination="Nanto" Via="Nanto" Landmass="Dereth" />
+  <Device Destination="Eastham" Via="Eastham" Landmass="Dereth" />
+  <Device Destination="Candeth Keep" Via="Candeth Keep" Landmass="Dereth" />
+  <Device Destination="Yanshi" Via="Yanshi" Landmass="Dereth" />
+  <Device Destination="Tufa" Via="Tufa" Landmass="Dereth" />
+  <Device Destination="Ayan Baqur" Via="Ayan Baqur" Landmass="Dereth" />
+  <Device Destination="Lin" Via="Lin" Landmass="Dereth" />
+  <Device Destination="Omban" Via="Omban" Landmass="Dereth" />
+  <Device Destination="Zaikhal" Via="Zaikhal" Landmass="Dereth" />
+  <Device Destination="Al-Jalima" Via="Al-Jalima" Landmass="Dereth" />
+</PortalDevices>
