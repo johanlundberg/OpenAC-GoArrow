@@ -105,6 +105,17 @@ dotnet test tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.cs
 
 The route-finding tests are intentionally independent of a live Asheron's Call session.
 
+## CI and releases
+
+GitHub Actions runs the plugin build and test suite for pull requests and pushes. A semantic version tag creates a GitHub release containing an installable plugin archive:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Release tags must use the `vMAJOR.MINOR.PATCH` format. The release version is derived from the tag (`v0.1.0` produces plugin version `0.1.0`), and the generated `plugin.json` version is updated automatically.
+
 ## Installation
 
 OpenAC plugin packaging and installation conventions may vary by host version. In general, build or publish the plugin into its own plugin directory and deploy the following files together:

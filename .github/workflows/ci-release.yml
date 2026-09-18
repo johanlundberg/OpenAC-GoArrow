@@ -1,0 +1,158 @@
+name: CI and Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out GoArrow
+        uses: actions/checkout@v4
+        with:
+          path: OpenAC-GoArrow
+
+      # The plugin references the OpenAC abstractions project until the
+      # published contract package is available. Check it out beside this repo
+      # so Directory.Build.props resolves ../OpenAC in CI.
+      - name: Check out OpenAC abstractions
+        uses: actions/checkout@v4
+        with:
+          repository: eriknihlen/OpenAC
+          path: OpenAC
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore tests
+        working-directory: OpenAC-GoArrow
+        run: dotnet restore tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.csproj
+
+      - name: Build plugin
+        working-directory: OpenAC-GoArrow
+        run: dotnet build src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj --configuration Release --no-restore
+
+      - name: Run tests
+        working-directory: OpenAC-GoArrow
+        run: dotnet test tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.csproj --configuration Release --no-restore --no-build
+
+  release:
+    name: Create GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out GoArrow
+        uses: actions/checkout@v4
+        with:
+          path: OpenAC-GoArrow
+          fetch-depth: 0
+
+      - name: Check out OpenAC abstractions
+        uses: actions/checkout@v4
+        with:
+          repository: eriknihlen/OpenAC
+          path: OpenAC
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use vMAJOR.MINOR.PATCH, got: $tag" >&2
+            exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore plugin
+        working-directory: OpenAC-GoArrow
+        run: dotnet restore src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj
+
+      - name: Publish plugin
+        working-directory: OpenAC-GoArrow
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/goarrow-publish" "$RUNNER_TEMP/openac.goarrow-${VERSION}.zip"
+          dotnet publish \
+            src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:Version="$VERSION" \
+            --output "$RUNNER_TEMP/goarrow-publish"
+
+          # plugin.json is the host-facing manifest. Keep its version aligned
+          # with the Git tag rather than the development version in source.
+          python3 - "$RUNNER_TEMP/goarrow-publish/plugin.json" "$VERSION" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          manifest_path = pathlib.Path(sys.argv[1])
+          version = sys.argv[2]
+          manifest = json.loads(manifest_path.read_text())
+          manifest["version"] = version
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+
+          # A plugin package contains only host-loadable plugin files. The
+          # OpenAC abstractions assembly is supplied by the host.
+          find "$RUNNER_TEMP/goarrow-publish" -maxdepth 1 -type f \
+            ! -name 'AcDream.Plugins.GoArrow.dll' \
+            ! -name 'AcDream.Plugins.GoArrow.deps.json' \
+            ! -name 'AcDream.Plugins.GoArrow.pdb' \
+            ! -name 'plugin.json' \
+            ! -name 'goarrow-panel.xml' \
+            -delete
+
+          mkdir -p "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}"
+          cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.dll" \
+             "$RUNNER_TEMP/goarrow-publish/plugin.json" \
+             "$RUNNER_TEMP/goarrow-publish/goarrow-panel.xml" \
+             "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
+          if [[ -f "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.deps.json" ]]; then
+            cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.deps.json" \
+               "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
+          fi
+          if [[ -f "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.pdb" ]]; then
+            cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.pdb" \
+               "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
+          fi
+
+          cd "$RUNNER_TEMP/release-root"
+          zip -r "$RUNNER_TEMP/openac.goarrow-${VERSION}.zip" "openac.goarrow-${VERSION}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: OpenAC-GoArrow
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/openac.goarrow-${VERSION}.zip" \
+            --title "GoArrow $GITHUB_REF_NAME" \
+            --generate-notes
