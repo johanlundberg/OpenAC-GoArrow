@@ -41,9 +41,9 @@ jobs:
         working-directory: OpenAC-GoArrow
         run: dotnet restore tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.csproj
 
-      - name: Build plugin
+      - name: Build tests and plugin
         working-directory: OpenAC-GoArrow
-        run: dotnet build src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj --configuration Release --no-restore
+        run: dotnet build tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.csproj --configuration Release --no-restore
 
       - name: Run tests
         working-directory: OpenAC-GoArrow
