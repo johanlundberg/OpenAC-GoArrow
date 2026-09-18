@@ -28,6 +28,9 @@ The current port includes:
 - location, portal-device, and route-start databases;
 - route construction and route-finding logic;
 - embedded default location and portal data;
+- explicit `/go update` download of the configured location database with validation and cache fallback;
+- loading local XML from the plugin's `GoArrow/` storage directory with `/go file filename.xml`;
+- persistent URL switching through `/go url <url>` or `/go update <url>`;
 - `/go` chat commands;
 - persistent settings through `IPluginStorage`;
 - a declarative OpenAC panel;
@@ -134,6 +137,10 @@ After the plugin is enabled:
 ```text
 /go help
 /go list
+/go file filename.xml
+/go update
+/go url https://example.test/locations.xml
+/go update https://example.test/locations.xml
 /go Holtburg
 /go status
 /go stop

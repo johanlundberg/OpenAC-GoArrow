@@ -23,6 +23,11 @@ public class GoArrowSettings
     public double ArrivalDistance { get; set; } = 0.5;
     public bool UseNavigationAutomation { get; set; } = true;
 
+    // ── External data ──────────────────────────────────────────────
+    /// <summary>Location-data URL used by the explicit update command.</summary>
+    public string ExternalDataUrl { get; set; } =
+        RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
+
     // ── Recall Tracking ────────────────────────────────────────────
     public string LastPortalRecall { get; set; } = string.Empty;
     public string LastSecondaryRecall { get; set; } = string.Empty;
@@ -41,6 +46,7 @@ public class GoArrowSettings
         storage.WriteText("showBearing", ShowBearing.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("externalDataUrl", ExternalDataUrl);
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
         storage.WriteText("lastAllegianceRecall", LastAllegianceRecall);
@@ -71,6 +77,11 @@ public class GoArrowSettings
 
         bool.TryParse(storage.ReadText("useNavigation"), out bool useNav);
         UseNavigationAutomation = useNav;
+
+        ExternalDataUrl = storage.ReadText("externalDataUrl")
+            ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
+        if (string.IsNullOrWhiteSpace(ExternalDataUrl))
+            ExternalDataUrl = RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
 
         LastPortalRecall = storage.ReadText("lastPortalRecall") ?? string.Empty;
         LastSecondaryRecall = storage.ReadText("lastSecondaryRecall") ?? string.Empty;

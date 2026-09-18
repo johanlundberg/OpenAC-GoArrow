@@ -116,16 +116,30 @@ Current data support:
 - Warcry Atlas `<atlas><location>` records can be parsed;
 - route finding excludes retired or `UseInRouteFinding == false` locations.
 
-Explicitly deferred:
+Implemented for the first data-provider increment:
 
-- HTTP downloading;
-- automatic refresh;
-- cache expiry and offline fallback;
+- explicit `/go update` command;
+- configurable HTTP/HTTPS download URL;
+- `/go url <url>` to persist a new source URL;
+- `/go update <url>` to change the URL and immediately download;
+- `/go file filename.xml` to load a local XML file from the plugin's hardcoded `GoArrow/` storage directory through `IPluginStorage.ReadText`;
+- HTTP download from the configured source URL;
+- response status, size, XML-root, and non-empty-record validation;
+- atomic-after-validation cache write under `data/warcry-atlas.xml`;
+- cached-data fallback when a later download fails;
+- no automatic download during plugin startup;
+- cancellation support in the provider API.
+
+Still deferred:
+
+- cache expiry and user-configurable refresh policy;
+- panel UI for editing the data URL;
 - merge precedence between embedded, installed, and user data;
 - license/attribution workflow for external data;
-- full import of every Atlas field such as restrictions, settlement, monsters, and time-of-day requirements.
+- full import of every Atlas field such as restrictions, settlement, monsters, and time-of-day requirements;
+- UI progress and cancellation controls.
 
-The future downloader must be opt-in and separate from the parser. Do not download `data_cod_TN_Directions_Non_Olthoi.xml` during plugin startup.
+The downloader remains opt-in and separate from the parser. `/go update` replaces the location snapshot only after the downloaded XML has been validated.
 
 ### 3. Route finding
 
@@ -158,6 +172,7 @@ Currently implemented commands:
 
 - `/go help`;
 - `/go list`;
+- `/go update` / `/go download`;
 - `/go status`;
 - `/go stop` / `/go cancel`;
 - `/go clear`;

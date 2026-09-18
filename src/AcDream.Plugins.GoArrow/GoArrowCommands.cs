@@ -45,6 +45,39 @@ internal sealed class GoArrowCommands
                 ListDestinations();
                 break;
 
+            case "file":
+                if (args.Length != 2 || !_plugin.LoadDataFile(args[1]))
+                {
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Usage: /go file filename.xml (file not found or invalid).");
+                    break;
+                }
+                _host.Automation.Chat.PostSystemMessage(
+                    $"GoArrow: Loaded location data from '{args[1]}'.");
+                break;
+
+            case "update":
+            case "download":
+                if (args.Length > 1 && !_plugin.SetExternalDataUrl(args[1]))
+                {
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: URL must be an absolute http:// or https:// URL.");
+                    break;
+                }
+                _ = _plugin.UpdateDataAsync();
+                break;
+
+            case "url":
+                if (args.Length != 2 || !_plugin.SetExternalDataUrl(args[1]))
+                {
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Usage: /go url <http:// or https:// URL>");
+                    break;
+                }
+                _host.Automation.Chat.PostSystemMessage(
+                    $"GoArrow: Location-data URL set to '{args[1]}'.");
+                break;
+
             case "stop":
             case "cancel":
                 _plugin.StopNavigation();
@@ -137,6 +170,9 @@ internal sealed class GoArrowCommands
         return "GoArrow Commands:\n" +
                "  /go <destination> - Set route to a named location\n" +
                "  /go list - List all known locations\n" +
+               "  /go file filename.xml - Load XML from the GoArrow storage directory\n" +
+               "  /go update [url] - Download location data, optionally changing the URL\n" +
+               "  /go url <url> - Set and persist the location-data URL\n" +
                "  /go search <term> - Search locations\n" +
                "  /go status - Show current destination\n" +
                "  /go stop - Stop navigation\n" +

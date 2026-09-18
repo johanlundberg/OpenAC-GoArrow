@@ -21,10 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(OpenAcDir)/src/AcDream.Plugin.Abstractions/AcDream.Plugin.Abstractions.csproj">
-      <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
-    </ProjectReference>
+    <!-- Tests execute against the abstraction assembly, so keep it beside the test DLL. -->
+    <ProjectReference Include="$(OpenAcDir)/src/AcDream.Plugin.Abstractions/AcDream.Plugin.Abstractions.csproj" />
     <ProjectReference Include="../../src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj" />
   </ItemGroup>
 </Project>

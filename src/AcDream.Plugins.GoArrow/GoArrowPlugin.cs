@@ -19,6 +19,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private GoArrowNavigator? _navigator;
     private GoArrowCommands? _commands;
     private GoArrowPanel? _panel;
+    private WarcryAtlasDataProvider? _atlasProvider;
+    private int _atlasUpdateInProgress;
     private IDisposable? _commandRegistration;
     private Action<double>? _tickHandler;
 
@@ -38,6 +40,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         // ── Initialize database and load embedded data ──────────────
         _database = new LocationDatabase();
         LoadEmbeddedData();
+        _atlasProvider = new WarcryAtlasDataProvider(host.Storage, url: _settings.ExternalDataUrl);
 
         // ── Initialize route finding ───────────────────────────────
         _routeFinder = new RouteFinder(_database);
@@ -150,6 +153,116 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     internal void StopNavigation()
     {
         _navigator?.StopNavigation();
+    }
+
+    /// <summary>
+    /// Loads a validated XML location database from a relative plugin-storage
+    /// file name such as <c>filename.xml</c>; the plugin prepends its
+    /// hardcoded <c>GoArrow/</c> storage directory.
+    /// </summary>
+    internal bool LoadDataFile(string storageKey)
+    {
+        if (_host is null || _database is null || !_host.Storage.IsAvailable)
+            return false;
+
+        string relativePath = storageKey.Replace('\\', '/');
+        if (relativePath.StartsWith("/", StringComparison.Ordinal)
+            || relativePath.Contains("..", StringComparison.Ordinal)
+            || relativePath.StartsWith("GoArrow/", StringComparison.OrdinalIgnoreCase)
+            || !relativePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // IPluginStorage is already scoped to this plugin, but GoArrow keeps
+        // imported data beneath its own stable subdirectory.
+        string normalized = $"GoArrow/{relativePath}";
+        string? xml = _host.Storage.ReadText(normalized);
+        if (string.IsNullOrWhiteSpace(xml))
+            return false;
+
+        try
+        {
+            var candidate = new LocationDatabase();
+            candidate.LoadLocationsXml(xml);
+            if (candidate.LocationCount == 0)
+                return false;
+
+            _database.LoadLocationsXml(xml);
+            _host.Log.Info($"GoArrow: Loaded {_database.LocationCount} locations from storage key '{normalized}'.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Error($"GoArrow: Failed to load location data from '{normalized}'.", exception);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Changes and persists the URL used by the explicit location-data update.
+    /// </summary>
+    internal bool SetExternalDataUrl(string url)
+    {
+        if (_settings is null || _host is null || !Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed)
+            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+            return false;
+
+        _settings.ExternalDataUrl = parsed.ToString();
+        _atlasProvider = new WarcryAtlasDataProvider(_host.Storage, url: _settings.ExternalDataUrl);
+        _settings.Save(_host.Storage);
+        return true;
+    }
+
+    /// <summary>
+    /// Explicitly downloads and installs the latest Warcry Atlas location data.
+    /// The update is intentionally never started automatically during startup.
+    /// </summary>
+    internal async Task UpdateDataAsync()
+    {
+        if (_host is null || _database is null || _atlasProvider is null)
+            return;
+        if (Interlocked.Exchange(ref _atlasUpdateInProgress, 1) != 0)
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: A location-data update is already running.");
+            return;
+        }
+
+        try
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Downloading location data...");
+            string xml = await _atlasProvider.DownloadAsync().ConfigureAwait(false);
+            _database.LoadLocationsXml(xml);
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Loaded {_database.LocationCount} locations from the Atlas data source.");
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Error("GoArrow: Location-data update failed.", exception);
+            string? cached = null;
+            try
+            {
+                cached = _atlasProvider.ReadCached();
+            }
+            catch (Exception cacheException)
+            {
+                _host.Log.Warn($"GoArrow: Cached location data is invalid: {cacheException.Message}");
+            }
+
+            if (cached is not null)
+            {
+                _database.LoadLocationsXml(cached);
+                _host.Automation.Chat.PostSystemMessage(
+                    $"GoArrow: Download failed; loaded {_database.LocationCount} cached locations.");
+            }
+            else
+            {
+                _host.Automation.Chat.PostSystemMessage(
+                    "GoArrow: Location-data update failed; keeping the existing database.");
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _atlasUpdateInProgress, 0);
+        }
     }
 
     /// <summary>
