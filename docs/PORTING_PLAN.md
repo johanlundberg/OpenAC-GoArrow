@@ -172,7 +172,12 @@ Currently implemented commands:
 
 - `/go help`;
 - `/go list`;
+- `/go search <term>` / `/go find <term>`;
+- `/go loc`;
+- `/go dest`;
+- `/go file filename.xml`;
 - `/go update` / `/go download`;
+- `/go url <url>`;
 - `/go status`;
 - `/go stop` / `/go cancel`;
 - `/go clear`;
