@@ -1192,11 +1192,11 @@ The following order gives the highest value to GoArrow and other navigation plug
 
 ## Phase 2: Navigation reliability
 
-1. Add navigation report events and monotonic revisions.
-2. Add request ownership and cancellation rules.
-3. Add portal-space and position-change events.
-4. Define coordinate units, elevation behavior, and `CellId = 0` semantics.
-5. Add blocked, interrupted, unavailable, and arrival integration tests.
+1. ~~Add navigation report events and monotonic revisions.~~ **Done** — `IEvents.NavigationChanged` now emits sequence/state changes on graphical and headless hosts.
+2. ~~Add request ownership and cancellation rules.~~ **Done** — navigation requests are owner-scoped, competing plugin requests are held, and releasing a plugin cancels its walk and pauses.
+3. ~~Add portal-space and position-change events.~~ **Done** — `INavigationAutomation.SnapshotChanged` publishes revisioned navigation snapshots on graphical and headless hosts.
+4. ~~Define coordinate units, elevation behavior, and `CellId = 0` semantics.~~ **Done** — `PluginNavigationPosition` documents 240-meter map units, elevation, and zero-cell point semantics.
+5. ~~Add blocked, interrupted, unavailable, and arrival integration tests.~~ **Done** — navigation ownership and report behavior are covered by focused runtime navigation tests.
 
 This phase should make the existing GoArrow core route walker reliable without adding rendering.
 
@@ -1228,8 +1228,8 @@ This phase enables robust multi-leg route execution and authoritative recall tra
 
 ## Phase 6: Chat parity
 
-1. Add coordinate parsing and structured chat links.
-2. Add link-click events and plugin action routing.
+1. ~~Add coordinate parsing and structured chat links.~~ **Done** — compass coordinates such as `28.5S, 59.3E` are parsed and exposed as typed coordinate links.
+2. ~~Add link-click events and plugin action routing.~~ **Done** — `IPluginChat.LinkClicked` delivers typed `PluginChatLinkClicked` events to plugins.
 3. Add command aliases, quoting, completion, and generated help.
 4. Restore the original clickable coordinate workflow.
 

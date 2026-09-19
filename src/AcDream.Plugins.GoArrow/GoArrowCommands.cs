@@ -45,6 +45,19 @@ internal sealed class GoArrowCommands
                 ListDestinations();
                 break;
 
+            case "search":
+            case "find":
+                SearchDestinations(args.Length > 1 ? string.Join(" ", args.Skip(1)) : string.Empty);
+                break;
+
+            case "loc":
+                _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText());
+                break;
+
+            case "dest":
+                _host.Automation.Chat.PostSystemMessage(_plugin.DestinationPositionText());
+                break;
+
             case "file":
                 if (args.Length != 2 || !_plugin.LoadDataFile(args[1]))
                 {
@@ -139,6 +152,27 @@ internal sealed class GoArrowCommands
             _host.Automation.Chat.PostSystemMessage($"... and {names.Count - 20} more.");
     }
 
+    private void SearchDestinations(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Usage: /go search <term>");
+            return;
+        }
+
+        var matches = _plugin.SearchLocations(query);
+        if (matches.Count == 0)
+        {
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: No locations match '{query}'.");
+            return;
+        }
+
+        _host.Automation.Chat.PostSystemMessage(
+            "GoArrow matches: " + string.Join(", ", matches.Take(20).Select(location => location.Name)));
+        if (matches.Count > 20)
+            _host.Automation.Chat.PostSystemMessage($"... and {matches.Count - 20} more.");
+    }
+
     private void ShowStatus()
     {
         var dest = _plugin.CurrentDestinationName;
@@ -170,6 +204,9 @@ internal sealed class GoArrowCommands
         return "GoArrow Commands:\n" +
                "  /go <destination> - Set route to a named location\n" +
                "  /go list - List all known locations\n" +
+               "  /go search <term> - Search locations\n" +
+               "  /go loc - Show current coordinates\n" +
+               "  /go dest - Show destination coordinates\n" +
                "  /go file filename.xml - Load XML from the GoArrow storage directory\n" +
                "  /go update [url] - Download location data, optionally changing the URL\n" +
                "  /go url <url> - Set and persist the location-data URL\n" +

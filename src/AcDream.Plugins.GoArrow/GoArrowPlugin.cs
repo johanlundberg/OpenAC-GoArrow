@@ -281,6 +281,30 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         return _settings?.FavoriteDestinations ?? new List<string>();
     }
 
+    internal IReadOnlyList<Location> SearchLocations(string query)
+    {
+        if (_routeFinder is null)
+            return Array.Empty<Location>();
+        return _routeFinder.SearchLocations(query);
+    }
+
+    internal string CurrentPositionText()
+    {
+        if (_host is null || !_host.Automation.IsAvailable)
+            return "GoArrow: Current position is unavailable (not in world).";
+
+        var position = _host.Automation.Navigation.Snapshot.Position;
+        var coordinates = new Coordinates(position.NorthSouth, position.EastWest);
+        return $"GoArrow: Current position: {coordinates}";
+    }
+
+    internal string DestinationPositionText()
+    {
+        if (_destination?.TargetLocation is not Location location)
+            return "GoArrow: No destination set.";
+        return $"GoArrow: Destination '{location.Name}': {location.Coords}";
+    }
+
     /// <summary>
     /// Add a destination to favorites.
     /// </summary>
