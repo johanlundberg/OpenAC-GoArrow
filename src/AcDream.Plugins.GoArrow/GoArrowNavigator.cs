@@ -20,6 +20,9 @@ internal sealed class GoArrowNavigator : IDisposable
     private uint _activeInteractionObjectId;
     private long _lastActivationRevision;
     private long _lastTransitionRevision;
+    private double _legElapsed;
+    private int _legRetries;
+    private string _failureReason = string.Empty;
     private const string PluginOwner = "openac.goarrow";
 
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
@@ -33,6 +36,9 @@ internal sealed class GoArrowNavigator : IDisposable
 
     /// <summary>Whether the character is at the destination.</summary>
     public bool HasArrived { get; private set; }
+
+    /// <summary>Latest recoverable failure diagnostic for the panel.</summary>
+    public string FailureReason => _failureReason;
 
     public GoArrowNavigator(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
     {
@@ -129,6 +135,9 @@ internal sealed class GoArrowNavigator : IDisposable
         _activeInteractionObjectId = 0;
         _lastActivationRevision = 0;
         _lastTransitionRevision = 0;
+        _legElapsed = 0;
+        _legRetries = 0;
+        _failureReason = string.Empty;
     }
 
     /// <summary>
@@ -143,6 +152,26 @@ internal sealed class GoArrowNavigator : IDisposable
             "Current Position",
             _currentNavPosition.Value.NorthSouth,
             _currentNavPosition.Value.EastWest);
+
+        _legElapsed += Math.Max(0, elapsed);
+        var currentStep = _destination.CurrentRoute?.Steps.FirstOrDefault();
+        if (currentStep is not null && _legElapsed > _settings.InteractionTimeoutSeconds)
+        {
+            _failureReason = $"Timed out on {currentStep.Kind.ToString().ToLowerInvariant()} '{currentStep.Via}'.";
+            if (_legRetries < _settings.MaxNavigationRetries)
+            {
+                _legRetries++;
+                _legElapsed = 0;
+                StartCurrentLeg();
+            }
+            else
+            {
+                _isNavigating = false;
+                WaitingForInteraction = true;
+                _host.Automation.Chat.PostSystemMessage($"GoArrow: {_failureReason}");
+            }
+            return;
+        }
 
         // Update distance/bearing
         _destination.EstimatedDistance = currentLoc.DistanceTo(_destination.TargetLocation);
@@ -189,6 +218,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         var immediateTarget = step.To;
         _isNavigating = true;
+        _legElapsed = 0;
         var navPos = new PluginNavigationPosition(
             CellId: 0,
             EastWest: immediateTarget.Coords.EW,
@@ -239,8 +269,21 @@ internal sealed class GoArrowNavigator : IDisposable
             or PluginGoToState.Lost)
         {
             _lastHandledReportRevision = report.Revision;
+            if (report.State == PluginGoToState.Blocked && report.BlockedByObjectId != 0)
+            {
+                if (_host.Automation.Objects.TryGet(report.BlockedByObjectId, out PluginWorldObject blocked)
+                    && blocked.ObjectClass == PluginObjectClass.Door && !blocked.IsDoorOpen && blocked.CanActivate)
+                {
+                    _activeInteractionObjectId = blocked.ObjectId;
+                    WaitingForInteraction = true;
+                    _isNavigating = false;
+                    _host.Automation.Objects.Activate(blocked.ObjectId);
+                    return;
+                }
+            }
             _isNavigating = false;
-            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {report.Reason ?? "no reason"}.");
+            _failureReason = report.Reason ?? report.State.ToString();
+            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {_failureReason}.");
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigation stopped ({report.State}).");
         }
     }

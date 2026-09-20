@@ -100,7 +100,9 @@ internal sealed class GoArrowPanel
 
     public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
 
-    public string FailureDiagnostics => _navigator.LastReport;
+    public string FailureDiagnostics => string.IsNullOrEmpty(_navigator.FailureReason)
+        ? _navigator.LastReport
+        : _navigator.FailureReason;
 
     public void SubmitDestination()
     {
