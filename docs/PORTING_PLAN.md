@@ -53,7 +53,7 @@ The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal 
 - Basic route construction and route finding.
 - Optional `INavigationAutomation.GoTo` integration.
 - Headless/unavailable navigation degradation.
-- 96 automated route/data-model tests passing.
+- 98 automated route/data-model tests passing.
 
 ### Adapted
 
@@ -153,13 +153,14 @@ Implemented:
 - multi-hop walk routes;
 - route-start edges classified as walk, portal, recall, or lifestone;
 - route conversion into travel, portal, and recall steps;
+- explicit portal-device entrance/exit edges when records provide `Entrance`/`From` and `Exit`/`To` location names;
+- `PortalDevice.EntranceLocation` and `PortalDevice.ExitLocation` fields with CSV and XML support;
 - explicit pause/resume for portal and recall steps when no interaction API is available;
 - unreachable, retired, duplicate-name, and edge-case tests;
 - direct-walk fallback for destinations outside the graph.
 
 Missing or incomplete behavior:
 
-- explicit portal-device entrance and exit edges when records provide `Entrance`/`From` and `Exit`/`To` locations;
 - lifestone bind and lifestone tie state;
 - primary and secondary portal tie state;
 - house and mansion recall state;
@@ -175,9 +176,7 @@ Next work:
 1. Add supported portal, door, NPC, and recall interaction APIs.
 2. Make graph snapshots rebuild atomically when `/go update` or `/go file` replaces data.
 3. Add route cost policies for walking, recalls, portals, and unavailable actions.
-4. Expose route steps and the active leg in the panel.
-5. Integrate navigation reports so multi-leg routes advance reliably.
-6. Add route tests for portal transitions, alternate routes, and data reloads.
+4. Add route tests for portal transitions, alternate routes, and data reloads.
 
 ### 4. Commands
 
@@ -194,6 +193,7 @@ Currently implemented commands:
 - `/go status`;
 - `/go route` / `/go steps`;
 - `/go stop` / `/go cancel`;
+- `/go resume`;
 - `/go clear`;
 - `/go save <name>`;
 - `/go favorites` / `/go favs`;
@@ -240,22 +240,20 @@ Until those APIs exist, recall values should be manual or explicitly marked as i
 Current state:
 
 - `GoArrowNavigator` submits `GoTo` point requests for travel legs;
-- it consumes `NavigationChanged` and filters stale/duplicate reports;
-- it advances route steps on matching arrival states;
+- it consumes `NavigationChanged` events and filters stale reports by sequence number and revision;
+- it advances route steps on matching arrival states (`Arrived`, `ArrivedWithoutSight`);
+- it handles `NoRoute`, `Blocked`, `Interrupted`, and `Lost` failures;
 - it pauses at portal and recall legs and supports manual `/go resume` continuation;
 - it stops on completion, failure, or manual cancellation;
 - it handles unavailable/headless automation without throwing.
 
 Needs improvement:
 
-- request ownership and sequence validation;
-- event-driven `GoToReport` updates;
-- robust handling of `NoRoute`, `Blocked`, `Interrupted`, `Lost`, and `Waiting`;
-- portal-space transition recovery;
-- route-leg IDs and stale-report rejection;
+- portal-space transition detection and automatic route recovery;
 - object-target navigation;
 - interaction steps for portals, doors, and NPCs;
 - explicit acceptance/rejection handling from `GoTo`.
+- automatic portal execution via a supported interaction API.
 
 ### 7. Panel/UI
 
@@ -264,17 +262,18 @@ Current panel displays:
 - destination;
 - distance;
 - bearing;
-- navigation status;
+- navigation status (Idle, Ready, Navigating..., Waiting for interaction, Arrived!);
 - route-step count;
-- start/stop/clear actions;
+- current route leg;
+- host navigation report state;
+- start/stop/resume/clear actions;
 - basic display and recalculation toggles.
 
 Still needed:
 
 - destination text input;
 - location autocomplete;
-- route-step list;
-- selected/current leg display;
+- route-step list and current leg progress;
 - search results;
 - route profile editor;
 - validation/error display;
@@ -348,23 +347,28 @@ The provider should return a complete immutable snapshot. `LocationDatabase` sho
    - Finish destination-kind model and command parsing.
    - Add lifecycle, command, storage, and navigator tests.
    - Add route graph tests. **Done** — graph construction, A* routing, multi-hop paths, route-start edges, unreachable routes, and filtering are covered.
+   - Add multi-leg navigation tests. **Done** — report-driven leg advancement, stale report rejection, and failure state handling are covered.
+   - Add portal device edge tests. **Done** — entrance/exit metadata parsing and explicit portal graph edges are covered.
 
 2. **Complete location/route domain**
    - Finish original location types and route metadata.
-   - Add explicit portal and interaction edge types.
+   - Add explicit portal and interaction edge types. **Done** — `PortalDevice` supports `EntranceLocation`/`ExitLocation`; the graph builds explicit portal edges when these are present.
    - Add atomic graph rebuilds when location data is replaced.
    - Add custom/favorite/recent location persistence.
 
 3. **Navigation reliability**
-   - Add request ownership, sequence IDs, event-driven reports, and portal transition recovery.
-   - Add object interaction actions.
+   - ~~Add request ownership, sequence IDs, event-driven reports, and portal transition recovery.~~ **Done** — sequence validation, revision-based duplicate filtering, `NavigationChanged` subscription, and failure state handling are implemented.
+   - Add automatic portal interaction and portal-space transition recovery.
 
 4. **Recall/bind state**
    - Add semantic OpenAC recall and transition APIs.
    - Replace manual/chat-only values with authoritative state where available.
 
 5. **Panel parity**
-   - Add input, autocomplete, route list/editor, and binding refresh behavior.
+   - Add destination text input and location autocomplete.
+   - Add current leg progress to the route-step list.
+   - Add search results display.
+   - Add reliable binding invalidation on each tick.
 
 6. **External data provider**
    - Add opt-in, cached, validated provider for Atlas data only after licensing and schema policy are settled.
