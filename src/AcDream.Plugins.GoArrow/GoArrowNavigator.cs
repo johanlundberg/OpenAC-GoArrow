@@ -20,7 +20,7 @@ internal sealed class GoArrowNavigator : IDisposable
     private uint _activeInteractionObjectId;
     private long _lastActivationRevision;
     private long _lastTransitionRevision;
-    private const string PluginOwner = "AcDream.Plugins.GoArrow";
+    private const string PluginOwner = "openac.goarrow";
 
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
     public bool WaitingForInteraction { get; private set; }
@@ -53,6 +53,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _host.Events.NavigationChanged += OnNavigationChanged;
         _host.Events.ActivationCompleted += OnActivationCompleted;
         _host.Events.PortalTransition += OnPortalTransition;
+        _host.Events.ObjectChanged += OnObjectChanged;
         _navigationEventsSubscribed = true;
     }
 
@@ -64,6 +65,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _host.Events.NavigationChanged -= OnNavigationChanged;
         _host.Events.ActivationCompleted -= OnActivationCompleted;
         _host.Events.PortalTransition -= OnPortalTransition;
+        _host.Events.ObjectChanged -= OnObjectChanged;
         _navigationEventsSubscribed = false;
     }
 
@@ -318,6 +320,19 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
         ResumeAfterInteraction();
+    }
+
+    private void OnObjectChanged(PluginObjectChange change)
+    {
+        if (_destination.Kind != GoArrowDestinationKind.Object
+            || _destination.TargetObjectId != change.ObjectId)
+            return;
+        if (change.Kind == PluginObjectChangeKind.Released || change.Current is not { } current)
+        {
+            _destination.MarkObjectUnavailable();
+            return;
+        }
+        _destination.UpdateObject(current);
     }
 
     private void OnPortalTransition(PluginPortalTransition transition)

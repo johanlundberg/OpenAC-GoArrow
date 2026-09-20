@@ -25,6 +25,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private Action<double>? _tickHandler;
     private PluginChatCoordinateLinkRouter? _coordinateLinkRouter;
     private Action<SelectionChangedEvent>? _selectionChangedHandler;
+    private Action<PluginPortalTransition>? _portalTransitionHandler;
+    private long _recallRequestRevision;
 
     /// <summary>
     /// The name of the current destination, or empty.
@@ -96,6 +98,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 $"{coordinate.NorthSouth:0.###}N {coordinate.EastWest:0.###}E"));
         _selectionChangedHandler = OnSelectionChanged;
         _host.Selection.Changed += _selectionChangedHandler;
+        _portalTransitionHandler = OnPortalTransition;
+        _host.Events.PortalTransition += _portalTransitionHandler;
 
         // Subscribe to navigation reports and tick events
         _navigator?.Enable();
@@ -118,6 +122,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _coordinateLinkRouter?.Dispose();
         _coordinateLinkRouter = null;
         _selectionChangedHandler = null;
+        if (_host is not null && _portalTransitionHandler is not null)
+            _host.Events.PortalTransition -= _portalTransitionHandler;
+        _portalTransitionHandler = null;
 
         _navigator?.Disable();
         _navigator?.StopNavigation();
@@ -348,6 +355,49 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _settings?.Save(_host.Storage);
         if (_settings?.AutoNavigate == true)
             _navigator?.StartNavigation();
+    }
+
+    internal void Recall(string value)
+    {
+        if (_host is null)
+            return;
+        if (!Enum.TryParse(value, true, out PluginRecallKind kind))
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Recall must be lifestone, marketplace, house, mansion, or allegiance.");
+            return;
+        }
+        if (!_host.Automation.Recalls.IsAvailable)
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Recall is unavailable outside a live session.");
+            return;
+        }
+        PluginRecallResult result = _host.Automation.Recalls.Recall(kind);
+        if (!result.Accepted)
+        {
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Recall was not accepted ({result.Status}).");
+            return;
+        }
+        _recallRequestRevision = _host.Automation.Recalls.LastRequest.Revision;
+        _host.Automation.Chat.PostSystemMessage($"GoArrow: {kind} recall started.");
+    }
+
+    private void OnPortalTransition(PluginPortalTransition transition)
+    {
+        if (_host is null || !transition.IsCompleted || transition.RecallRequestRevision == 0
+            || transition.RecallRequestRevision != _recallRequestRevision)
+            return;
+        PluginRecallLocation known = _host.Automation.Recalls.CaptureLocations()
+            .FirstOrDefault(item => item.Kind == _host.Automation.Recalls.LastRequest.Kind && item.IsKnown);
+        if (!known.IsKnown)
+            return;
+        string value = $"{known.Position.NorthSouth.ToString(System.Globalization.CultureInfo.InvariantCulture)},{known.Position.EastWest.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        switch (known.Kind)
+        {
+            case PluginRecallKind.Lifestone: _settings!.LastPortalRecall = value; break;
+            case PluginRecallKind.Marketplace: _settings!.LastSecondaryRecall = value; break;
+            case PluginRecallKind.Allegiance: _settings!.LastAllegianceRecall = value; break;
+        }
+        _settings?.Save(_host.Storage);
     }
 
     internal bool SetSelectedObjectDestination()

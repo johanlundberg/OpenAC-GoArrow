@@ -172,8 +172,7 @@ internal sealed class GoArrowCommands
                 break;
 
             case "recall":
-                _plugin.SetDestination("Recall");
-                _host.Automation.Chat.PostSystemMessage("GoArrow: Navigating to recall location (use chat-based tracking).");
+                _plugin.Recall(args.Length > 1 ? args[1] : "lifestone");
                 break;
 
             default:
@@ -255,6 +254,11 @@ internal sealed class GoArrowCommands
     private void ShowStatus()
     {
         var dest = _plugin.CurrentDestinationName;
+        if (_host.Automation.Recalls.IsAvailable)
+        {
+            int known = _host.Automation.Recalls.CaptureLocations().Count(location => location.IsKnown);
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Recall destinations known: {known}.");
+        }
         if (string.IsNullOrEmpty(dest))
             _host.Automation.Chat.PostSystemMessage("GoArrow: No destination set. Use /go <name>");
         else

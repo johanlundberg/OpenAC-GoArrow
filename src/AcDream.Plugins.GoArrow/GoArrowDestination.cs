@@ -133,6 +133,24 @@ internal sealed class GoArrowDestination
             TargetUnavailable = true;
     }
 
+    /// <summary>Refreshes an object destination from a newer host snapshot.</summary>
+    public void UpdateObject(PluginWorldObject obj)
+    {
+        if (Kind != GoArrowDestinationKind.Object || TargetObjectId != obj.ObjectId)
+            return;
+        if (!obj.HasPosition)
+        {
+            MarkObjectUnavailable();
+            return;
+        }
+        TargetLocation = new RouteFinding.Location(
+            string.IsNullOrWhiteSpace(obj.Name) ? TargetLocation?.Name ?? "Object" : obj.Name,
+            obj.Position.NorthSouth,
+            obj.Position.EastWest);
+        TargetUnavailable = false;
+        CurrentRoute = null;
+    }
+
     /// <summary>
     /// Clear the current destination.
     /// </summary>
