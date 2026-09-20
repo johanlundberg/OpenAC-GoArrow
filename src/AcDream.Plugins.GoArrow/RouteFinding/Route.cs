@@ -44,6 +44,18 @@ public class Route
             PortalCount++;
     }
 
+    /// <summary>
+    /// Insert a step at the beginning of the route.
+    /// </summary>
+    public void PrependStep(RouteStep step)
+    {
+        _steps.Insert(0, step);
+        if (step.Kind == RouteStepKind.Travel)
+            TotalDistance += step.Distance;
+        if (step.Kind == RouteStepKind.Portal)
+            PortalCount++;
+    }
+
     public void AddTravelStep(Location from, Location to, string via = "")
     {
         double distance = from.Coords.DistanceTo(to.Coords);
