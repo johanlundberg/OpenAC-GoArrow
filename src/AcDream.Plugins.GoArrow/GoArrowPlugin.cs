@@ -110,7 +110,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         {
             _hud = new GoArrowHud(_host, _destination, _navigator, _settings!);
             _hud.Enable();
-            _map = new GoArrowMap(_host, _destination);
+            _map = new GoArrowMap(_host, _destination, _settings!);
             _map.Enable();
         }
         _tickHandler = OnTick;

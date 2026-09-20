@@ -22,6 +22,11 @@ public class GoArrowSettings
     public bool ToolbarVisible { get; set; } = true;
     public bool HudClickThrough { get; set; }
     public double HudScale { get; set; } = 1;
+    public bool MapVisible { get; set; } = true;
+    public double MapCenterEastWest { get; set; }
+    public double MapCenterNorthSouth { get; set; }
+    public double MapWidth { get; set; } = 1000;
+    public double MapHeight { get; set; } = 1000;
 
     // ── Navigation ─────────────────────────────────────────────────
     public double ArrivalDistance { get; set; } = 0.5;
@@ -62,6 +67,11 @@ public class GoArrowSettings
         storage.WriteText("toolbarVisible", ToolbarVisible.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("hudClickThrough", HudClickThrough.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("hudScale", HudScale.ToString("F3", CultureInfo.InvariantCulture));
+        storage.WriteText("mapVisible", MapVisible.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("mapCenterEW", MapCenterEastWest.ToString("F4", CultureInfo.InvariantCulture));
+        storage.WriteText("mapCenterNS", MapCenterNorthSouth.ToString("F4", CultureInfo.InvariantCulture));
+        storage.WriteText("mapWidth", MapWidth.ToString("F4", CultureInfo.InvariantCulture));
+        storage.WriteText("mapHeight", MapHeight.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("navigationLocked", NavigationLocked.ToString(CultureInfo.InvariantCulture));
@@ -95,6 +105,11 @@ public class GoArrowSettings
             ToolbarVisible = structured.ToolbarVisible;
             HudClickThrough = structured.HudClickThrough;
             HudScale = structured.HudScale > 0 ? structured.HudScale : 1;
+            MapVisible = structured.MapVisible;
+            MapCenterEastWest = structured.MapCenterEastWest;
+            MapCenterNorthSouth = structured.MapCenterNorthSouth;
+            MapWidth = structured.MapWidth > 0 ? structured.MapWidth : 1000;
+            MapHeight = structured.MapHeight > 0 ? structured.MapHeight : 1000;
             ArrivalDistance = structured.ArrivalDistance > 0 ? structured.ArrivalDistance : 0.5;
             UseNavigationAutomation = structured.UseNavigationAutomation;
             NavigationLocked = structured.NavigationLocked;
@@ -137,6 +152,12 @@ public class GoArrowSettings
         if (double.TryParse(storage.ReadText("hudScale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double hudScale)
             && hudScale > 0)
             HudScale = hudScale;
+        bool.TryParse(storage.ReadText("mapVisible"), out bool mapVisible);
+        MapVisible = mapVisible;
+        if (double.TryParse(storage.ReadText("mapCenterEW"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapEW)) MapCenterEastWest = mapEW;
+        if (double.TryParse(storage.ReadText("mapCenterNS"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapNS)) MapCenterNorthSouth = mapNS;
+        if (double.TryParse(storage.ReadText("mapWidth"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapWidth) && mapWidth > 0) MapWidth = mapWidth;
+        if (double.TryParse(storage.ReadText("mapHeight"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapHeight) && mapHeight > 0) MapHeight = mapHeight;
 
         double.TryParse(storage.ReadText("arrivalDistance"), NumberStyles.Float, CultureInfo.InvariantCulture, out double arrDist);
         ArrivalDistance = arrDist > 0 ? arrDist : 0.5;

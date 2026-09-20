@@ -8,20 +8,24 @@ internal sealed class GoArrowMap : IDisposable
 {
     private readonly IPluginHost _host;
     private readonly GoArrowDestination _destination;
+    private readonly GoArrowSettings _settings;
     private IPluginMapSurface? _map;
     private Action<double>? _tick;
 
-    public GoArrowMap(IPluginHost host, GoArrowDestination destination)
+    public GoArrowMap(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
     {
         _host = host;
         _destination = destination;
+        _settings = settings;
     }
 
     public void Enable()
     {
         if (!_host.HasUi || _map is not null)
             return;
-        var bounds = new PluginMapViewport(new PluginMapPoint(0, 0), 1000, 1000);
+        var bounds = new PluginMapViewport(
+            new PluginMapPoint(_settings.MapCenterEastWest, _settings.MapCenterNorthSouth),
+            _settings.MapWidth, _settings.MapHeight);
         _map = _host.Maps.AddMap("goarrow.dereth", bounds);
         _map.Input += OnInput;
         _tick = _ => Refresh();
@@ -31,12 +35,34 @@ internal sealed class GoArrowMap : IDisposable
 
     private void OnInput(PluginMapInput input)
     {
-        if (_map is null || input.Kind != PluginMapInputKind.Click || _map.Background is null)
+        if (_map is null)
+            return;
+        if (input.Kind == PluginMapInputKind.Wheel)
+        {
+            double factor = input.WheelDelta > 0 ? 0.9 : 1.1;
+            var view = _map.Viewport;
+            _map.Viewport = new PluginMapViewport(view.Center, view.Width * factor, view.Height * factor);
+            PersistViewport();
+            return;
+        }
+        if (input.Kind != PluginMapInputKind.Click || _map.Background is null)
             return;
         PluginMapPoint point = _map.Background.Coordinates.PixelToWorld(
             input.Position, _map.Background.PixelWidth, _map.Background.PixelHeight);
         _destination.SetCoordinate(point.NorthSouth, point.EastWest,
             $"{point.NorthSouth:0.###}N {point.EastWest:0.###}E");
+        PersistViewport();
+    }
+
+    private void PersistViewport()
+    {
+        if (_map is null) return;
+        var view = _map.Viewport;
+        _settings.MapCenterEastWest = view.Center.EastWest;
+        _settings.MapCenterNorthSouth = view.Center.NorthSouth;
+        _settings.MapWidth = view.Width;
+        _settings.MapHeight = view.Height;
+        _settings.Save(_host.Storage);
     }
 
     private void Refresh()
