@@ -15,7 +15,13 @@
       <label text="{Binding NavStatusText}" />
     </group>
     <group orientation="Horizontal">
+      <label text="Route:" />
       <label text="{Binding RouteStepsText}" />
+    </group>
+    <label text="{Binding CurrentLegText}" />
+    <group orientation="Horizontal">
+      <label text="Host:" />
+      <label text="{Binding NavigationReportText}" />
     </group>
   </group>
 

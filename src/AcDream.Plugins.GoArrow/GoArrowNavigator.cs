@@ -14,6 +14,9 @@ internal sealed class GoArrowNavigator : IDisposable
     private readonly GoArrowSettings _settings;
     private bool _isNavigating;
     private PluginNavigationPosition? _currentNavPosition;
+    private long _activeSequence;
+    private long _lastHandledReportRevision;
+    private bool _navigationEventsSubscribed;
 
     /// <summary>Whether navigation is currently active.</summary>
     public bool IsNavigating => _isNavigating;
@@ -29,6 +32,28 @@ internal sealed class GoArrowNavigator : IDisposable
         _host = host;
         _destination = destination;
         _settings = settings;
+    }
+
+    /// <summary>
+    /// Subscribe to report events while the plugin is enabled. Tick polling remains
+    /// as a compatibility fallback for hosts that do not emit navigation events.
+    /// </summary>
+    public void Enable()
+    {
+        if (_navigationEventsSubscribed)
+            return;
+
+        _host.Events.NavigationChanged += OnNavigationChanged;
+        _navigationEventsSubscribed = true;
+    }
+
+    public void Disable()
+    {
+        if (!_navigationEventsSubscribed)
+            return;
+
+        _host.Events.NavigationChanged -= OnNavigationChanged;
+        _navigationEventsSubscribed = false;
     }
 
     /// <summary>
@@ -71,6 +96,8 @@ internal sealed class GoArrowNavigator : IDisposable
 
         _isNavigating = true;
         HasArrived = false;
+        _activeSequence = 0;
+        _lastHandledReportRevision = 0;
 
         // Issue the GoTo command using OpenAC navigation coordinates
         // CellId=0 lets OpenAC resolve the position by map coordinates
@@ -82,7 +109,15 @@ internal sealed class GoArrowNavigator : IDisposable
             HeadingDegrees: 0f,
             IsOutdoor: true);
 
-        _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
+        var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
+        if (status != PluginNavigationCommandStatus.Accepted)
+        {
+            _isNavigating = false;
+            _host.Log.Warn($"GoArrow: Navigation request was {status}.");
+            return;
+        }
+
+        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
         _host.Log.Info($"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})");
     }
 
@@ -98,6 +133,8 @@ internal sealed class GoArrowNavigator : IDisposable
 
         _isNavigating = false;
         HasArrived = false;
+        _activeSequence = 0;
+        _lastHandledReportRevision = 0;
     }
 
     /// <summary>
@@ -118,11 +155,40 @@ internal sealed class GoArrowNavigator : IDisposable
         _destination.BearingDegrees = currentLoc.AngleTo(_destination.TargetLocation) * (180.0 / Math.PI);
 
         // Poll GoTo report for state changes
-        var goToReport = _host.Automation.Navigation.GoToReport;
-        if (goToReport.State == PluginGoToState.Arrived
-            || goToReport.State == PluginGoToState.ArrivedWithoutSight)
+        HandleNavigationReport(_host.Automation.Navigation.GoToReport);
+    }
+
+    private void OnNavigationChanged(PluginGoToReport report)
+    {
+        if (_isNavigating)
+            HandleNavigationReport(report);
+    }
+
+    private void HandleNavigationReport(PluginGoToReport report)
+    {
+        // Reports from another owner or an earlier GoTo must not advance this route.
+        if (_activeSequence != 0 && report.Sequence != 0 && report.Sequence != _activeSequence)
+            return;
+
+        if (report.Revision != 0 && report.Revision == _lastHandledReportRevision)
+            return;
+
+        if (report.State is PluginGoToState.Arrived or PluginGoToState.ArrivedWithoutSight)
         {
+            _lastHandledReportRevision = report.Revision;
             HandleWaypointReached();
+            return;
+        }
+
+        if (report.State is PluginGoToState.NoRoute
+            or PluginGoToState.Blocked
+            or PluginGoToState.Interrupted
+            or PluginGoToState.Lost)
+        {
+            _lastHandledReportRevision = report.Revision;
+            _isNavigating = false;
+            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {report.Reason ?? "no reason"}.");
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigation stopped ({report.State}).");
         }
     }
 
@@ -142,6 +208,7 @@ internal sealed class GoArrowNavigator : IDisposable
             HasArrived = true;
             _isNavigating = false;
             _host.Automation.Navigation.StopGoTo();
+            _activeSequence = 0;
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
             return;
         }
@@ -166,12 +233,21 @@ internal sealed class GoArrowNavigator : IDisposable
                 Elevation: double.NaN,
                 HeadingDegrees: 0f,
                 IsOutdoor: true);
-            _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
+            var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
+            if (status != PluginNavigationCommandStatus.Accepted)
+            {
+                _isNavigating = false;
+                _host.Log.Warn($"GoArrow: Next route leg was {status}.");
+                return;
+            }
+
+            _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
         }
     }
 
     public void Dispose()
     {
+        Disable();
         StopNavigation();
     }
 }
