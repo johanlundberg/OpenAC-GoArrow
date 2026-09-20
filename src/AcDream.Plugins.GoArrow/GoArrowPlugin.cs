@@ -46,6 +46,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         // ── Initialize database and load embedded data ──────────────
         _database = new LocationDatabase();
         LoadEmbeddedData();
+        LoadLayeredData();
         _atlasProvider = new WarcryAtlasDataProvider(host.Storage, url: _settings.ExternalDataUrl);
 
         // ── Initialize route finding ───────────────────────────────
@@ -495,6 +496,34 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // Tick navigator
         _navigator.OnTick(elapsed);
+    }
+
+    private void LoadLayeredData()
+    {
+        if (_host is null || _database is null)
+            return;
+        // The catalog returns the host's deterministic embedded/installed/user
+        // precedence order; later layers override earlier records.
+        foreach (string resourceId in _host.Resources.ListDataFiles("data")
+            .Where(id => id.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                using Stream? stream = _host.Resources.OpenRead(resourceId);
+                if (stream is null) continue;
+                using var reader = new StreamReader(stream);
+                string xml = reader.ReadToEnd();
+                var candidate = new LocationDatabase();
+                candidate.LoadLocationsXml(xml);
+                if (candidate.LocationCount == 0) continue;
+                _database.LoadLocationsXml(xml);
+                _host.Log.Info($"GoArrow: Loaded layered data '{resourceId}' ({candidate.LocationCount} locations).");
+            }
+            catch (Exception exception)
+            {
+                _host.Log.Warn($"GoArrow: Ignoring invalid layered data '{resourceId}': {exception.Message}");
+            }
+        }
     }
 
     private void LoadEmbeddedData()
