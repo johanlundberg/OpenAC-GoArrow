@@ -198,7 +198,8 @@ public sealed class RouteGraph
     /// distance heuristic. Returns the sequence of edges, or null if
     /// the destination is unreachable.
     /// </summary>
-    public List<RouteGraphEdge>? FindShortestPath(int fromIndex, int toIndex)
+    public List<RouteGraphEdge>? FindShortestPath(int fromIndex, int toIndex,
+        Func<RouteGraphEdge, double>? costSelector = null)
     {
         EnsureBuilt();
         if (fromIndex < 0 || fromIndex >= _locations.Count)
@@ -218,7 +219,7 @@ public sealed class RouteGraph
         Array.Fill(cameFrom, -1);
 
         gScore[fromIndex] = 0;
-        fScore[fromIndex] = Heuristic(fromIndex, toIndex);
+        fScore[fromIndex] = costSelector is null ? Heuristic(fromIndex, toIndex) : 0d;
 
         // Priority queue: (fScore, gScore, nodeIndex, tieBreaker)
         var open = new SortedSet<(double f, double g, int node, int tie)>();
@@ -246,7 +247,10 @@ public sealed class RouteGraph
                 if (closed.Contains(neighbor))
                     continue;
 
-                double tentativeG = gScore[current] + edge.Cost;
+                double edgeCost = costSelector?.Invoke(edge) ?? edge.Cost;
+                if (double.IsNaN(edgeCost) || edgeCost < 0)
+                    continue;
+                double tentativeG = gScore[current] + edgeCost;
                 if (tentativeG >= gScore[neighbor])
                     continue;
 
@@ -254,7 +258,7 @@ public sealed class RouteGraph
                 cameFrom[neighbor] = current;
                 cameFromEdge[neighbor] = edge;
                 gScore[neighbor] = tentativeG;
-                fScore[neighbor] = tentativeG + Heuristic(neighbor, toIndex);
+                fScore[neighbor] = tentativeG + (costSelector is null ? Heuristic(neighbor, toIndex) : 0d);
 
                 open.Add((fScore[neighbor], gScore[neighbor], neighbor, tieCounter++));
             }

@@ -23,6 +23,7 @@ public class GoArrowSettings
     public double ArrivalDistance { get; set; } = 0.5;
     public bool UseNavigationAutomation { get; set; } = true;
     public bool NavigationLocked { get; set; }
+    public RouteFinding.RouteCostProfile RouteCostProfile { get; set; } = RouteFinding.RouteCostProfile.ShortestWalk;
 
     // ── External data ──────────────────────────────────────────────
     /// <summary>Location-data URL used by the explicit update command.</summary>
@@ -53,6 +54,7 @@ public class GoArrowSettings
         storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("navigationLocked", NavigationLocked.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("routeCostProfile", RouteCostProfile.ToString());
         storage.WriteText("externalDataUrl", ExternalDataUrl);
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
@@ -78,6 +80,7 @@ public class GoArrowSettings
             ArrivalDistance = structured.ArrivalDistance > 0 ? structured.ArrivalDistance : 0.5;
             UseNavigationAutomation = structured.UseNavigationAutomation;
             NavigationLocked = structured.NavigationLocked;
+            RouteCostProfile = structured.RouteCostProfile;
             ExternalDataUrl = string.IsNullOrWhiteSpace(structured.ExternalDataUrl) ? ExternalDataUrl : structured.ExternalDataUrl;
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
@@ -112,6 +115,8 @@ public class GoArrowSettings
         UseNavigationAutomation = useNav;
         bool.TryParse(storage.ReadText("navigationLocked"), out bool navigationLocked);
         NavigationLocked = navigationLocked;
+        if (Enum.TryParse(storage.ReadText("routeCostProfile"), true, out RouteFinding.RouteCostProfile profile))
+            RouteCostProfile = profile;
 
         ExternalDataUrl = storage.ReadText("externalDataUrl")
             ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;

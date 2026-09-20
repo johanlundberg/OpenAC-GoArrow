@@ -178,7 +178,7 @@ internal sealed class GoArrowDestination
             return;
         }
 
-        CurrentRoute = _routeFinder.FindRoute(currentPosition, TargetLocation);
+        CurrentRoute = _routeFinder.FindRoute(currentPosition, TargetLocation, _settings.RouteCostProfile);
 
         EstimatedDistance = currentPosition.DistanceTo(TargetLocation);
         BearingDegrees = currentPosition.AngleTo(TargetLocation) * (180.0 / Math.PI);
