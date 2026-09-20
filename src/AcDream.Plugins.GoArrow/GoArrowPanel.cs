@@ -191,6 +191,9 @@ internal sealed class GoArrowPanel
     /// <summary>Clear destination.</summary>
     public Action ClearDestination => () => _plugin.ClearDestination();
 
+    public Action<int> RemoveRouteStep => index => _plugin.RemoveRouteStep(index);
+    public Action<int, int> MoveRouteStep => (from, to) => _plugin.MoveRouteStep(from, to);
+
     /// <summary>Show destination input hint.</summary>
     public Action ShowDestinationInput => () =>
         _host.Automation.Chat.PostSystemMessage("GoArrow: Use /go <destination> in chat to set a destination.");

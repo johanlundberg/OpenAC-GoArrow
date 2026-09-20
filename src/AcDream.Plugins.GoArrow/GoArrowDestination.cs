@@ -218,6 +218,10 @@ internal sealed class GoArrowDestination
             EstimatedDistance = 0;
     }
 
+    public bool RemoveRouteStep(int index) => CurrentRoute?.RemoveStep(index) == true;
+
+    public bool MoveRouteStep(int fromIndex, int toIndex) => CurrentRoute?.MoveStep(fromIndex, toIndex) == true;
+
     /// <summary>
     /// Get all known destination names.
     /// </summary>

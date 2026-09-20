@@ -73,6 +73,31 @@ public class Route
         AddStep(new RouteStep(RouteStepKind.Recall, from, to, 0, recallName));
     }
 
+    /// <summary>Removes one route step and rebuilds aggregate counters.</summary>
+    public bool RemoveStep(int index)
+    {
+        if (index < 0 || index >= _steps.Count) return false;
+        _steps.RemoveAt(index);
+        RecalculateTotals();
+        return true;
+    }
+
+    /// <summary>Moves a route step while preserving deterministic ordering.</summary>
+    public bool MoveStep(int fromIndex, int toIndex)
+    {
+        if (fromIndex < 0 || fromIndex >= _steps.Count || toIndex < 0 || toIndex >= _steps.Count) return false;
+        RouteStep step = _steps[fromIndex];
+        _steps.RemoveAt(fromIndex);
+        _steps.Insert(toIndex, step);
+        return true;
+    }
+
+    private void RecalculateTotals()
+    {
+        TotalDistance = _steps.Where(step => step.Kind == RouteStepKind.Travel).Sum(step => step.Distance);
+        PortalCount = _steps.Count(step => step.Kind == RouteStepKind.Portal);
+    }
+
     /// <summary>
     /// Clears all steps.
     /// </summary>

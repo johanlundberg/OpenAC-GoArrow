@@ -334,6 +334,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         return _settings?.FavoriteDestinations ?? new List<string>();
     }
 
+    internal bool RemoveRouteStep(int index) => _destination?.RemoveRouteStep(index) == true;
+
+    internal bool MoveRouteStep(int fromIndex, int toIndex) => _destination?.MoveRouteStep(fromIndex, toIndex) == true;
+
     internal IReadOnlyList<string> GetCurrentRouteSteps()
     {
         return _destination?.CurrentRoute?.Steps
