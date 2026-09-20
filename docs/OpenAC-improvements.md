@@ -1186,10 +1186,12 @@ The following order gives the highest value to GoArrow and other navigation plug
 
 ## Phase 1: Contract and test foundations
 
-1. Document threading and lifecycle rules.
-2. Add fake host, fake storage, fake chat, fake navigation, and fake UI fixtures.
-3. Add contract tests for inert hosts, disposal, event ordering, and command registration.
-4. Standardize the supported test SDK and package versions.
+1. ~~Document threading and lifecycle rules.~~ **Done** — every abstraction's XML doc now documents its threading contract: `IEvents` describes the update thread, exception isolation, and reentry rules; `INavigationAutomation` documents snapshot threading; `IAutomationSurface` documents per-area threading; lifecycle rules are documented on `IAcDreamPlugin`.
+2. ~~Add fake host, fake storage, fake chat, fake navigation, and fake UI fixtures.~~ **Done** — `AcDream.Plugin.Tests.Fixtures` ships `FakePluginHost`, `FakePluginStorage`, `FakePluginCommandRegistry`, `FakeEvents`, `FakePluginChat`, `FakeNavigationAutomation`, and `FakeAutomationSurface`. Every fixture is settable, inspectable, and isolates callers.
+3. ~~Add contract tests for inert hosts, disposal, event ordering, and command registration.~~ **Done** — `AcDream.Plugin.Tests` contains `FakePluginHostContractTests` (29 tests) covering: default/inert values, read/write storage round-trips, event fire/unsubscribe, exception isolation, command registration/dispose/invoke, chat capture and link-click routing, navigation snapshot/command/event delivery, and logger capture.
+4. ~~Standardize the supported test SDK and package versions.~~ **Done** — `Directory.Packages.props` centrally manages all package versions (xUnit 3.2.2, Microsoft.NET.Test.Sdk 17.14.1, coverlet 6.0.4).
+
+All Phase 1 deliverables are checked in and the full solution builds clean.
 
 ## Phase 2: Navigation reliability
 
@@ -1199,9 +1201,9 @@ The plugin now has a graph-based route planner, but navigation still executes on
 2. ~~Add request ownership and cancellation rules.~~ **Done** — navigation requests are owner-scoped, competing plugin requests are held, and releasing a plugin cancels its walk and pauses.
 3. ~~Add portal-space and position-change events.~~ **Done** — `INavigationAutomation.SnapshotChanged` publishes revisioned navigation snapshots on graphical and headless hosts.
 4. ~~Define coordinate units, elevation behavior, and `CellId = 0` semantics.~~ **Done** — `PluginNavigationPosition` documents 240-meter map units, elevation, and zero-cell point semantics.
-5. ~~Add blocked, interrupted, unavailable, and arrival integration tests.~~ **Done** — navigation ownership and report behavior are covered by focused runtime navigation tests.
+5. ~~Add blocked, interrupted, unavailable, and arrival integration tests.~~ **Done** — navigation ownership and report behavior are covered by focused runtime navigation tests, including terminal `NoRoute`, `Blocked`, `Stopped`, `Interrupted`, and `Lost` projections. The out-of-sight arrival test now uses an impassable wall extending beyond the floor, preventing the solver from routing around the test geometry; the portable gate passes with 8,281 tests.
 
-This phase should make the existing GoArrow core route walker reliable without adding rendering. The next GoArrow-specific increment is to connect graph route steps to navigation reports and expose the active route leg in the panel.
+This phase should make the existing GoArrow core route walker reliable without adding rendering. **Phase 2 is complete on the current navigation-reliability branch.**
 
 ## Phase 3: World interaction and semantic state
 
