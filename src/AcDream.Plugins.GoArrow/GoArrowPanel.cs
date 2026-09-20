@@ -104,6 +104,10 @@ internal sealed class GoArrowPanel
         ? _navigator.LastReport
         : _navigator.FailureReason;
 
+    public string ProgressText => _destination.CurrentRoute is { } route
+        ? $"Leg {_navigator.LegIndex + 1}/{Math.Max(1, route.StepCount)}"
+        : "No route";
+
     public void SubmitDestination()
     {
         if (string.IsNullOrWhiteSpace(DestinationInput))

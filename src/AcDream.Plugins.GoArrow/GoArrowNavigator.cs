@@ -23,6 +23,9 @@ internal sealed class GoArrowNavigator : IDisposable
     private double _legElapsed;
     private int _legRetries;
     private string _failureReason = string.Empty;
+    private Guid _routeId;
+    private int _legIndex;
+    private long _transitionGeneration;
     private const string PluginOwner = "openac.goarrow";
 
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
@@ -39,6 +42,9 @@ internal sealed class GoArrowNavigator : IDisposable
 
     /// <summary>Latest recoverable failure diagnostic for the panel.</summary>
     public string FailureReason => _failureReason;
+    public Guid RouteId => _routeId;
+    public int LegIndex => _legIndex;
+    public long TransitionGeneration => _transitionGeneration;
 
     public GoArrowNavigator(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
     {
@@ -114,6 +120,9 @@ internal sealed class GoArrowNavigator : IDisposable
         WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
+        _routeId = Guid.NewGuid();
+        _legIndex = 0;
+        _transitionGeneration = 0;
         StartCurrentLeg();
     }
 
@@ -138,6 +147,9 @@ internal sealed class GoArrowNavigator : IDisposable
         _legElapsed = 0;
         _legRetries = 0;
         _failureReason = string.Empty;
+        _routeId = Guid.Empty;
+        _legIndex = 0;
+        _transitionGeneration = 0;
     }
 
     /// <summary>
@@ -212,6 +224,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (step.Kind != RouteStepKind.Travel)
         {
+            _transitionGeneration++;
             TryStartInteraction(step);
             return;
         }
@@ -298,6 +311,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         // Advance to next step
         _destination.AdvanceStep();
+        _legIndex++;
         if (_destination.CurrentRoute == null || _destination.CurrentRoute.StepCount == 0)
         {
             // Arrived at final destination
