@@ -97,6 +97,10 @@ internal sealed class GoArrowCommands
                 _host.Automation.Chat.PostSystemMessage("GoArrow: Navigation stopped.");
                 break;
 
+            case "resume":
+                _plugin.ResumeNavigation();
+                break;
+
             case "status":
                 ShowStatus();
                 break;
@@ -213,6 +217,7 @@ internal sealed class GoArrowCommands
                "  /go search <term> - Search locations\n" +
                "  /go status - Show current destination\n" +
                "  /go stop - Stop navigation\n" +
+               "  /go resume - Resume after a portal or recall interaction\n" +
                "  /go clear - Clear destination\n" +
                "  /go save <name> - Save location as favorite\n" +
                "  /go favorites - List favorites\n" +

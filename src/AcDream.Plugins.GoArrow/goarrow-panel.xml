@@ -29,6 +29,7 @@
     <group orientation="Horizontal">
       <button text="Go" action="{Binding StartNavigation}" enabled="{Binding HasDestination}" />
       <button text="Stop" action="{Binding StopNavigation}" enabled="{Binding IsNavigating}" />
+      <button text="Resume" action="{Binding ResumeNavigation}" enabled="{Binding WaitingForInteraction}" />
       <button text="Clear" action="{Binding ClearDestination}" enabled="{Binding HasDestination}" />
     </group>
     <group orientation="Horizontal">
