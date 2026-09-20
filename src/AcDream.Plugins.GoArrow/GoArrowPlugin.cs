@@ -19,6 +19,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private GoArrowNavigator? _navigator;
     private GoArrowCommands? _commands;
     private GoArrowPanel? _panel;
+    private GoArrowHud? _hud;
+    private GoArrowMap? _map;
     private WarcryAtlasDataProvider? _atlasProvider;
     private int _atlasUpdateInProgress;
     private IDisposable? _commandRegistration;
@@ -103,6 +105,13 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // Subscribe to navigation reports and tick events
         _navigator?.Enable();
+        if (_destination is not null && _navigator is not null)
+        {
+            _hud = new GoArrowHud(_host, _destination, _navigator);
+            _hud.Enable();
+            _map = new GoArrowMap(_host, _destination);
+            _map.Enable();
+        }
         _tickHandler = OnTick;
         _host.Events.Tick += _tickHandler;
 
@@ -126,6 +135,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _host.Events.PortalTransition -= _portalTransitionHandler;
         _portalTransitionHandler = null;
 
+        _map?.Dispose();
+        _map = null;
+        _hud?.Dispose();
+        _hud = null;
         _navigator?.Disable();
         _navigator?.StopNavigation();
         _commandRegistration?.Dispose();

@@ -91,6 +91,31 @@ internal sealed class GoArrowPanel
     /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
 
+    /// <summary>Editable destination input used by panel hosts that support text controls.</summary>
+    public string DestinationInput { get; set; } = string.Empty;
+
+    public IReadOnlyList<string> DestinationSuggestions => string.IsNullOrWhiteSpace(DestinationInput)
+        ? Array.Empty<string>()
+        : _plugin.SearchLocations(DestinationInput).Take(12).Select(location => location.Name).ToArray();
+
+    public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
+
+    public string FailureDiagnostics => _navigator.LastReport;
+
+    public void SubmitDestination()
+    {
+        if (string.IsNullOrWhiteSpace(DestinationInput))
+            return;
+        if (!_plugin.TrySetCoordinateDestination(DestinationInput))
+            _plugin.SetDestination(DestinationInput.Trim());
+    }
+
+    public void SelectSuggestion(string name)
+    {
+        DestinationInput = name;
+        SubmitDestination();
+    }
+
     // ── Toggle settings ─────────────────────────────────────────────
 
     public bool AutoNavigate

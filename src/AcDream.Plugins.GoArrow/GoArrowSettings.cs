@@ -39,6 +39,9 @@ public class GoArrowSettings
 
     public void Save(IPluginStorage storage)
     {
+        // Keep the legacy keys for older installations while using one atomic
+        // structured document for new hosts.
+        storage.WriteJson("settings.json", this);
         storage.WriteText("destination", DestinationName);
         storage.WriteText("autoNavigate", AutoNavigate.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("recalculate", RecalculateRoute.ToString(CultureInfo.InvariantCulture));
@@ -57,6 +60,28 @@ public class GoArrowSettings
 
     public void Load(IPluginStorage storage)
     {
+        GoArrowSettings? structured = null;
+        try { structured = storage.ReadJson<GoArrowSettings>("settings.json"); }
+        catch (Exception) { /* malformed structured data falls back to legacy keys */ }
+        if (structured is not null)
+        {
+            DestinationName = structured.DestinationName;
+            AutoNavigate = structured.AutoNavigate;
+            RecalculateRoute = structured.RecalculateRoute;
+            PanelVisible = structured.PanelVisible;
+            ShowDistance = structured.ShowDistance;
+            ShowBearing = structured.ShowBearing;
+            ArrivalDistance = structured.ArrivalDistance > 0 ? structured.ArrivalDistance : 0.5;
+            UseNavigationAutomation = structured.UseNavigationAutomation;
+            NavigationLocked = structured.NavigationLocked;
+            ExternalDataUrl = string.IsNullOrWhiteSpace(structured.ExternalDataUrl) ? ExternalDataUrl : structured.ExternalDataUrl;
+            LastPortalRecall = structured.LastPortalRecall;
+            LastSecondaryRecall = structured.LastSecondaryRecall;
+            LastAllegianceRecall = structured.LastAllegianceRecall;
+            FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
+            return;
+        }
+
         DestinationName = storage.ReadText("destination") ?? string.Empty;
 
         bool.TryParse(storage.ReadText("autoNavigate"), out bool autoNav);
