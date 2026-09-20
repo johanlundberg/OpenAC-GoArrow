@@ -22,6 +22,7 @@ public class GoArrowSettings
     // ── Navigation ─────────────────────────────────────────────────
     public double ArrivalDistance { get; set; } = 0.5;
     public bool UseNavigationAutomation { get; set; } = true;
+    public bool NavigationLocked { get; set; }
 
     // ── External data ──────────────────────────────────────────────
     /// <summary>Location-data URL used by the explicit update command.</summary>
@@ -46,6 +47,7 @@ public class GoArrowSettings
         storage.WriteText("showBearing", ShowBearing.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("navigationLocked", NavigationLocked.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("externalDataUrl", ExternalDataUrl);
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
@@ -77,6 +79,8 @@ public class GoArrowSettings
 
         bool.TryParse(storage.ReadText("useNavigation"), out bool useNav);
         UseNavigationAutomation = useNav;
+        bool.TryParse(storage.ReadText("navigationLocked"), out bool navigationLocked);
+        NavigationLocked = navigationLocked;
 
         ExternalDataUrl = storage.ReadText("externalDataUrl")
             ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;

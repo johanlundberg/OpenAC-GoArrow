@@ -23,6 +23,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private int _atlasUpdateInProgress;
     private IDisposable? _commandRegistration;
     private Action<double>? _tickHandler;
+    private PluginChatCoordinateLinkRouter? _coordinateLinkRouter;
+    private Action<SelectionChangedEvent>? _selectionChangedHandler;
 
     /// <summary>
     /// The name of the current destination, or empty.
@@ -87,6 +89,14 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             "go",
             cmd => _commands?.HandleCommand(cmd));
 
+        // Coordinate links are host-owned events; the router is disposed with the plugin.
+        _coordinateLinkRouter = new PluginChatCoordinateLinkRouter(
+            _host.Automation.Chat,
+            coordinate => SetCoordinateDestination(coordinate.NorthSouth, coordinate.EastWest,
+                $"{coordinate.NorthSouth:0.###}N {coordinate.EastWest:0.###}E"));
+        _selectionChangedHandler = OnSelectionChanged;
+        _host.Selection.Changed += _selectionChangedHandler;
+
         // Subscribe to navigation reports and tick events
         _navigator?.Enable();
         _tickHandler = OnTick;
@@ -102,6 +112,12 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_host is not null && _tickHandler is not null)
             _host.Events.Tick -= _tickHandler;
+
+        if (_host is not null && _selectionChangedHandler is not null)
+            _host.Selection.Changed -= _selectionChangedHandler;
+        _coordinateLinkRouter?.Dispose();
+        _coordinateLinkRouter = null;
+        _selectionChangedHandler = null;
 
         _navigator?.Disable();
         _navigator?.StopNavigation();
@@ -306,14 +322,63 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         return _routeFinder.SearchLocations(query);
     }
 
-    internal string CurrentPositionText()
+    internal string CurrentPositionText(string prefix = "GoArrow: Current position")
     {
         if (_host is null || !_host.Automation.IsAvailable)
-            return "GoArrow: Current position is unavailable (not in world).";
+            return $"{prefix} is unavailable (not in world).";
 
         var position = _host.Automation.Navigation.Snapshot.Position;
         var coordinates = new Coordinates(position.NorthSouth, position.EastWest);
-        return $"GoArrow: Current position: {coordinates}";
+        return $"{prefix}: {coordinates}";
+    }
+
+    internal bool TrySetCoordinateDestination(string text)
+    {
+        if (!PluginChatCoordinateParser.TryParse(text, out PluginChatCoordinate coordinate))
+            return false;
+        SetCoordinateDestination(coordinate.NorthSouth, coordinate.EastWest, text);
+        return true;
+    }
+
+    private void SetCoordinateDestination(double northSouth, double eastWest, string displayText)
+    {
+        if (_destination is null || _host is null)
+            return;
+        _destination.SetCoordinate(northSouth, eastWest, displayText);
+        _settings?.Save(_host.Storage);
+        if (_settings?.AutoNavigate == true)
+            _navigator?.StartNavigation();
+    }
+
+    internal bool SetSelectedObjectDestination()
+    {
+        if (_host is null || !_host.Automation.IsAvailable || _destination is null)
+            return false;
+        uint? selected = _host.Selection.SelectedObjectId;
+        if (selected is not { } objectId
+            || !_host.Automation.Objects.TryGet(objectId, out PluginWorldObject obj)
+            || !_destination.SetObject(obj))
+            return false;
+        _settings?.Save(_host.Storage);
+        if (_settings?.AutoNavigate == true)
+            _navigator?.StartNavigation();
+        return true;
+    }
+
+    internal void SetNavigationLock(bool locked)
+    {
+        if (_settings is null || _host is null)
+            return;
+        _settings.NavigationLocked = locked;
+        _settings.Save(_host.Storage);
+    }
+
+    private void OnSelectionChanged(SelectionChangedEvent change)
+    {
+        if (_destination?.Kind == GoArrowDestinationKind.Object
+            && _destination.TargetObjectId is { } target
+            && change.SelectedObjectId != target)
+            _destination.MarkObjectUnavailable();
     }
 
     internal string DestinationPositionText()

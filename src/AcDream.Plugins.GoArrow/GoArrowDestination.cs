@@ -1,6 +1,17 @@
+using AcDream.Plugin.Abstractions;
 using AcDream.Plugins.GoArrow.RouteFinding;
 
 namespace AcDream.Plugins.GoArrow;
+
+/// <summary>Identifies the semantic source of a GoArrow destination.</summary>
+internal enum GoArrowDestinationKind
+{
+    Location,
+    Coordinates,
+    Object,
+    Route,
+    Recall
+}
 
 /// <summary>
 /// Destination tracking and navigation state for GoArrow.
@@ -14,6 +25,18 @@ internal sealed class GoArrowDestination
 
     /// <summary>The current destination location, if set.</summary>
     public RouteFinding.Location? TargetLocation { get; private set; }
+
+    /// <summary>The semantic kind of the current destination.</summary>
+    public GoArrowDestinationKind Kind { get; private set; } = GoArrowDestinationKind.Location;
+
+    /// <summary>Original coordinate text used to create a coordinate destination.</summary>
+    public string CoordinateText { get; private set; } = string.Empty;
+
+    /// <summary>Selected object id when this is an object destination.</summary>
+    public uint? TargetObjectId { get; private set; }
+
+    /// <summary>Whether an object destination no longer has a live position.</summary>
+    public bool TargetUnavailable { get; private set; }
 
     /// <summary>The current computed route, if any.</summary>
     public Route? CurrentRoute { get; private set; }
@@ -48,6 +71,10 @@ internal sealed class GoArrowDestination
             return false;
 
         TargetLocation = loc;
+        Kind = GoArrowDestinationKind.Location;
+        CoordinateText = string.Empty;
+        TargetObjectId = null;
+        TargetUnavailable = false;
         _settings.DestinationName = loc.Name;
         CurrentRoute = null;
         return true;
@@ -59,8 +86,51 @@ internal sealed class GoArrowDestination
     public void SetDestination(RouteFinding.Location location)
     {
         TargetLocation = location;
+        Kind = GoArrowDestinationKind.Location;
+        CoordinateText = string.Empty;
+        TargetObjectId = null;
+        TargetUnavailable = false;
         _settings.DestinationName = location.Name;
         CurrentRoute = null;
+    }
+
+    /// <summary>Sets a destination at an arbitrary coordinate.</summary>
+    public void SetCoordinate(double northSouth, double eastWest, string? displayText = null)
+    {
+        CoordinateText = string.IsNullOrWhiteSpace(displayText)
+            ? $"{northSouth:0.###}N {eastWest:0.###}E"
+            : displayText.Trim();
+        TargetLocation = new RouteFinding.Location(CoordinateText, northSouth, eastWest);
+        Kind = GoArrowDestinationKind.Coordinates;
+        TargetObjectId = null;
+        TargetUnavailable = false;
+        _settings.DestinationName = CoordinateText;
+        CurrentRoute = null;
+    }
+
+    /// <summary>Sets a destination from a selected world object snapshot.</summary>
+    public bool SetObject(PluginWorldObject obj)
+    {
+        if (obj.ObjectId == 0 || !obj.HasPosition)
+            return false;
+        TargetLocation = new RouteFinding.Location(
+            string.IsNullOrWhiteSpace(obj.Name) ? $"Object 0x{obj.ObjectId:X8}" : obj.Name,
+            obj.Position.NorthSouth,
+            obj.Position.EastWest);
+        Kind = GoArrowDestinationKind.Object;
+        TargetObjectId = obj.ObjectId;
+        TargetUnavailable = false;
+        CoordinateText = string.Empty;
+        _settings.DestinationName = TargetLocation.Name;
+        CurrentRoute = null;
+        return true;
+    }
+
+    /// <summary>Marks an object target unavailable when its snapshot disappears.</summary>
+    public void MarkObjectUnavailable()
+    {
+        if (Kind == GoArrowDestinationKind.Object)
+            TargetUnavailable = true;
     }
 
     /// <summary>
@@ -69,6 +139,10 @@ internal sealed class GoArrowDestination
     public void ClearDestination()
     {
         TargetLocation = null;
+        Kind = GoArrowDestinationKind.Location;
+        CoordinateText = string.Empty;
+        TargetObjectId = null;
+        TargetUnavailable = false;
         _settings.DestinationName = string.Empty;
         CurrentRoute = null;
         EstimatedDistance = double.NaN;

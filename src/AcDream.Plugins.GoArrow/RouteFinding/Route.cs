@@ -1,4 +1,5 @@
 using System.Globalization;
+using AcDream.Plugin.Abstractions;
 
 namespace AcDream.Plugins.GoArrow.RouteFinding;
 
@@ -102,6 +103,12 @@ public class RouteStep
     public Location To { get; }
     public double Distance { get; }
     public string Via { get; }
+
+    /// <summary>Semantic object/action metadata for interaction-driven legs.</summary>
+    public uint ObjectId { get; init; }
+    public PluginObjectCapabilities ObjectCapabilities { get; init; }
+    public TimeSpan InteractionTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    public int MaxRetries { get; init; } = 1;
 
     public RouteStep(RouteStepKind kind, Location from, Location to, double distance, string via)
     {

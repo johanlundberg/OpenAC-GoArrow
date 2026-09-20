@@ -17,6 +17,10 @@ internal sealed class GoArrowNavigator : IDisposable
     private long _activeSequence;
     private long _lastHandledReportRevision;
     private bool _navigationEventsSubscribed;
+    private uint _activeInteractionObjectId;
+    private long _lastActivationRevision;
+    private long _lastTransitionRevision;
+    private const string PluginOwner = "AcDream.Plugins.GoArrow";
 
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
     public bool WaitingForInteraction { get; private set; }
@@ -47,6 +51,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
 
         _host.Events.NavigationChanged += OnNavigationChanged;
+        _host.Events.ActivationCompleted += OnActivationCompleted;
+        _host.Events.PortalTransition += OnPortalTransition;
         _navigationEventsSubscribed = true;
     }
 
@@ -56,6 +62,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
 
         _host.Events.NavigationChanged -= OnNavigationChanged;
+        _host.Events.ActivationCompleted -= OnActivationCompleted;
+        _host.Events.PortalTransition -= OnPortalTransition;
         _navigationEventsSubscribed = false;
     }
 
@@ -116,6 +124,9 @@ internal sealed class GoArrowNavigator : IDisposable
         WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
+        _activeInteractionObjectId = 0;
+        _lastActivationRevision = 0;
+        _lastTransitionRevision = 0;
     }
 
     /// <summary>
@@ -170,9 +181,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (step.Kind != RouteStepKind.Travel)
         {
-            WaitingForInteraction = true;
-            _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Route requires {step.Kind.ToString().ToLowerInvariant()} '{step.Via}' at {step.From.Name}. Complete it, then use /go resume.");
+            TryStartInteraction(step);
             return;
         }
 
@@ -207,6 +216,8 @@ internal sealed class GoArrowNavigator : IDisposable
     private void HandleNavigationReport(PluginGoToReport report)
     {
         // Reports from another owner or an earlier GoTo must not advance this route.
+        if (report.Owner is not null && !report.Owner.Equals(PluginOwner, StringComparison.OrdinalIgnoreCase))
+            return;
         if (_activeSequence != 0 && report.Sequence != 0 && report.Sequence != _activeSequence)
             return;
 
@@ -256,6 +267,66 @@ internal sealed class GoArrowNavigator : IDisposable
         // Continue to the next leg. Keep the planned route intact so a
         // portal/recall step is not lost during recalculation.
         StartCurrentLeg();
+    }
+
+    private void TryStartInteraction(RouteStep step)
+    {
+        _isNavigating = false;
+        _activeInteractionObjectId = step.ObjectId;
+        if (_activeInteractionObjectId == 0)
+        {
+            PluginObjectCapabilities required = step.Kind == RouteStepKind.Portal
+                ? PluginObjectCapabilities.Portal
+                : PluginObjectCapabilities.Interactable;
+            var candidate = _host.Automation.Objects.CaptureObjects()
+                .FirstOrDefault(obj => (obj.Capabilities & required) != 0
+                    && (string.IsNullOrWhiteSpace(step.Via)
+                        || obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase)));
+            _activeInteractionObjectId = candidate.ObjectId;
+        }
+
+        if (_activeInteractionObjectId == 0)
+        {
+            WaitingForInteraction = true;
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Could not identify {step.Kind.ToString().ToLowerInvariant()} '{step.Via}'. Complete it manually, then use /go resume.");
+            return;
+        }
+
+        var result = _host.Automation.Objects.Activate(_activeInteractionObjectId);
+        if (!result.Accepted)
+        {
+            WaitingForInteraction = true;
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Interaction with '{step.Via}' was not accepted ({result.Status}); use /go resume if completed manually.");
+            return;
+        }
+        WaitingForInteraction = true;
+        _host.Automation.Chat.PostSystemMessage($"GoArrow: Activating '{step.Via}'.");
+    }
+
+    private void OnActivationCompleted(PluginActivationCompletion completion)
+    {
+        if (!WaitingForInteraction || completion.ObjectId != _activeInteractionObjectId
+            || completion.Revision == 0 || completion.Revision <= _lastActivationRevision)
+            return;
+        _lastActivationRevision = completion.Revision;
+        if (!completion.IsSuccess)
+        {
+            _host.Log.Warn($"GoArrow: Interaction failed ({completion.Outcome}) for object 0x{completion.ObjectId:X8}.");
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Interaction failed ({completion.Outcome}); use /go resume to retry.");
+            return;
+        }
+        ResumeAfterInteraction();
+    }
+
+    private void OnPortalTransition(PluginPortalTransition transition)
+    {
+        if (!WaitingForInteraction || transition.Revision == 0
+            || transition.Revision <= _lastTransitionRevision || !transition.IsCompleted)
+            return;
+        _lastTransitionRevision = transition.Revision;
+        ResumeAfterInteraction();
     }
 
     public void Dispose()

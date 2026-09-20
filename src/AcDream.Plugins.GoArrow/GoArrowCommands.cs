@@ -23,9 +23,16 @@ internal sealed class GoArrowCommands
     /// </summary>
     public void HandleCommand(PluginCommand cmd)
     {
-        var args = string.IsNullOrEmpty(cmd.Arguments)
-            ? Array.Empty<string>()
-            : cmd.Arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] args;
+        try
+        {
+            args = cmd.ParseArguments().ToArray();
+        }
+        catch (FormatException exception)
+        {
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: {exception.Message}");
+            return;
+        }
 
         if (args.Length == 0)
         {
@@ -48,6 +55,43 @@ internal sealed class GoArrowCommands
             case "search":
             case "find":
                 SearchDestinations(args.Length > 1 ? string.Join(" ", args.Skip(1)) : string.Empty);
+                break;
+
+            case "to":
+                SetExplicitDestination(args.Skip(1));
+                break;
+
+            case "from":
+            case "start":
+                _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText("GoArrow: Route origin"));
+                break;
+
+            case "end":
+                _plugin.StopNavigation();
+                _host.Automation.Chat.PostSystemMessage("GoArrow: Current route leg ended; use /go resume to continue.");
+                break;
+
+            case "reset":
+                _plugin.ClearDestination();
+                _host.Automation.Chat.PostSystemMessage("GoArrow: Route reset.");
+                break;
+
+            case "lock":
+                _plugin.SetNavigationLock(true);
+                _host.Automation.Chat.PostSystemMessage("GoArrow: Navigation locked.");
+                break;
+
+            case "unlock":
+                _plugin.SetNavigationLock(false);
+                _host.Automation.Chat.PostSystemMessage("GoArrow: Navigation unlocked.");
+                break;
+
+            case "selected":
+            case "attach":
+                if (_plugin.SetSelectedObjectDestination())
+                    _host.Automation.Chat.PostSystemMessage("GoArrow: Selected object attached as destination.");
+                else
+                    _host.Automation.Chat.PostSystemMessage("GoArrow: Selected object is unavailable or has no position.");
                 break;
 
             case "loc":
@@ -133,6 +177,13 @@ internal sealed class GoArrowCommands
                 break;
 
             default:
+                // Coordinates are accepted as the unquoted shorthand /go 42.1N 33.6E.
+                if (_plugin.TrySetCoordinateDestination(string.Join(" ", args)))
+                {
+                    _host.Automation.Chat.PostSystemMessage("GoArrow: Coordinate destination set.");
+                    break;
+                }
+
                 // Treat as a destination name (may be multi-word)
                 var destName = string.Join(" ", args).Trim();
                 if (!string.IsNullOrEmpty(destName))
@@ -144,6 +195,25 @@ internal sealed class GoArrowCommands
                 }
                 break;
         }
+    }
+
+    private void SetExplicitDestination(IEnumerable<string> values)
+    {
+        string text = string.Join(" ", values).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Usage: /go to <location|coordinates|here>");
+            return;
+        }
+        if (text.Equals("here", StringComparison.OrdinalIgnoreCase))
+        {
+            _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText("GoArrow: Current position"));
+            return;
+        }
+        if (_plugin.TrySetCoordinateDestination(text) || _plugin.SetDestination(text))
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Destination set.");
+        else
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{text}' not found.");
     }
 
     private void ListDestinations()
