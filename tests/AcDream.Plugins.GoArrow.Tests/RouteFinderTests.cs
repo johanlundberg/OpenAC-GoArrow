@@ -85,15 +85,20 @@ public class RouteFinderTests
     }
 
     [Fact]
-    public void RouteFinder_FindPortalDevicesNear_ReturnsMatching()
+    public void RouteFinder_GraphBasedRoute_UsesWalkEdges()
     {
         var (db, finder) = CreateTestDb();
-        var nearPortalDest = new Location("Near Portal", 5, 5);
+        // TownA (0,0) and TownB (10,0) are within DefaultWalkDistance (10.0)
+        var atTownA = new Location("At Town A", 0, 0);
 
-        var portals = finder.FindPortalDevicesNear(nearPortalDest);
+        var route = finder.FindRoute(atTownA, "TownC");
 
-        Assert.NotEmpty(portals);
-        Assert.Contains(portals, p => p.Destination == "PortalDest");
+        Assert.NotNull(route);
+        Assert.Equal("TownC", route.Destination);
+        Assert.True(route.StepCount > 0);
+        // Should find a multi-hop route through nearby towns
+        Assert.True(route.TotalDistance > 0);
+        Assert.Equal(0, route.PortalCount);
     }
 
     [Fact]
@@ -102,11 +107,15 @@ public class RouteFinderTests
         var (db, finder) = CreateTestDb();
         var atTownA = new Location("At Town A", 0, 0);
 
-        // The route starts table says TownB can be reached from TownA via Walk
+        // The route starts table says TownB can be reached from TownA via Walk.
+        // Graph should find this as a walk edge (they're within 10mu).
         var route = finder.FindRoute(atTownA, "TownB");
 
         Assert.NotNull(route);
         Assert.Equal("TownB", route.Destination);
         Assert.True(route.StepCount > 0);
+        // Current position (0,0) is AT TownA (0,0), so no walk-to-start step.
+        // Direct graph edge: TownA → TownB via Walk
+        Assert.Contains("Walk", route.Steps[0].Via);
     }
 }
