@@ -192,6 +192,7 @@ Currently implemented commands:
 - `/go update` / `/go download`;
 - `/go url <url>`;
 - `/go status`;
+- `/go route` / `/go steps`;
 - `/go stop` / `/go cancel`;
 - `/go clear`;
 - `/go save <name>`;

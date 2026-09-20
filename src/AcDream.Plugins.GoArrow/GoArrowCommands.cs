@@ -105,6 +105,11 @@ internal sealed class GoArrowCommands
                 ShowStatus();
                 break;
 
+            case "route":
+            case "steps":
+                ShowRoute();
+                break;
+
             case "favorites":
             case "favs":
                 ListFavorites();
@@ -186,6 +191,20 @@ internal sealed class GoArrowCommands
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigating to '{dest}'. Use /go stop to cancel.");
     }
 
+    private void ShowRoute()
+    {
+        var steps = _plugin.GetCurrentRouteSteps();
+        if (steps.Count == 0)
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: No route is currently calculated.");
+            return;
+        }
+
+        _host.Automation.Chat.PostSystemMessage("GoArrow route:");
+        for (int i = 0; i < steps.Count; i++)
+            _host.Automation.Chat.PostSystemMessage($"  {i + 1}. {steps[i]}");
+    }
+
     private void ListFavorites()
     {
         var favs = _plugin.GetFavorites();
@@ -216,6 +235,7 @@ internal sealed class GoArrowCommands
                "  /go url <url> - Set and persist the location-data URL\n" +
                "  /go search <term> - Search locations\n" +
                "  /go status - Show current destination\n" +
+               "  /go route - Show the current route steps\n" +
                "  /go stop - Stop navigation\n" +
                "  /go resume - Resume after a portal or recall interaction\n" +
                "  /go clear - Clear destination\n" +
