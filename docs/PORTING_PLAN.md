@@ -153,6 +153,7 @@ Implemented:
 - multi-hop walk routes;
 - route-start edges classified as walk, portal, recall, or lifestone;
 - route conversion into travel, portal, and recall steps;
+- explicit pause/resume for portal and recall steps when no interaction API is available;
 - unreachable, retired, duplicate-name, and edge-case tests;
 - direct-walk fallback for destinations outside the graph.
 
@@ -237,10 +238,11 @@ Until those APIs exist, recall values should be manual or explicitly marked as i
 
 Current state:
 
-- `GoArrowNavigator` submits `GoTo` point requests;
-- it polls `GoToReport`;
-- it advances route steps on arrival states;
-- it stops on completion or manual cancellation;
+- `GoArrowNavigator` submits `GoTo` point requests for travel legs;
+- it consumes `NavigationChanged` and filters stale/duplicate reports;
+- it advances route steps on matching arrival states;
+- it pauses at portal and recall legs and supports manual `/go resume` continuation;
+- it stops on completion, failure, or manual cancellation;
 - it handles unavailable/headless automation without throwing.
 
 Needs improvement:

@@ -18,6 +18,9 @@ internal sealed class GoArrowNavigator : IDisposable
     private long _lastHandledReportRevision;
     private bool _navigationEventsSubscribed;
 
+    /// <summary>Whether the current route is paused for a portal or recall action.</summary>
+    public bool WaitingForInteraction { get; private set; }
+
     /// <summary>Whether navigation is currently active.</summary>
     public bool IsNavigating => _isNavigating;
 
@@ -90,35 +93,12 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        var immediateTarget = _destination.GetImmediateTarget();
-        if (immediateTarget == null)
-            return;
-
-        _isNavigating = true;
+        _isNavigating = false;
         HasArrived = false;
+        WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
-
-        // Issue the GoTo command using OpenAC navigation coordinates
-        // CellId=0 lets OpenAC resolve the position by map coordinates
-        var navPos = new PluginNavigationPosition(
-            CellId: 0,
-            EastWest: immediateTarget.Coords.EW,
-            NorthSouth: immediateTarget.Coords.NS,
-            Elevation: double.NaN,
-            HeadingDegrees: 0f,
-            IsOutdoor: true);
-
-        var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
-        if (status != PluginNavigationCommandStatus.Accepted)
-        {
-            _isNavigating = false;
-            _host.Log.Warn($"GoArrow: Navigation request was {status}.");
-            return;
-        }
-
-        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
-        _host.Log.Info($"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})");
+        StartCurrentLeg();
     }
 
     /// <summary>
@@ -133,6 +113,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         _isNavigating = false;
         HasArrived = false;
+        WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
     }
@@ -156,6 +137,65 @@ internal sealed class GoArrowNavigator : IDisposable
 
         // Poll GoTo report for state changes
         HandleNavigationReport(_host.Automation.Navigation.GoToReport);
+    }
+
+    /// <summary>
+    /// Resume a route after the user has completed the current portal or recall
+    /// interaction. OpenAC does not currently expose a generic interaction API,
+    /// so the action is intentionally explicit rather than pretending that
+    /// arrival at a portal completes the transition.
+    /// </summary>
+    public void ResumeAfterInteraction()
+    {
+        if (!WaitingForInteraction || _destination.CurrentRoute is not { StepCount: > 0 })
+            return;
+
+        _destination.AdvanceStep();
+        WaitingForInteraction = false;
+        if (_destination.CurrentRoute.StepCount == 0)
+        {
+            HasArrived = true;
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+            return;
+        }
+
+        StartCurrentLeg();
+    }
+
+    private void StartCurrentLeg()
+    {
+        var step = _destination.CurrentRoute?.Steps.FirstOrDefault();
+        if (step is null)
+            return;
+
+        if (step.Kind != RouteStepKind.Travel)
+        {
+            WaitingForInteraction = true;
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Route requires {step.Kind.ToString().ToLowerInvariant()} '{step.Via}' at {step.From.Name}. Complete it, then use /go resume.");
+            return;
+        }
+
+        var immediateTarget = step.To;
+        _isNavigating = true;
+        var navPos = new PluginNavigationPosition(
+            CellId: 0,
+            EastWest: immediateTarget.Coords.EW,
+            NorthSouth: immediateTarget.Coords.NS,
+            Elevation: double.NaN,
+            HeadingDegrees: 0f,
+            IsOutdoor: true);
+
+        var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
+        if (status != PluginNavigationCommandStatus.Accepted)
+        {
+            _isNavigating = false;
+            _host.Log.Warn($"GoArrow: Navigation request was {status}.");
+            return;
+        }
+
+        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
+        _host.Log.Info($"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})");
     }
 
     private void OnNavigationChanged(PluginGoToReport report)
@@ -213,36 +253,9 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        // Continue to next leg
-        if (_settings.RecalculateRoute)
-        {
-            var currentLoc = new RouteFinding.Location(
-                "Current Position",
-                _currentNavPosition.Value.NorthSouth,
-                _currentNavPosition.Value.EastWest);
-            _destination.CalculateRoute(currentLoc);
-        }
-
-        var nextTarget = _destination.GetImmediateTarget();
-        if (nextTarget != null)
-        {
-            var navPos = new PluginNavigationPosition(
-                CellId: 0,
-                EastWest: nextTarget.Coords.EW,
-                NorthSouth: nextTarget.Coords.NS,
-                Elevation: double.NaN,
-                HeadingDegrees: 0f,
-                IsOutdoor: true);
-            var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
-            if (status != PluginNavigationCommandStatus.Accepted)
-            {
-                _isNavigating = false;
-                _host.Log.Warn($"GoArrow: Next route leg was {status}.");
-                return;
-            }
-
-            _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
-        }
+        // Continue to the next leg. Keep the planned route intact so a
+        // portal/recall step is not lost during recalculation.
+        StartCurrentLeg();
     }
 
     public void Dispose()

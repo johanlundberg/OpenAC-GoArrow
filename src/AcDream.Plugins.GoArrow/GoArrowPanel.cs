@@ -55,6 +55,8 @@ internal sealed class GoArrowPanel
         {
             if (_navigator.IsNavigating)
                 return "Navigating...";
+            if (_navigator.WaitingForInteraction)
+                return "Waiting for interaction";
             if (_navigator.HasArrived)
                 return "Arrived!";
             return string.IsNullOrEmpty(_destination.TargetName) ? "Idle" : "Ready";
@@ -85,6 +87,9 @@ internal sealed class GoArrowPanel
 
     /// <summary>Whether navigation is active.</summary>
     public bool IsNavigating => _navigator.IsNavigating;
+
+    /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
+    public bool WaitingForInteraction => _navigator.WaitingForInteraction;
 
     // ── Toggle settings ─────────────────────────────────────────────
 
@@ -148,6 +153,9 @@ internal sealed class GoArrowPanel
 
     /// <summary>Stop navigation.</summary>
     public Action StopNavigation => () => _plugin.StopNavigation();
+
+    /// <summary>Resume after manually completing a portal or recall action.</summary>
+    public Action ResumeNavigation => () => _navigator.ResumeAfterInteraction();
 
     /// <summary>Clear destination.</summary>
     public Action ClearDestination => () => _plugin.ClearDestination();

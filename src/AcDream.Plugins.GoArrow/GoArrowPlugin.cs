@@ -158,6 +158,14 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     }
 
     /// <summary>
+    /// Resume after manually completing a portal or recall interaction.
+    /// </summary>
+    internal void ResumeNavigation()
+    {
+        _navigator?.ResumeAfterInteraction();
+    }
+
+    /// <summary>
     /// Loads a validated XML location database from a relative plugin-storage
     /// file name such as <c>filename.xml</c>; the plugin prepends its
     /// hardcoded <c>GoArrow/</c> storage directory.
@@ -335,7 +343,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             // Recalculate while idle. During navigation the navigator owns
             // the current route and advances it from navigation reports.
-            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.HasArrived)
+            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived)
             {
                 var currentLoc = new RouteFinding.Location(
                     "Current Position",
