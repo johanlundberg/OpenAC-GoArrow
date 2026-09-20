@@ -30,6 +30,7 @@ public class GoArrowSettings
     public RouteFinding.RouteCostProfile RouteCostProfile { get; set; } = RouteFinding.RouteCostProfile.ShortestWalk;
     public int MaxNavigationRetries { get; set; } = 2;
     public double InteractionTimeoutSeconds { get; set; } = 15;
+    public int AtlasCacheMaxAgeDays { get; set; } = 30;
 
     // ── External data ──────────────────────────────────────────────
     /// <summary>Location-data URL used by the explicit update command.</summary>
@@ -67,6 +68,7 @@ public class GoArrowSettings
         storage.WriteText("routeCostProfile", RouteCostProfile.ToString());
         storage.WriteText("maxNavigationRetries", MaxNavigationRetries.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("interactionTimeoutSeconds", InteractionTimeoutSeconds.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("atlasCacheMaxAgeDays", AtlasCacheMaxAgeDays.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("externalDataUrl", ExternalDataUrl);
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
@@ -99,6 +101,7 @@ public class GoArrowSettings
             RouteCostProfile = structured.RouteCostProfile;
             MaxNavigationRetries = Math.Max(0, structured.MaxNavigationRetries);
             InteractionTimeoutSeconds = structured.InteractionTimeoutSeconds > 0 ? structured.InteractionTimeoutSeconds : 15;
+            AtlasCacheMaxAgeDays = Math.Max(0, structured.AtlasCacheMaxAgeDays);
             ExternalDataUrl = string.IsNullOrWhiteSpace(structured.ExternalDataUrl) ? ExternalDataUrl : structured.ExternalDataUrl;
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
@@ -149,6 +152,8 @@ public class GoArrowSettings
         if (double.TryParse(storage.ReadText("interactionTimeoutSeconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out double timeout)
             && timeout > 0)
             InteractionTimeoutSeconds = timeout;
+        if (int.TryParse(storage.ReadText("atlasCacheMaxAgeDays"), out int cacheDays))
+            AtlasCacheMaxAgeDays = Math.Max(0, cacheDays);
 
         ExternalDataUrl = storage.ReadText("externalDataUrl")
             ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;

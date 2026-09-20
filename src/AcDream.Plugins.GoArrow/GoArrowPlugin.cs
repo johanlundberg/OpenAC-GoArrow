@@ -288,7 +288,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             string? cached = null;
             try
             {
-                cached = _atlasProvider.ReadCached();
+                TimeSpan? maxAge = _settings?.AtlasCacheMaxAgeDays > 0
+                    ? TimeSpan.FromDays(_settings.AtlasCacheMaxAgeDays)
+                    : null;
+                cached = _atlasProvider.ReadCached(maxAge);
             }
             catch (Exception cacheException)
             {
