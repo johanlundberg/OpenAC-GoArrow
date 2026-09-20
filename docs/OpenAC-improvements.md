@@ -1210,7 +1210,7 @@ This phase should make the existing GoArrow core route walker reliable without a
 3. Add portal, door, NPC, item-use, and dialog automation.
 4. Add recall, house, allegiance, and portal-transition state.
 5. Add tests for failed, interrupted, and stale state changes.
-6. Add explicit portal entrance/exit metadata so portal devices can become graph edges.
+6. ~~Add explicit portal entrance/exit metadata so portal devices can become graph edges.~~ **Done in GoArrow** — `PortalDevice` accepts optional `Entrance`/`From` and `Exit`/`To` location names; explicit records now create portal graph edges. A host interaction API is still needed for automatic execution.
 
 This phase enables robust multi-leg route execution and authoritative recall tracking.
 

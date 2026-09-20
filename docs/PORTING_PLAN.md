@@ -159,7 +159,7 @@ Implemented:
 
 Missing or incomplete behavior:
 
-- explicit portal-device entrance and exit edges;
+- explicit portal-device entrance and exit edges when records provide `Entrance`/`From` and `Exit`/`To` locations;
 - lifestone bind and lifestone tie state;
 - primary and secondary portal tie state;
 - house and mansion recall state;
@@ -172,7 +172,7 @@ Missing or incomplete behavior:
 
 Next work:
 
-1. Add explicit portal/interaction edge metadata and entrance coordinates.
+1. Add supported portal, door, NPC, and recall interaction APIs.
 2. Make graph snapshots rebuild atomically when `/go update` or `/go file` replaces data.
 3. Add route cost policies for walking, recalls, portals, and unavailable actions.
 4. Expose route steps and the active leg in the panel.

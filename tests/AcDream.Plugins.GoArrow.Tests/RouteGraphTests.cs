@@ -115,6 +115,24 @@ public class RouteGraphTests
     }
 
     [Fact]
+    public void Build_IncludesExplicitPortalEdges()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsCsv(new[] { "Home;0;0", "FarTown;50;0" });
+        db.LoadPortalDevicesCsv(new[] { "FarTown;Far Portal;Dereth;Home;FarTown" });
+
+        var graph = new RouteGraph();
+        graph.Build(db, maxWalkDistance: 10.0);
+
+        var path = graph.FindShortestPath("Home", "FarTown");
+
+        Assert.NotNull(path);
+        Assert.Single(path!);
+        Assert.Equal(RouteEdgeKind.Portal, path[0].Kind);
+        Assert.Equal("Far Portal", path[0].Via);
+    }
+
+    [Fact]
     public void Build_IncludesRouteStartEdges()
     {
         var (_, graph) = CreateGraphWithPortalAndStarts();

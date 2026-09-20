@@ -148,14 +148,25 @@ public sealed class RouteGraph
         }
 
         // ── Portal edges ────────────────────────────────────────
-        // PortalDevice records tell us "device Via takes you to Destination",
-        // but they do not specify WHERE the device entrance is located.
-        // The entrance location is often implied by RouteStart records
-        // (From → Destination via method). Without explicit entrance
-        // coordinates, we cannot add portal edges to the graph here.
-        //
-        // PortalDevice data is still available for heuristic fallback
-        // routing in the RouteFinder.
+        // Older PortalDevice records only identify the destination and device.
+        // Records with an explicit Entrance/From location can participate in
+        // graph routing without guessing where the device is located.
+        foreach (var pd in db.PortalDevices)
+        {
+            if (string.IsNullOrWhiteSpace(pd.EntranceLocation))
+                continue;
+
+            int fromIdx = GetNodeIndex(pd.EntranceLocation);
+            string exitName = string.IsNullOrWhiteSpace(pd.ExitLocation)
+                ? pd.Destination
+                : pd.ExitLocation;
+            int toIdx = GetNodeIndex(exitName);
+            if (fromIdx < 0 || toIdx < 0 || fromIdx == toIdx)
+                continue;
+
+            _adjacency[fromIdx].Add(
+                new RouteGraphEdge(fromIdx, toIdx, RouteEdgeKind.Portal, 0.1, pd.Via));
+        }
 
         // ── Route-start edges (recall / lifestone / allegiance) ──
         foreach (var rs in db.RouteStarts)

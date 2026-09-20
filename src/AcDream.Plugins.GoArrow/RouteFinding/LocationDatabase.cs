@@ -127,7 +127,13 @@ public class LocationDatabase
                 var dest = node.Attributes?["Destination"]?.Value ?? string.Empty;
                 var via = node.Attributes?["Via"]?.Value ?? string.Empty;
                 var landmass = node.Attributes?["Landmass"]?.Value ?? string.Empty;
-                newDevices.Add(new PortalDevice(dest, via, landmass));
+                var entrance = node.Attributes?["Entrance"]?.Value
+                    ?? node.Attributes?["From"]?.Value
+                    ?? string.Empty;
+                var exit = node.Attributes?["Exit"]?.Value
+                    ?? node.Attributes?["To"]?.Value
+                    ?? string.Empty;
+                newDevices.Add(new PortalDevice(dest, via, landmass, entrance, exit));
             }
         }
 
