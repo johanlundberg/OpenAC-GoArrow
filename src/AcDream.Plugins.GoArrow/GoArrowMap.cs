@@ -11,6 +11,7 @@ internal sealed class GoArrowMap : IDisposable
     private readonly GoArrowSettings _settings;
     private IPluginMapSurface? _map;
     private Action<double>? _tick;
+    private CancellationTokenSource? _loadCancellation;
 
     public GoArrowMap(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
     {
@@ -28,9 +29,32 @@ internal sealed class GoArrowMap : IDisposable
             _settings.MapWidth, _settings.MapHeight);
         _map = _host.Maps.AddMap("goarrow.dereth", bounds);
         _map.Input += OnInput;
+        _loadCancellation = new CancellationTokenSource();
+        _ = LoadBackgroundAsync(_loadCancellation.Token);
         _tick = _ => Refresh();
         _host.Events.Tick += _tick;
         Refresh();
+    }
+
+    private async Task LoadBackgroundAsync(CancellationToken cancellationToken)
+    {
+        if (_map is null) return;
+        try
+        {
+            await using IPluginTiledMapResource? resource = await _host.MapResources
+                .OpenMapAsync("maps/dereth", cancellationToken).ConfigureAwait(false);
+            if (resource is null || _map is null) return;
+            PluginMapTile? tile = await resource.LoadTileAsync(
+                new PluginMapTileKey(resource.MinZoom, 0, 0), cancellationToken).ConfigureAwait(false);
+            if (tile is null || _map is null) return;
+            _map.SetBackground(new PluginMapImage(resource.Id, tile.PixelWidth, tile.PixelHeight,
+                new LinearPluginMapCoordinateConverter(resource.WorldBounds)));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            _host.Log.Warn($"GoArrow: map background unavailable: {exception.Message}");
+        }
     }
 
     private void OnInput(PluginMapInput input)
@@ -93,6 +117,9 @@ internal sealed class GoArrowMap : IDisposable
     {
         if (_tick is not null) _host.Events.Tick -= _tick;
         _tick = null;
+        _loadCancellation?.Cancel();
+        _loadCancellation?.Dispose();
+        _loadCancellation = null;
         if (_map is not null) _map.Input -= OnInput;
         _map?.Dispose();
         _map = null;
