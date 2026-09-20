@@ -87,7 +87,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             "go",
             cmd => _commands?.HandleCommand(cmd));
 
-        // Subscribe to tick events
+        // Subscribe to navigation reports and tick events
+        _navigator?.Enable();
         _tickHandler = OnTick;
         _host.Events.Tick += _tickHandler;
 
@@ -102,6 +103,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (_host is not null && _tickHandler is not null)
             _host.Events.Tick -= _tickHandler;
 
+        _navigator?.Disable();
         _navigator?.StopNavigation();
         _commandRegistration?.Dispose();
         _commandRegistration = null;
@@ -331,8 +333,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             var position = _host.Automation.Navigation.Snapshot.Position;
             _navigator.UpdatePosition(position);
 
-            // Recalculate route on tick if destination is set
-            if (_destination.HasDestination)
+            // Recalculate while idle. During navigation the navigator owns
+            // the current route and advances it from navigation reports.
+            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.HasArrived)
             {
                 var currentLoc = new RouteFinding.Location(
                     "Current Position",

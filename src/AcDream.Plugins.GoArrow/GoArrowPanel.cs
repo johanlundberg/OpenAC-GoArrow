@@ -73,6 +73,13 @@ internal sealed class GoArrowPanel
         }
     }
 
+    /// <summary>The currently active route leg.</summary>
+    public string CurrentLegText =>
+        _destination.CurrentRoute?.Steps.FirstOrDefault()?.ToString() ?? "No active route leg";
+
+    /// <summary>The latest host navigation report.</summary>
+    public string NavigationReportText => _navigator.LastReport;
+
     /// <summary>Whether a destination is set (enables start/stop buttons).</summary>
     public bool HasDestination => _destination.HasDestination;
 
