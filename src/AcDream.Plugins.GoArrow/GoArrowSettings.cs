@@ -33,6 +33,8 @@ public class GoArrowSettings
     public string LastPortalRecall { get; set; } = string.Empty;
     public string LastSecondaryRecall { get; set; } = string.Empty;
     public string LastAllegianceRecall { get; set; } = string.Empty;
+    public string LastHouseRecall { get; set; } = string.Empty;
+    public string LastMansionRecall { get; set; } = string.Empty;
 
     // ── Favorites ──────────────────────────────────────────────────
     public List<string> FavoriteDestinations { get; set; } = new();
@@ -55,6 +57,8 @@ public class GoArrowSettings
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
         storage.WriteText("lastAllegianceRecall", LastAllegianceRecall);
+        storage.WriteText("lastHouseRecall", LastHouseRecall);
+        storage.WriteText("lastMansionRecall", LastMansionRecall);
         storage.WriteText("favorites", string.Join(",", FavoriteDestinations));
     }
 
@@ -78,6 +82,8 @@ public class GoArrowSettings
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
             LastAllegianceRecall = structured.LastAllegianceRecall;
+            LastHouseRecall = structured.LastHouseRecall;
+            LastMansionRecall = structured.LastMansionRecall;
             FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
             return;
         }
@@ -115,6 +121,8 @@ public class GoArrowSettings
         LastPortalRecall = storage.ReadText("lastPortalRecall") ?? string.Empty;
         LastSecondaryRecall = storage.ReadText("lastSecondaryRecall") ?? string.Empty;
         LastAllegianceRecall = storage.ReadText("lastAllegianceRecall") ?? string.Empty;
+        LastHouseRecall = storage.ReadText("lastHouseRecall") ?? string.Empty;
+        LastMansionRecall = storage.ReadText("lastMansionRecall") ?? string.Empty;
 
         var favs = storage.ReadText("favorites") ?? string.Empty;
         FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();

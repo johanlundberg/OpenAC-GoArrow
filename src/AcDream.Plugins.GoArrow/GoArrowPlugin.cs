@@ -411,6 +411,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             case PluginRecallKind.Lifestone: _settings!.LastPortalRecall = value; break;
             case PluginRecallKind.Marketplace: _settings!.LastSecondaryRecall = value; break;
             case PluginRecallKind.Allegiance: _settings!.LastAllegianceRecall = value; break;
+            case PluginRecallKind.House: _settings!.LastHouseRecall = value; break;
+            case PluginRecallKind.Mansion: _settings!.LastMansionRecall = value; break;
         }
         _settings?.Save(_host.Storage);
     }
