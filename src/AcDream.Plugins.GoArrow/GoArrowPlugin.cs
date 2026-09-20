@@ -89,9 +89,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _panel);
 
         // Register the "/go" chat command
-        _commandRegistration = _host.Commands.Register(
-            "go",
-            cmd => _commands?.HandleCommand(cmd));
+        if (_commands is not null)
+            _commandRegistration = _host.Commands.Register(new GoArrowCommandDefinition(_commands, this));
 
         // Coordinate links are host-owned events; the router is disposed with the plugin.
         _coordinateLinkRouter = new PluginChatCoordinateLinkRouter(
