@@ -291,6 +291,14 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         return _settings?.FavoriteDestinations ?? new List<string>();
     }
 
+    internal IReadOnlyList<string> GetCurrentRouteSteps()
+    {
+        return _destination?.CurrentRoute?.Steps
+            .Select(step => step.ToString())
+            .ToArray()
+            ?? Array.Empty<string>();
+    }
+
     internal IReadOnlyList<Location> SearchLocations(string query)
     {
         if (_routeFinder is null)
