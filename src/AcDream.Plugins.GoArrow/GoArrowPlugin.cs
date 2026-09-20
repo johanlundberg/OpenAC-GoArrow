@@ -232,6 +232,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 return false;
 
             _database.LoadLocationsXml(xml);
+            _routeFinder?.InvalidateGraph();
             _host.Log.Info($"GoArrow: Loaded {_database.LocationCount} locations from storage key '{normalized}'.");
             return true;
         }
@@ -276,6 +277,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _host.Automation.Chat.PostSystemMessage("GoArrow: Downloading location data...");
             string xml = await _atlasProvider.DownloadAsync().ConfigureAwait(false);
             _database.LoadLocationsXml(xml);
+            _routeFinder?.InvalidateGraph();
             _host.Automation.Chat.PostSystemMessage(
                 $"GoArrow: Loaded {_database.LocationCount} locations from the Atlas data source.");
         }
@@ -295,6 +297,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             if (cached is not null)
             {
                 _database.LoadLocationsXml(cached);
+                _routeFinder?.InvalidateGraph();
                 _host.Automation.Chat.PostSystemMessage(
                     $"GoArrow: Download failed; loaded {_database.LocationCount} cached locations.");
             }

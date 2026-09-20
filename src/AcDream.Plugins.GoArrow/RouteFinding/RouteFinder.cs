@@ -11,7 +11,7 @@ public class RouteFinder
 {
     private readonly LocationDatabase _database;
     private readonly double _maxWalkDistance;
-    private readonly RouteGraph _graph;
+    private RouteGraph _graph;
     private bool _graphBuilt;
 
     /// <summary>
@@ -110,11 +110,16 @@ public class RouteFinder
         return nearest;
     }
 
+    /// <summary>Atomically discards the graph so the next route sees a complete snapshot.</summary>
+    public void InvalidateGraph() => _graphBuilt = false;
+
     private void EnsureGraphBuilt()
     {
         if (!_graphBuilt)
         {
-            _graph.Build(_database, _maxWalkDistance);
+            var rebuilt = new RouteGraph();
+            rebuilt.Build(_database, _maxWalkDistance);
+            _graph = rebuilt;
             _graphBuilt = true;
         }
     }
