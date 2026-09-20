@@ -53,7 +53,7 @@ The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal 
 - Basic route construction and route finding.
 - Optional `INavigationAutomation.GoTo` integration.
 - Headless/unavailable navigation degradation.
-- 68 automated route/data-model tests passing.
+- 96 automated route/data-model tests passing.
 
 ### Adapted
 
@@ -143,28 +143,40 @@ The downloader remains opt-in and separate from the parser. `/go update` replace
 
 ### 3. Route finding
 
-The current `RouteFinder` provides basic route construction using known locations, portal-device records, and route starts. It is not yet a complete port of the original graph search.
+The port now uses a weighted location graph and A* shortest-path search as the primary route-finding algorithm. `RouteGraph` builds eligible location nodes, connects nearby nodes with bidirectional walk edges, adds route-start edges, and converts paths into the existing `Route`/`RouteStep` model. `RouteFinder` adds the initial walk from the player's current position to the nearest graph node and falls back to a direct walk when the graph cannot produce a route.
+
+Implemented:
+
+- graph construction filtered by `UseInRouteFinding`, `IsRetired`, and coordinates;
+- configurable maximum walk distance between graph nodes;
+- deterministic A* shortest-path search;
+- multi-hop walk routes;
+- route-start edges classified as walk, portal, recall, or lifestone;
+- route conversion into travel, portal, and recall steps;
+- unreachable, retired, duplicate-name, and edge-case tests;
+- direct-walk fallback for destinations outside the graph.
 
 Missing or incomplete behavior:
 
-- shortest-path graph search across all location types;
-- lifestone bind and lifestone tie edges;
-- primary and secondary portal tie edges;
-- house and mansion recall edges;
-- allegiance bindstone edges;
-- portal-device usage requirements;
+- explicit portal-device entrance and exit edges;
+- lifestone bind and lifestone tie state;
+- primary and secondary portal tie state;
+- house and mansion recall state;
+- allegiance bindstone state;
+- portal-device usage requirements and interaction actions;
 - arrival/exit coordinates on portal and dungeon transitions;
-- route cost and edge-priority policy;
-- multiple candidate routes and route explanation.
+- graph invalidation/rebuild after location data updates;
+- route cost profiles and configurable edge priorities;
+- multiple candidate routes and detailed route explanations.
 
 Next work:
 
-1. Define immutable route-node and route-edge models.
-2. Add a graph builder that respects `UseInRouteFinding` and `IsRetired`.
-3. Add a shortest-path algorithm with deterministic tie-breaking.
-4. Represent recall/portal/interaction edges explicitly.
-5. Add route explanations and per-edge metadata.
-6. Test multi-hop routes, unreachable destinations, duplicate names, and retired nodes.
+1. Add explicit portal/interaction edge metadata and entrance coordinates.
+2. Make graph snapshots rebuild atomically when `/go update` or `/go file` replaces data.
+3. Add route cost policies for walking, recalls, portals, and unavailable actions.
+4. Expose route steps and the active leg in the panel.
+5. Integrate navigation reports so multi-leg routes advance reliably.
+6. Add route tests for portal transitions, alternate routes, and data reloads.
 
 ### 4. Commands
 
@@ -332,11 +344,12 @@ The provider should return a complete immutable snapshot. `LocationDatabase` sho
 1. **Correctness and tests**
    - Finish destination-kind model and command parsing.
    - Add lifecycle, command, storage, and navigator tests.
-   - Add route graph tests.
+   - Add route graph tests. **Done** — graph construction, A* routing, multi-hop paths, route-start edges, unreachable routes, and filtering are covered.
 
 2. **Complete location/route domain**
    - Finish original location types and route metadata.
-   - Implement full graph search and route-edge types.
+   - Add explicit portal and interaction edge types.
+   - Add atomic graph rebuilds when location data is replaced.
    - Add custom/favorite/recent location persistence.
 
 3. **Navigation reliability**

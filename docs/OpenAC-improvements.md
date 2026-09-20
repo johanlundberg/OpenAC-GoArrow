@@ -23,7 +23,8 @@ The current port already has a supported core:
 - `IPluginCommandRegistry` `/go` commands;
 - declarative panel markup;
 - embedded location and portal data;
-- route-finding domain classes;
+- weighted location graph and A* shortest-path routing;
+- multi-hop walk and route-start edges;
 - destination distance and bearing calculation;
 - `INavigationAutomation.GoTo` integration;
 - graceful operation when automation is unavailable.
@@ -1192,13 +1193,15 @@ The following order gives the highest value to GoArrow and other navigation plug
 
 ## Phase 2: Navigation reliability
 
+The plugin now has a graph-based route planner, but navigation still executes one point at a time and does not yet understand portal or interaction legs.
+
 1. ~~Add navigation report events and monotonic revisions.~~ **Done** — `IEvents.NavigationChanged` now emits sequence/state changes on graphical and headless hosts.
 2. ~~Add request ownership and cancellation rules.~~ **Done** — navigation requests are owner-scoped, competing plugin requests are held, and releasing a plugin cancels its walk and pauses.
 3. ~~Add portal-space and position-change events.~~ **Done** — `INavigationAutomation.SnapshotChanged` publishes revisioned navigation snapshots on graphical and headless hosts.
 4. ~~Define coordinate units, elevation behavior, and `CellId = 0` semantics.~~ **Done** — `PluginNavigationPosition` documents 240-meter map units, elevation, and zero-cell point semantics.
 5. ~~Add blocked, interrupted, unavailable, and arrival integration tests.~~ **Done** — navigation ownership and report behavior are covered by focused runtime navigation tests.
 
-This phase should make the existing GoArrow core route walker reliable without adding rendering.
+This phase should make the existing GoArrow core route walker reliable without adding rendering. The next GoArrow-specific increment is to connect graph route steps to navigation reports and expose the active route leg in the panel.
 
 ## Phase 3: World interaction and semantic state
 
@@ -1207,6 +1210,7 @@ This phase should make the existing GoArrow core route walker reliable without a
 3. Add portal, door, NPC, item-use, and dialog automation.
 4. Add recall, house, allegiance, and portal-transition state.
 5. Add tests for failed, interrupted, and stale state changes.
+6. Add explicit portal entrance/exit metadata so portal devices can become graph edges.
 
 This phase enables robust multi-leg route execution and authoritative recall tracking.
 
