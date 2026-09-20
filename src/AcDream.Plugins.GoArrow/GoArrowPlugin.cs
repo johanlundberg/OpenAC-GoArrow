@@ -106,7 +106,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _navigator?.Enable();
         if (_destination is not null && _navigator is not null)
         {
-            _hud = new GoArrowHud(_host, _destination, _navigator);
+            _hud = new GoArrowHud(_host, _destination, _navigator, _settings!);
             _hud.Enable();
             _map = new GoArrowMap(_host, _destination);
             _map.Enable();

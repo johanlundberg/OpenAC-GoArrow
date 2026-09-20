@@ -8,15 +8,17 @@ internal sealed class GoArrowHud : IDisposable
     private readonly IPluginHost _host;
     private readonly GoArrowDestination _destination;
     private readonly GoArrowNavigator _navigator;
+    private readonly GoArrowSettings _settings;
     private IPluginHudRegistration? _arrow;
     private IPluginHudRegistration? _toolbar;
     private Action<double>? _tick;
 
-    public GoArrowHud(IPluginHost host, GoArrowDestination destination, GoArrowNavigator navigator)
+    public GoArrowHud(IPluginHost host, GoArrowDestination destination, GoArrowNavigator navigator, GoArrowSettings settings)
     {
         _host = host;
         _destination = destination;
         _navigator = navigator;
+        _settings = settings;
     }
 
     public void Enable()
@@ -25,10 +27,12 @@ internal sealed class GoArrowHud : IDisposable
             return;
         _arrow = _host.Rendering.AddHud(new PluginHudDescriptor(
             "goarrow.arrow", "GoArrow", new PluginHudBounds(20, 120, 260, 90), true,
-            Movable: true, Resizable: true, ClickThrough: false, Layer: 10));
+            Movable: true, Resizable: true, ClickThrough: _settings.HudClickThrough, Layer: 10));
         _toolbar = _host.Rendering.AddHud(new PluginHudDescriptor(
             "goarrow.toolbar", "GoArrow controls", new PluginHudBounds(20, 215, 260, 35), true,
-            Movable: true, Resizable: false, ClickThrough: false, Layer: 10));
+            Movable: true, Resizable: false, ClickThrough: _settings.HudClickThrough, Layer: 10));
+        _arrow.IsVisible = _settings.HudVisible;
+        _toolbar!.IsVisible = _settings.ToolbarVisible;
         _arrow.Input += OnArrowInput;
         _toolbar.Input += OnToolbarInput;
         _tick = _ => Render();
@@ -60,7 +64,7 @@ internal sealed class GoArrowHud : IDisposable
         string bearing = double.IsNaN(_destination.BearingDegrees) ? "--" : $"{_destination.BearingDegrees:0}°";
         string distance = double.IsNaN(_destination.EstimatedDistance) ? "--" : $"{_destination.EstimatedDistance:0.0}u";
         surface.DrawText($"➤ {bearing}  {distance}", new PluginPoint(12, 28),
-            new PluginTextStyle("sans", 22, new PluginColor(255, 220, 80), true));
+            new PluginTextStyle("sans", (float)(22 * _settings.HudScale), new PluginColor(255, 220, 80), true));
         surface.DrawText(string.IsNullOrEmpty(name) ? "No destination" : name,
             new PluginPoint(12, 58), new PluginTextStyle("sans", 14, new PluginColor(255, 255, 255)));
         surface.EndFrame();

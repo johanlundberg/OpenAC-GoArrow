@@ -18,6 +18,10 @@ public class GoArrowSettings
     public bool PanelVisible { get; set; } = true;
     public bool ShowDistance { get; set; } = true;
     public bool ShowBearing { get; set; } = true;
+    public bool HudVisible { get; set; } = true;
+    public bool ToolbarVisible { get; set; } = true;
+    public bool HudClickThrough { get; set; }
+    public double HudScale { get; set; } = 1;
 
     // ── Navigation ─────────────────────────────────────────────────
     public double ArrivalDistance { get; set; } = 0.5;
@@ -53,6 +57,10 @@ public class GoArrowSettings
         storage.WriteText("panelVisible", PanelVisible.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("showDistance", ShowDistance.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("showBearing", ShowBearing.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("hudVisible", HudVisible.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("toolbarVisible", ToolbarVisible.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("hudClickThrough", HudClickThrough.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("hudScale", HudScale.ToString("F3", CultureInfo.InvariantCulture));
         storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("navigationLocked", NavigationLocked.ToString(CultureInfo.InvariantCulture));
@@ -81,6 +89,10 @@ public class GoArrowSettings
             PanelVisible = structured.PanelVisible;
             ShowDistance = structured.ShowDistance;
             ShowBearing = structured.ShowBearing;
+            HudVisible = structured.HudVisible;
+            ToolbarVisible = structured.ToolbarVisible;
+            HudClickThrough = structured.HudClickThrough;
+            HudScale = structured.HudScale > 0 ? structured.HudScale : 1;
             ArrivalDistance = structured.ArrivalDistance > 0 ? structured.ArrivalDistance : 0.5;
             UseNavigationAutomation = structured.UseNavigationAutomation;
             NavigationLocked = structured.NavigationLocked;
@@ -113,6 +125,15 @@ public class GoArrowSettings
 
         bool.TryParse(storage.ReadText("showBearing"), out bool showBear);
         ShowBearing = showBear;
+        bool.TryParse(storage.ReadText("hudVisible"), out bool hudVisible);
+        HudVisible = hudVisible;
+        bool.TryParse(storage.ReadText("toolbarVisible"), out bool toolbarVisible);
+        ToolbarVisible = toolbarVisible;
+        bool.TryParse(storage.ReadText("hudClickThrough"), out bool hudClickThrough);
+        HudClickThrough = hudClickThrough;
+        if (double.TryParse(storage.ReadText("hudScale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double hudScale)
+            && hudScale > 0)
+            HudScale = hudScale;
 
         double.TryParse(storage.ReadText("arrivalDistance"), NumberStyles.Float, CultureInfo.InvariantCulture, out double arrDist);
         ArrivalDistance = arrDist > 0 ? arrDist : 0.5;

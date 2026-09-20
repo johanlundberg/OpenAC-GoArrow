@@ -44,6 +44,12 @@ internal sealed class GoArrowMap : IDisposable
         if (_map is null)
             return;
         var markers = new List<PluginMapMarker>();
+        if (_host.Automation.IsAvailable)
+        {
+            var position = _host.Automation.Navigation.Snapshot.Position;
+            markers.Add(new PluginMapMarker("current",
+                new PluginMapPoint(position.EastWest, position.NorthSouth), "Current position", IsSelected: true));
+        }
         if (_destination.TargetLocation is { } target)
             markers.Add(new PluginMapMarker("destination",
                 new PluginMapPoint(target.Coords.EW, target.Coords.NS), target.Name, IsSelected: true));
