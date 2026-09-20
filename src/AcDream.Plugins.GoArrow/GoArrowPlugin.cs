@@ -42,6 +42,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         // ── Load settings ───────────────────────────────────────────
         _settings = new GoArrowSettings();
         _settings.Load(host.Storage);
+        LoadScopedRecallState(host);
 
         // ── Initialize database and load embedded data ──────────────
         _database = new LocationDatabase();
@@ -419,6 +420,31 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             case PluginRecallKind.Mansion: _settings!.LastMansionRecall = value; break;
         }
         _settings?.Save(_host.Storage);
+        if (_host.SessionSettings.TryGetValue("characterId", out string? characterId)
+            && _host.SessionSettings.TryGetValue("worldId", out string? worldId)
+            && !string.IsNullOrWhiteSpace(characterId) && !string.IsNullOrWhiteSpace(worldId))
+        {
+            IPluginStorage scoped = _host.Storage
+                .OpenScope(PluginStorageScope.Character(characterId))
+                .OpenScope(PluginStorageScope.World(worldId));
+            scoped.WriteText($"recall/{known.Kind.ToString().ToLowerInvariant()}", value);
+        }
+    }
+
+    private void LoadScopedRecallState(IPluginHost host)
+    {
+        if (_settings is null || !host.SessionSettings.TryGetValue("characterId", out string? characterId)
+            || !host.SessionSettings.TryGetValue("worldId", out string? worldId)
+            || string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(worldId))
+            return;
+        IPluginStorage scoped = host.Storage
+            .OpenScope(PluginStorageScope.Character(characterId))
+            .OpenScope(PluginStorageScope.World(worldId));
+        _settings.LastPortalRecall = scoped.ReadText("recall/lifestone") ?? _settings.LastPortalRecall;
+        _settings.LastSecondaryRecall = scoped.ReadText("recall/marketplace") ?? _settings.LastSecondaryRecall;
+        _settings.LastHouseRecall = scoped.ReadText("recall/house") ?? _settings.LastHouseRecall;
+        _settings.LastMansionRecall = scoped.ReadText("recall/mansion") ?? _settings.LastMansionRecall;
+        _settings.LastAllegianceRecall = scoped.ReadText("recall/allegiance") ?? _settings.LastAllegianceRecall;
     }
 
     internal bool SetSelectedObjectDestination()
