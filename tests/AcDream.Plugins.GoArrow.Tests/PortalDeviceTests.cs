@@ -32,6 +32,16 @@ public class PortalDeviceTests
     }
 
     [Fact]
+    public void PortalDevice_FromCsvLine_ParsesEntranceAndExit()
+    {
+        var pd = PortalDevice.FromCsvLine("TownB;TownB Portal;Dereth;TownA;TownB");
+
+        Assert.Equal("TownA", pd.EntranceLocation);
+        Assert.Equal("TownB", pd.ExitLocation);
+        Assert.Equal("TownB;TownB Portal;Dereth;TownA;TownB", pd.ToString());
+    }
+
+    [Fact]
     public void PortalDevice_Equality_SameDestinationAndVia()
     {
         var a = new PortalDevice("Holtburg", "Portal", "Dereth");

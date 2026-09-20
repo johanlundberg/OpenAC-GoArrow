@@ -86,7 +86,7 @@ public class LocationDatabaseTests
         var db = new LocationDatabase();
         var xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PortalDevices>
-  <Device Destination='Holtburg' Via='Holtburg Portal Device' Landmass='Dereth' />
+  <Device Destination='Holtburg' Via='Holtburg Portal Device' Landmass='Dereth' Entrance='Holtburg Plaza' Exit='Holtburg' />
 </PortalDevices>";
 
         db.LoadPortalDevicesXml(xml);
@@ -95,6 +95,8 @@ public class LocationDatabaseTests
         var ports = db.FindPortalsTo("Holtburg");
         Assert.Single(ports);
         Assert.Equal("Holtburg Portal Device", ports[0].Via);
+        Assert.Equal("Holtburg Plaza", ports[0].EntranceLocation);
+        Assert.Equal("Holtburg", ports[0].ExitLocation);
     }
 
     [Fact]

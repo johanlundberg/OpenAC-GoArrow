@@ -24,30 +24,50 @@ public class PortalDevice : IEquatable<PortalDevice>
     /// <summary>The island / landmass the destination is on.</summary>
     public string Landmass { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Optional named location where the portal/device must be used.
+    /// Older records omit this field and cannot create a graph portal edge.
+    /// </summary>
+    public string EntranceLocation { get; set; } = string.Empty;
+
+    /// <summary>Optional named arrival location when it differs from Destination.</summary>
+    public string ExitLocation { get; set; } = string.Empty;
+
     public PortalDevice() { }
 
-    public PortalDevice(string destination, string via, string landmass)
+    public PortalDevice(
+        string destination,
+        string via,
+        string landmass,
+        string entranceLocation = "",
+        string exitLocation = "")
     {
         Destination = destination;
         Via = via;
         Landmass = landmass;
+        EntranceLocation = entranceLocation ?? string.Empty;
+        ExitLocation = exitLocation ?? string.Empty;
     }
 
     public override string ToString()
     {
-        return $"{Destination};{Via};{Landmass}";
+        if (string.IsNullOrEmpty(EntranceLocation) && string.IsNullOrEmpty(ExitLocation))
+            return $"{Destination};{Via};{Landmass}";
+        return $"{Destination};{Via};{Landmass};{EntranceLocation};{ExitLocation}";
     }
 
     public static PortalDevice FromCsvLine(string line)
     {
-        string[] fields = line.Split(';', 3);
+        string[] fields = line.Split(';');
         if (fields.Length < 3)
             return new PortalDevice { Destination = line.Trim() };
 
         return new PortalDevice(
             fields[0].Trim(),
             fields[1].Trim(),
-            fields[2].Trim());
+            fields[2].Trim(),
+            fields.Length > 3 ? fields[3].Trim() : string.Empty,
+            fields.Length > 4 ? fields[4].Trim() : string.Empty);
     }
 
     public override bool Equals(object? obj) => obj is PortalDevice other && Equals(other);
