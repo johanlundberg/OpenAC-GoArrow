@@ -24,5 +24,6 @@
     <!-- Tests execute against the abstraction assembly, so keep it beside the test DLL. -->
     <ProjectReference Include="$(OpenAcDir)/src/AcDream.Plugin.Abstractions/AcDream.Plugin.Abstractions.csproj" />
     <ProjectReference Include="../../src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj" />
+    <ProjectReference Include="$(OpenAcDir)/tests/AcDream.Plugin.Tests.Fixtures/AcDream.Plugin.Tests.Fixtures.csproj" />
   </ItemGroup>
 </Project>

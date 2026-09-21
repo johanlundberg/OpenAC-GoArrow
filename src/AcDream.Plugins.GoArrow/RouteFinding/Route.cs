@@ -1,4 +1,5 @@
 using System.Globalization;
+using AcDream.Plugin.Abstractions;
 
 namespace AcDream.Plugins.GoArrow.RouteFinding;
 
@@ -72,6 +73,31 @@ public class Route
         AddStep(new RouteStep(RouteStepKind.Recall, from, to, 0, recallName));
     }
 
+    /// <summary>Removes one route step and rebuilds aggregate counters.</summary>
+    public bool RemoveStep(int index)
+    {
+        if (index < 0 || index >= _steps.Count) return false;
+        _steps.RemoveAt(index);
+        RecalculateTotals();
+        return true;
+    }
+
+    /// <summary>Moves a route step while preserving deterministic ordering.</summary>
+    public bool MoveStep(int fromIndex, int toIndex)
+    {
+        if (fromIndex < 0 || fromIndex >= _steps.Count || toIndex < 0 || toIndex >= _steps.Count) return false;
+        RouteStep step = _steps[fromIndex];
+        _steps.RemoveAt(fromIndex);
+        _steps.Insert(toIndex, step);
+        return true;
+    }
+
+    private void RecalculateTotals()
+    {
+        TotalDistance = _steps.Where(step => step.Kind == RouteStepKind.Travel).Sum(step => step.Distance);
+        PortalCount = _steps.Count(step => step.Kind == RouteStepKind.Portal);
+    }
+
     /// <summary>
     /// Clears all steps.
     /// </summary>
@@ -102,6 +128,12 @@ public class RouteStep
     public Location To { get; }
     public double Distance { get; }
     public string Via { get; }
+
+    /// <summary>Semantic object/action metadata for interaction-driven legs.</summary>
+    public uint ObjectId { get; init; }
+    public PluginObjectCapabilities ObjectCapabilities { get; init; }
+    public TimeSpan InteractionTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    public int MaxRetries { get; init; } = 1;
 
     public RouteStep(RouteStepKind kind, Location from, Location to, double distance, string via)
     {

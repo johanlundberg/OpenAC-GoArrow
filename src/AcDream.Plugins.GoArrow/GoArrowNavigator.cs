@@ -17,6 +17,16 @@ internal sealed class GoArrowNavigator : IDisposable
     private long _activeSequence;
     private long _lastHandledReportRevision;
     private bool _navigationEventsSubscribed;
+    private uint _activeInteractionObjectId;
+    private long _lastActivationRevision;
+    private long _lastTransitionRevision;
+    private double _legElapsed;
+    private int _legRetries;
+    private string _failureReason = string.Empty;
+    private Guid _routeId;
+    private int _legIndex;
+    private long _transitionGeneration;
+    private const string PluginOwner = "openac.goarrow";
 
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
     public bool WaitingForInteraction { get; private set; }
@@ -29,6 +39,12 @@ internal sealed class GoArrowNavigator : IDisposable
 
     /// <summary>Whether the character is at the destination.</summary>
     public bool HasArrived { get; private set; }
+
+    /// <summary>Latest recoverable failure diagnostic for the panel.</summary>
+    public string FailureReason => _failureReason;
+    public Guid RouteId => _routeId;
+    public int LegIndex => _legIndex;
+    public long TransitionGeneration => _transitionGeneration;
 
     public GoArrowNavigator(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
     {
@@ -47,6 +63,9 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
 
         _host.Events.NavigationChanged += OnNavigationChanged;
+        _host.Events.ActivationCompleted += OnActivationCompleted;
+        _host.Events.PortalTransition += OnPortalTransition;
+        _host.Events.ObjectChanged += OnObjectChanged;
         _navigationEventsSubscribed = true;
     }
 
@@ -56,6 +75,9 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
 
         _host.Events.NavigationChanged -= OnNavigationChanged;
+        _host.Events.ActivationCompleted -= OnActivationCompleted;
+        _host.Events.PortalTransition -= OnPortalTransition;
+        _host.Events.ObjectChanged -= OnObjectChanged;
         _navigationEventsSubscribed = false;
     }
 
@@ -98,6 +120,9 @@ internal sealed class GoArrowNavigator : IDisposable
         WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
+        _routeId = Guid.NewGuid();
+        _legIndex = 0;
+        _transitionGeneration = 0;
         StartCurrentLeg();
     }
 
@@ -116,6 +141,15 @@ internal sealed class GoArrowNavigator : IDisposable
         WaitingForInteraction = false;
         _activeSequence = 0;
         _lastHandledReportRevision = 0;
+        _activeInteractionObjectId = 0;
+        _lastActivationRevision = 0;
+        _lastTransitionRevision = 0;
+        _legElapsed = 0;
+        _legRetries = 0;
+        _failureReason = string.Empty;
+        _routeId = Guid.Empty;
+        _legIndex = 0;
+        _transitionGeneration = 0;
     }
 
     /// <summary>
@@ -130,6 +164,26 @@ internal sealed class GoArrowNavigator : IDisposable
             "Current Position",
             _currentNavPosition.Value.NorthSouth,
             _currentNavPosition.Value.EastWest);
+
+        _legElapsed += Math.Max(0, elapsed);
+        var currentStep = _destination.CurrentRoute?.Steps.FirstOrDefault();
+        if (currentStep is not null && _legElapsed > _settings.InteractionTimeoutSeconds)
+        {
+            _failureReason = $"Timed out on {currentStep.Kind.ToString().ToLowerInvariant()} '{currentStep.Via}'.";
+            if (_legRetries < _settings.MaxNavigationRetries)
+            {
+                _legRetries++;
+                _legElapsed = 0;
+                StartCurrentLeg();
+            }
+            else
+            {
+                _isNavigating = false;
+                WaitingForInteraction = true;
+                _host.Automation.Chat.PostSystemMessage($"GoArrow: {_failureReason}");
+            }
+            return;
+        }
 
         // Update distance/bearing
         _destination.EstimatedDistance = currentLoc.DistanceTo(_destination.TargetLocation);
@@ -170,14 +224,14 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (step.Kind != RouteStepKind.Travel)
         {
-            WaitingForInteraction = true;
-            _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Route requires {step.Kind.ToString().ToLowerInvariant()} '{step.Via}' at {step.From.Name}. Complete it, then use /go resume.");
+            _transitionGeneration++;
+            TryStartInteraction(step);
             return;
         }
 
         var immediateTarget = step.To;
         _isNavigating = true;
+        _legElapsed = 0;
         var navPos = new PluginNavigationPosition(
             CellId: 0,
             EastWest: immediateTarget.Coords.EW,
@@ -207,6 +261,8 @@ internal sealed class GoArrowNavigator : IDisposable
     private void HandleNavigationReport(PluginGoToReport report)
     {
         // Reports from another owner or an earlier GoTo must not advance this route.
+        if (report.Owner is not null && !report.Owner.Equals(PluginOwner, StringComparison.OrdinalIgnoreCase))
+            return;
         if (_activeSequence != 0 && report.Sequence != 0 && report.Sequence != _activeSequence)
             return;
 
@@ -226,8 +282,21 @@ internal sealed class GoArrowNavigator : IDisposable
             or PluginGoToState.Lost)
         {
             _lastHandledReportRevision = report.Revision;
+            if (report.State == PluginGoToState.Blocked && report.BlockedByObjectId != 0)
+            {
+                if (_host.Automation.Objects.TryGet(report.BlockedByObjectId, out PluginWorldObject blocked)
+                    && blocked.ObjectClass == PluginObjectClass.Door && !blocked.IsDoorOpen && blocked.CanActivate)
+                {
+                    _activeInteractionObjectId = blocked.ObjectId;
+                    WaitingForInteraction = true;
+                    _isNavigating = false;
+                    _host.Automation.Objects.Activate(blocked.ObjectId);
+                    return;
+                }
+            }
             _isNavigating = false;
-            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {report.Reason ?? "no reason"}.");
+            _failureReason = report.Reason ?? report.State.ToString();
+            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {_failureReason}.");
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigation stopped ({report.State}).");
         }
     }
@@ -242,6 +311,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         // Advance to next step
         _destination.AdvanceStep();
+        _legIndex++;
         if (_destination.CurrentRoute == null || _destination.CurrentRoute.StepCount == 0)
         {
             // Arrived at final destination
@@ -256,6 +326,79 @@ internal sealed class GoArrowNavigator : IDisposable
         // Continue to the next leg. Keep the planned route intact so a
         // portal/recall step is not lost during recalculation.
         StartCurrentLeg();
+    }
+
+    private void TryStartInteraction(RouteStep step)
+    {
+        _isNavigating = false;
+        _activeInteractionObjectId = step.ObjectId;
+        if (_activeInteractionObjectId == 0)
+        {
+            PluginObjectCapabilities required = step.Kind == RouteStepKind.Portal
+                ? PluginObjectCapabilities.Portal
+                : PluginObjectCapabilities.Interactable;
+            var candidate = _host.Automation.Objects.CaptureObjects()
+                .FirstOrDefault(obj => (obj.Capabilities & required) != 0
+                    && (string.IsNullOrWhiteSpace(step.Via)
+                        || obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase)));
+            _activeInteractionObjectId = candidate.ObjectId;
+        }
+
+        if (_activeInteractionObjectId == 0)
+        {
+            WaitingForInteraction = true;
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Could not identify {step.Kind.ToString().ToLowerInvariant()} '{step.Via}'. Complete it manually, then use /go resume.");
+            return;
+        }
+
+        var result = _host.Automation.Objects.Activate(_activeInteractionObjectId);
+        if (!result.Accepted)
+        {
+            WaitingForInteraction = true;
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Interaction with '{step.Via}' was not accepted ({result.Status}); use /go resume if completed manually.");
+            return;
+        }
+        WaitingForInteraction = true;
+        _host.Automation.Chat.PostSystemMessage($"GoArrow: Activating '{step.Via}'.");
+    }
+
+    private void OnActivationCompleted(PluginActivationCompletion completion)
+    {
+        if (!WaitingForInteraction || completion.ObjectId != _activeInteractionObjectId
+            || completion.Revision == 0 || completion.Revision <= _lastActivationRevision)
+            return;
+        _lastActivationRevision = completion.Revision;
+        if (!completion.IsSuccess)
+        {
+            _host.Log.Warn($"GoArrow: Interaction failed ({completion.Outcome}) for object 0x{completion.ObjectId:X8}.");
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Interaction failed ({completion.Outcome}); use /go resume to retry.");
+            return;
+        }
+        ResumeAfterInteraction();
+    }
+
+    private void OnObjectChanged(PluginObjectChange change)
+    {
+        if (_destination.Kind != GoArrowDestinationKind.Object
+            || _destination.TargetObjectId != change.ObjectId)
+            return;
+        if (change.Kind == PluginObjectChangeKind.Released || change.Current is not { } current)
+        {
+            _destination.MarkObjectUnavailable();
+            return;
+        }
+        _destination.UpdateObject(current);
+    }
+
+    private void OnPortalTransition(PluginPortalTransition transition)
+    {
+        if (!WaitingForInteraction || transition.Revision == 0
+            || transition.Revision <= _lastTransitionRevision || !transition.IsCompleted)
+            return;
+        _lastTransitionRevision = transition.Revision;
+        ResumeAfterInteraction();
     }
 
     public void Dispose()

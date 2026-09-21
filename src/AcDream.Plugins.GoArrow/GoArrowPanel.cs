@@ -91,6 +91,37 @@ internal sealed class GoArrowPanel
     /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
 
+    /// <summary>Editable destination input used by panel hosts that support text controls.</summary>
+    public string DestinationInput { get; set; } = string.Empty;
+
+    public IReadOnlyList<string> DestinationSuggestions => string.IsNullOrWhiteSpace(DestinationInput)
+        ? Array.Empty<string>()
+        : _plugin.SearchLocations(DestinationInput).Take(12).Select(location => location.Name).ToArray();
+
+    public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
+
+    public string FailureDiagnostics => string.IsNullOrEmpty(_navigator.FailureReason)
+        ? _navigator.LastReport
+        : _navigator.FailureReason;
+
+    public string ProgressText => _destination.CurrentRoute is { } route
+        ? $"Leg {_navigator.LegIndex + 1}/{Math.Max(1, route.StepCount)}"
+        : "No route";
+
+    public void SubmitDestination()
+    {
+        if (string.IsNullOrWhiteSpace(DestinationInput))
+            return;
+        if (!_plugin.TrySetCoordinateDestination(DestinationInput))
+            _plugin.SetDestination(DestinationInput.Trim());
+    }
+
+    public void SelectSuggestion(string name)
+    {
+        DestinationInput = name;
+        SubmitDestination();
+    }
+
     // ── Toggle settings ─────────────────────────────────────────────
 
     public bool AutoNavigate
@@ -159,6 +190,9 @@ internal sealed class GoArrowPanel
 
     /// <summary>Clear destination.</summary>
     public Action ClearDestination => () => _plugin.ClearDestination();
+
+    public Action<int> RemoveRouteStep => index => _plugin.RemoveRouteStep(index);
+    public Action<int, int> MoveRouteStep => (from, to) => _plugin.MoveRouteStep(from, to);
 
     /// <summary>Show destination input hint.</summary>
     public Action ShowDestinationInput => () =>

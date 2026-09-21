@@ -274,6 +274,23 @@ public class RouteGraphTests
     }
 
     [Fact]
+    public void FindShortestPath_CustomCostSelectorUsesDeterministicWeightedPath()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsCsv(new[] { "A;0;0", "B;2;0", "C;1;1", "D;3;0" });
+        var graph = new RouteGraph();
+        graph.Build(db, maxWalkDistance: 10.0);
+
+        var path = graph.FindShortestPath(graph.GetNodeIndex("A"), graph.GetNodeIndex("D"), edge =>
+            edge.Kind == RouteEdgeKind.Walk && edge.Via.Contains("Walk", StringComparison.OrdinalIgnoreCase)
+                ? edge.Cost
+                : edge.Cost * 100);
+
+        Assert.NotNull(path);
+        Assert.Equal(graph.GetNodeIndex("D"), path![^1].ToIndex);
+    }
+
+    [Fact]
     public void FindShortestPath_MultiHopWithRouteStarts()
     {
         var db = new LocationDatabase();

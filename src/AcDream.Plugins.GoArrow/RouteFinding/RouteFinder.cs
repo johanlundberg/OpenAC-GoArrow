@@ -2,6 +2,15 @@ using System.Globalization;
 
 namespace AcDream.Plugins.GoArrow.RouteFinding;
 
+/// <summary>Deterministic weighting profile for graph route selection.</summary>
+public enum RouteCostProfile
+{
+    ShortestWalk,
+    FewestInteractions,
+    PreferRecall,
+    AvoidInteractions
+}
+
 /// <summary>
 /// Finds the best route between two locations using the location database,
 /// portal device table, and route start table.
@@ -11,7 +20,7 @@ public class RouteFinder
 {
     private readonly LocationDatabase _database;
     private readonly double _maxWalkDistance;
-    private readonly RouteGraph _graph;
+    private RouteGraph _graph;
     private bool _graphBuilt;
 
     /// <summary>
@@ -44,7 +53,8 @@ public class RouteFinder
     /// Uses A* shortest path on the route graph when possible,
     /// falling back to direct walk if the graph doesn't cover the route.
     /// </summary>
-    public Route FindRoute(Location currentPosition, Location destination)
+    public Route FindRoute(Location currentPosition, Location destination,
+        RouteCostProfile profile = RouteCostProfile.ShortestWalk)
     {
         EnsureGraphBuilt();
 
@@ -60,7 +70,16 @@ public class RouteFinder
 
             if (fromIdx >= 0 && toIdx >= 0)
             {
-                var path = _graph.FindShortestPath(fromIdx, toIdx);
+                Func<RouteGraphEdge, double>? weighting = profile == RouteCostProfile.ShortestWalk
+                    ? null
+                    : edge => profile switch
+                    {
+                        RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk ? 1d : 0.1d,
+                        RouteCostProfile.PreferRecall => edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone ? edge.Cost * 0.1d : edge.Cost,
+                        RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk ? edge.Cost : edge.Cost * 1000d,
+                        _ => edge.Cost
+                    };
+                var path = _graph.FindShortestPath(fromIdx, toIdx, weighting);
                 if (path != null)
                 {
                     var route = _graph.ToRoute(path, destination.Name);
@@ -110,11 +129,16 @@ public class RouteFinder
         return nearest;
     }
 
+    /// <summary>Atomically discards the graph so the next route sees a complete snapshot.</summary>
+    public void InvalidateGraph() => _graphBuilt = false;
+
     private void EnsureGraphBuilt()
     {
         if (!_graphBuilt)
         {
-            _graph.Build(_database, _maxWalkDistance);
+            var rebuilt = new RouteGraph();
+            rebuilt.Build(_database, _maxWalkDistance);
+            _graph = rebuilt;
             _graphBuilt = true;
         }
     }

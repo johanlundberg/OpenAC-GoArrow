@@ -15,6 +15,7 @@ internal sealed class WarcryAtlasDataProvider
     public const string DefaultUrl =
         "http://maps.roogon.com/downloads/data_cod_TN_Directions_Non_Olthoi.xml";
     private const string CacheKey = "data/warcry-atlas.xml";
+    private const string MetadataKey = "data/warcry-atlas.metadata.json";
     private const int MaximumDownloadBytes = 16 * 1024 * 1024;
 
     private readonly HttpClient _httpClient;
@@ -70,8 +71,14 @@ internal sealed class WarcryAtlasDataProvider
     /// <summary>
     /// Returns the last validated cache, or null when no cache is available.
     /// </summary>
-    public string? ReadCached()
+    public string? ReadCached(TimeSpan? maxAge = null)
     {
+        if (maxAge is { } age && age > TimeSpan.Zero)
+        {
+            CacheMetadata? metadata = _storage.ReadJson<CacheMetadata>(MetadataKey);
+            if (metadata is null || DateTimeOffset.UtcNow - metadata.DownloadedAt > age)
+                return null;
+        }
         string? cached = _storage.ReadText(CacheKey);
         if (string.IsNullOrWhiteSpace(cached))
             return null;
@@ -113,5 +120,8 @@ internal sealed class WarcryAtlasDataProvider
             return;
 
         _storage.WriteText(CacheKey, xml);
+        _storage.WriteJson(MetadataKey, new CacheMetadata(DateTimeOffset.UtcNow, ValidateAtlasXml(xml), _url));
     }
+
+    private sealed record CacheMetadata(DateTimeOffset DownloadedAt, int LocationCount, string SourceUrl);
 }
