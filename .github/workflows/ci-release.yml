@@ -146,20 +146,11 @@ jobs:
 
       # The same checks the launcher runs before it installs anything. A
       # release that fails here would be refused by every player's launcher.
-      # The checker lives on OpenAC's dev branch until the plugin manager
-      # reaches main; then this checkout can go and the step can use OpenAC/.
-      - name: Check out the OpenAC plugin checker
-        uses: actions/checkout@v4
-        with:
-          repository: eriknihlen/OpenAC
-          ref: dev
-          path: OpenAC-dev
-
       - name: Check the release zip the way the launcher will
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          dotnet run --project OpenAC-dev/src/AcDream.PluginCheck --configuration Release --             "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip"
+          dotnet run --project OpenAC/src/AcDream.PluginCheck --configuration Release --             "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip"
 
       - name: Create GitHub release
         env:
