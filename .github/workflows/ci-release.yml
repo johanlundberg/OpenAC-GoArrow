@@ -129,22 +129,37 @@ jobs:
             ! -name 'goarrow-panel.xml' \
             -delete
 
-          mkdir -p "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}"
-          cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.dll" \
-             "$RUNNER_TEMP/goarrow-publish/plugin.json" \
-             "$RUNNER_TEMP/goarrow-publish/goarrow-panel.xml" \
-             "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
-          if [[ -f "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.deps.json" ]]; then
-            cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.deps.json" \
-               "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
-          fi
-          if [[ -f "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.pdb" ]]; then
-            cp "$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.pdb" \
-               "$RUNNER_TEMP/release-root/openac.goarrow-${VERSION}/"
-          fi
+          # The launcher installs from a zip with plugin.json at its ROOT,
+          # and checks the zip against a .sha256 asset and the manifest
+          # against a plugin.json asset that must match the zip's copy byte
+          # for byte. See OpenAC docs/plugin-manifest.md, "Release".
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cd "$RUNNER_TEMP/goarrow-publish"
+          files=(AcDream.Plugins.GoArrow.dll plugin.json goarrow-panel.xml)
+          for optional in AcDream.Plugins.GoArrow.deps.json AcDream.Plugins.GoArrow.pdb; do
+            if [[ -f "$optional" ]]; then files+=("$optional"); fi
+          done
+          zip "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip" "${files[@]}"
+          cp plugin.json "$RUNNER_TEMP/release-assets/plugin.json"
+          cd "$RUNNER_TEMP/release-assets"
+          sha256sum "openac.goarrow-${VERSION}.zip" > "openac.goarrow-${VERSION}.zip.sha256"
 
-          cd "$RUNNER_TEMP/release-root"
-          zip -r "$RUNNER_TEMP/openac.goarrow-${VERSION}.zip" "openac.goarrow-${VERSION}"
+      # The same checks the launcher runs before it installs anything. A
+      # release that fails here would be refused by every player's launcher.
+      # The checker lives on OpenAC's dev branch until the plugin manager
+      # reaches main; then this checkout can go and the step can use OpenAC/.
+      - name: Check out the OpenAC plugin checker
+        uses: actions/checkout@v4
+        with:
+          repository: eriknihlen/OpenAC
+          ref: dev
+          path: OpenAC-dev
+
+      - name: Check the release zip the way the launcher will
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dotnet run --project OpenAC-dev/src/AcDream.PluginCheck --configuration Release --             "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip"
 
       - name: Create GitHub release
         env:
@@ -152,7 +167,4 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         working-directory: OpenAC-GoArrow
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/openac.goarrow-${VERSION}.zip" \
-            --title "GoArrow $GITHUB_REF_NAME" \
-            --generate-notes
+          gh release create "$GITHUB_REF_NAME"             "$RUNNER_TEMP/release-assets/plugin.json"             "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip"             "$RUNNER_TEMP/release-assets/openac.goarrow-${VERSION}.zip.sha256"             --title "GoArrow $GITHUB_REF_NAME"             --generate-notes
