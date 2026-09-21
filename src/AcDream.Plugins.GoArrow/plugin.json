@@ -6,7 +6,7 @@
   "apiVersion": 1,
   "kinds": ["Gameplay"],
   "hosts": ["Graphical", "Headless"],
-  "minHostVersion": "0.1.12",
+  "minHostVersion": "0.1.13",
   "capabilitiesVersion": 1,
   "capabilities": [
     { "name": "network", "note": "Downloads the location database from maps.roogon.com when you run /go update." }
