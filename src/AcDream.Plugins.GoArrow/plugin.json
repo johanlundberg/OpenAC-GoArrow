@@ -4,5 +4,11 @@
   "version": "0.1.0",
   "entryDll": "AcDream.Plugins.GoArrow.dll",
   "apiVersion": 1,
-  "kinds": ["Gameplay"]
+  "kinds": ["Gameplay"],
+  "hosts": ["Graphical", "Headless"],
+  "minHostVersion": "0.1.12",
+  "capabilitiesVersion": 1,
+  "capabilities": [
+    { "name": "network", "note": "Downloads the location database from maps.roogon.com when you run /go update." }
+  ]
 }
