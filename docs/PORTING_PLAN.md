@@ -259,6 +259,8 @@ Needs improvement:
 
 Current panel displays:
 
+- searchable From and Destination fields, with Current Location in both;
+- matching location search results;
 - destination;
 - distance;
 - bearing;
@@ -271,10 +273,6 @@ Current panel displays:
 
 Still needed:
 
-- destination text input;
-- location autocomplete;
-- route-step list and current leg progress;
-- search results;
 - route profile editor;
 - validation/error display;
 - reliable binding invalidation on each tick;
@@ -341,7 +339,7 @@ The provider should return a complete immutable snapshot. `LocationDatabase` sho
 | Position | `INavigationAutomation.Snapshot` | Sufficient for basic display; position events would improve reliability |
 | Walking | `GoTo` / `StopGoTo` / `GoToReport` | Sufficient for basic point navigation; ownership/events/interactions needed for robust routes |
 | World objects | navigation object lookup and OpenAC events | Partially sufficient; needs complete plugin wiring and semantic object capabilities |
-| Panels | `IUiRegistry.AddPanel` | Sufficient for current panel; input/list/autocomplete controls needed for parity |
+| Panels | `IUiRegistry.AddPanel` | Searchable From and Destination fields and route list work; richer panel controls remain |
 | Rendering | No plugin-owned rendering surface | Required for arrow/map/toolbar HUDs |
 | Recall state | No complete normalized recall API | Required for automatic bind/recall tracking |
 | External data | No plugin data-provider/download service | Can be implemented later in the plugin once storage/resource policy is defined |
@@ -370,9 +368,7 @@ The provider should return a complete immutable snapshot. `LocationDatabase` sho
    - Replace manual/chat-only values with authoritative state where available.
 
 5. **Panel parity**
-   - Add destination text input and location autocomplete.
    - Add current leg progress to the route-step list.
-   - Add search results display.
    - Add reliable binding invalidation on each tick.
 
 6. **External data provider**

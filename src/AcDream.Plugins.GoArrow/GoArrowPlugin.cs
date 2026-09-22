@@ -30,11 +30,13 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private Action<SelectionChangedEvent>? _selectionChangedHandler;
     private Action<PluginPortalTransition>? _portalTransitionHandler;
     private long _recallRequestRevision;
+    private Location? _routeFromOverride;
 
     /// <summary>
     /// The name of the current destination, or empty.
     /// </summary>
     internal string CurrentDestinationName => _destination?.TargetName ?? string.Empty;
+    internal GoArrowPanel? Panel => _panel;
 
     public void Initialize(IPluginHost host)
     {
@@ -171,7 +173,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _settings?.Save(_host.Storage);
 
             // Auto-start navigation if enabled
-            if (_settings?.AutoNavigate == true)
+            if (_settings?.AutoNavigate == true && _routeFromOverride is null)
             {
                 _navigator?.StartNavigation();
             }
@@ -204,6 +206,17 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_navigator is null)
             return;
+        if (_routeFromOverride is { } from)
+        {
+            _navigator.StopNavigation();
+            _destination?.CalculateRoute(from);
+            return;
+        }
+        if (_destination?.TargetName == "Current Location")
+        {
+            _navigator.PlanRoute();
+            return;
+        }
         if (_settings?.AutoNavigate == true)
         {
             _navigator.StartNavigation();
@@ -213,6 +226,36 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (_navigator.IsNavigating)
             _navigator.StopNavigation();
         _navigator.PlanRoute();
+    }
+
+    internal bool SetRouteFrom(string? name)
+    {
+        if (name is null)
+        {
+            _routeFromOverride = null;
+            _destination?.ClearRoute();
+            return true;
+        }
+        Location? location = _database?.FindLocation(name);
+        if (location is null || !location.HasCoordinates)
+            return false;
+        _navigator?.StopNavigation();
+        _routeFromOverride = location;
+        _destination?.ClearRoute();
+        return true;
+    }
+
+    internal bool SetCurrentLocationDestination()
+    {
+        if (_host is null || _destination is null || !_host.Automation.IsAvailable)
+            return false;
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (!snapshot.IsAvailable)
+            return false;
+        _destination.SetCoordinate(snapshot.Position.NorthSouth,
+            snapshot.Position.EastWest, "Current Location");
+        _settings?.Save(_host.Storage);
+        return true;
     }
 
     /// <summary>
@@ -398,7 +441,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             return;
         _destination.SetCoordinate(northSouth, eastWest, displayText);
         _settings?.Save(_host.Storage);
-        if (_settings?.AutoNavigate == true)
+        if (_settings?.AutoNavigate == true && _routeFromOverride is null)
             _navigator?.StartNavigation();
     }
 
@@ -482,7 +525,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             || !_destination.SetObject(obj))
             return false;
         _settings?.Save(_host.Storage);
-        if (_settings?.AutoNavigate == true)
+        if (_settings?.AutoNavigate == true && _routeFromOverride is null)
             _navigator?.StartNavigation();
         return true;
     }
@@ -576,7 +619,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         // Update current position from navigation snapshot
         if (_host.Automation.IsAvailable)
         {
-            var position = _host.Automation.Navigation.Snapshot.Position;
+            var snapshot = _host.Automation.Navigation.Snapshot;
+            if (_settings?.DestinationName == "Current Location" && !_destination.HasDestination
+                && snapshot.IsAvailable)
+                SetCurrentLocationDestination();
+            var position = snapshot.Position;
             _navigator.UpdatePosition(position);
 
             // Recalculate while idle. During navigation the navigator owns
@@ -588,7 +635,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                     "Current Position",
                     position.NorthSouth,
                     position.EastWest);
-                _destination.CalculateRoute(currentLoc);
+                _destination.CalculateRoute(_routeFromOverride ?? currentLoc);
             }
             else if (_destination.HasDestination)
             {
@@ -596,12 +643,13 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                     "Current Position",
                     position.NorthSouth,
                     position.EastWest);
-                _destination.UpdateGuidance(currentLoc);
+                _destination.UpdateGuidance(_routeFromOverride ?? currentLoc);
             }
         }
 
         // Tick navigator
         _navigator.OnTick(elapsed);
+        _panel?.OnTick(elapsed);
     }
 
     private void LoadCachedAtlasData()

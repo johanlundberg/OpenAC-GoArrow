@@ -286,6 +286,10 @@ Restore map windows with current position, destination, route lines, portal mark
 
 ## Phase 7 — Declarative panel parity
 
+Current progress: the panel has searchable From and Destination fields,
+clickable matches, a Current Location choice in both fields, and a route-step
+list. A named From location previews a route without starting movement.
+
 ### Objectives
 
 Make the panel a complete alternative to chat commands.

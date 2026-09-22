@@ -171,6 +171,8 @@ internal sealed class GoArrowDestination
         GuidanceDistance = double.NaN;
     }
 
+    public void ClearRoute() => CurrentRoute = null;
+
     /// <summary>
     /// Calculate or recalculate the route from the current position.
     /// </summary>
