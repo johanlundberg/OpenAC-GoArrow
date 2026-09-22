@@ -50,8 +50,11 @@ internal sealed class GoArrowDestination
     /// <summary>Estimated distance to the destination, or NaN.</summary>
     public double EstimatedDistance { get; internal set; } = double.NaN;
 
-    /// <summary>Bearing to the destination in degrees, or NaN.</summary>
+    /// <summary>Bearing to the next route waypoint in degrees, or NaN.</summary>
     public double BearingDegrees { get; internal set; } = double.NaN;
+
+    /// <summary>Distance to the next route waypoint, or NaN.</summary>
+    public double GuidanceDistance { get; private set; } = double.NaN;
 
     public GoArrowDestination(GoArrowSettings settings, LocationDatabase database, RouteFinder routeFinder)
     {
@@ -165,6 +168,7 @@ internal sealed class GoArrowDestination
         CurrentRoute = null;
         EstimatedDistance = double.NaN;
         BearingDegrees = double.NaN;
+        GuidanceDistance = double.NaN;
     }
 
     /// <summary>
@@ -180,19 +184,36 @@ internal sealed class GoArrowDestination
 
         CurrentRoute = _routeFinder.FindRoute(currentPosition, TargetLocation, _settings.RouteCostProfile);
 
-        EstimatedDistance = currentPosition.DistanceTo(TargetLocation);
-        BearingDegrees = currentPosition.AngleTo(TargetLocation) * (180.0 / Math.PI);
+        UpdateGuidance(currentPosition);
     }
 
     /// <summary>
-    /// Find the next immediate sub-destination (the first step's destination).
+    /// Update distance to the final destination and guidance to the next step.
     /// </summary>
+    public void UpdateGuidance(RouteFinding.Location currentPosition)
+    {
+        if (TargetLocation is null)
+        {
+            EstimatedDistance = double.NaN;
+            BearingDegrees = double.NaN;
+            GuidanceDistance = double.NaN;
+            return;
+        }
+
+        EstimatedDistance = currentPosition.DistanceTo(TargetLocation);
+        var next = GetImmediateTarget() ?? TargetLocation;
+        GuidanceDistance = currentPosition.DistanceTo(next);
+        BearingDegrees = currentPosition.AngleTo(next) * (180.0 / Math.PI);
+    }
+
+    /// <summary>Find the next waypoint to walk toward or interact with.</summary>
     public RouteFinding.Location? GetImmediateTarget()
     {
         if (CurrentRoute == null || CurrentRoute.StepCount == 0)
             return TargetLocation;
 
-        return CurrentRoute.Steps[0].To;
+        var step = CurrentRoute.Steps[0];
+        return step.Kind == RouteStepKind.Travel ? step.To : step.From;
     }
 
     /// <summary>

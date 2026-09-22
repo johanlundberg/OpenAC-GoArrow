@@ -124,7 +124,7 @@ public class GoArrowSettings
             LastHouseRecall = structured.LastHouseRecall;
             LastMansionRecall = structured.LastMansionRecall;
             FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
-            RestorePanelWhenAllUiWasHidden();
+            RestoreUiHiddenByOldDefaults();
             return;
         }
 
@@ -175,18 +175,29 @@ public class GoArrowSettings
 
         var favs = storage.ReadText("favorites") ?? string.Empty;
         FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-        RestorePanelWhenAllUiWasHidden();
+        RestoreUiHiddenByOldDefaults();
     }
 
     private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
         bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
 
-    private void RestorePanelWhenAllUiWasHidden()
+    private void RestoreUiHiddenByOldDefaults()
     {
         // Earlier builds interpreted missing legacy keys as false and saved all
-        // four hidden states to settings.json on shutdown. Leave one way to
-        // reach the plugin UI when loading those affected profiles.
+        // hidden states to settings.json. Recover the panel and arrow when
+        // that leaves every overlay hidden.
         if (!PanelVisible && !HudVisible && !ToolbarVisible && !MapVisible)
             PanelVisible = true;
+        if (!HudVisible && !ToolbarVisible && !MapVisible)
+        {
+            if (!ShowDistance && !ShowBearing && !RecalculateRoute && !UseNavigationAutomation)
+            {
+                ShowDistance = true;
+                ShowBearing = true;
+                RecalculateRoute = true;
+                UseNavigationAutomation = true;
+            }
+            HudVisible = true;
+        }
     }
 }

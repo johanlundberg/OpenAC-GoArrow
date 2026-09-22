@@ -34,7 +34,7 @@ The current port includes:
 - `/go` chat commands;
 - persistent settings through `IPluginStorage`;
 - a declarative OpenAC panel;
-- a plugin-owned directional HUD and compact Stop/Resume toolbar;
+- plugin canvases for a directional arrow and compact Stop/Resume toolbar;
 - a Dereth map surface with route and position markers, plus a background when the host supplies the map resource;
 - coordinate chat links that set a destination;
 - destination distance, bearing, and route status display;
@@ -48,9 +48,9 @@ The original plugin was built for Virindi/Decal and could use client-specific se
 
 | Original GoArrow capability | OpenAC port | Current status |
 | --- | --- | --- |
-| Directional D3D arrow HUD | Plugin-owned text HUD with bearing and distance, plus a declarative panel | Adapted; original arrow graphics are not reproduced |
+| Directional D3D arrow HUD | Plugin canvas arrow pointing to the next route waypoint, plus a declarative panel | Adapted; original arrow artwork is not reproduced |
 | Dereth and dungeon map HUDs | Dereth map surface with route and position markers | Dereth map adapted; dungeon maps are not implemented |
-| Floating toolbar HUD | Compact Stop/Resume HUD, panel buttons, and `/go` commands | Partially adapted |
+| Floating toolbar HUD | Compact Stop/Resume canvas, panel buttons, and `/go` commands | Partially adapted |
 | Clickable coordinate chat links | Coordinate-link handler sets the destination | Adapted through OpenAC's chat API |
 | Raw client/network tracking | Supported snapshots and chat/state heuristics | Limited by available abstractions |
 | Manual movement/key control | `INavigationAutomation.GoTo` | Adapted to OpenAC navigation |
@@ -152,7 +152,7 @@ After the plugin is enabled:
 /go clear
 ```
 
-The destination name must exist in the loaded location database. The panel displays the selected destination, estimated distance, bearing, route status, and route-step count.
+The destination name must exist in the loaded location database. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking the route. The panel displays the destination, estimated distance, bearing, route status, and steps.
 
 Navigation automation is optional. When no live session or navigation provider is available, GoArrow remains usable for route and destination information but cannot walk the character.
 

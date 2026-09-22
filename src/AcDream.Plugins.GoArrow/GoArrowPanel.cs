@@ -42,7 +42,7 @@ internal sealed class GoArrowPanel
             ? $"{_destination.EstimatedDistance:F2} mu"
             : string.Empty;
 
-    /// <summary>Bearing to destination (formatted).</summary>
+    /// <summary>Bearing to the next route waypoint (formatted).</summary>
     public string BearingText =>
         _destination.HasDestination && _settings.ShowBearing
             ? $"{_destination.BearingDegrees:F1}°"
@@ -59,7 +59,9 @@ internal sealed class GoArrowPanel
                 return "Waiting for interaction";
             if (_navigator.HasArrived)
                 return "Arrived!";
-            return string.IsNullOrEmpty(_destination.TargetName) ? "Idle" : "Ready";
+            if (string.IsNullOrEmpty(_destination.TargetName))
+                return "Idle";
+            return _destination.CurrentRoute is { StepCount: > 0 } ? "Route ready" : "Ready";
         }
     }
 
@@ -99,6 +101,12 @@ internal sealed class GoArrowPanel
         : _plugin.SearchLocations(DestinationInput).Take(12).Select(location => location.Name).ToArray();
 
     public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
+
+    public int SelectedRouteStep => _destination.CurrentRoute is { StepCount: > 0 } ? 0 : -1;
+
+    public string NextTargetText => _destination.CurrentRoute is { StepCount: > 0 }
+        ? $"Next: {_destination.GetImmediateTarget()?.Name}"
+        : "No route calculated";
 
     public string FailureDiagnostics => string.IsNullOrEmpty(_navigator.FailureReason)
         ? _navigator.LastReport
@@ -195,8 +203,8 @@ internal sealed class GoArrowPanel
     /// <summary>Toggle route recalculation on/off.</summary>
     public Action ToggleRecalculateRoute => () => RecalculateRoute = !RecalculateRoute;
 
-    /// <summary>Start navigation.</summary>
-    public Action StartNavigation => () => _navigator.StartNavigation();
+    /// <summary>Compute and display the route; optionally start navigation.</summary>
+    public Action StartNavigation => _plugin.Go;
 
     /// <summary>Stop navigation.</summary>
     public Action StopNavigation => () => _plugin.StopNavigation();

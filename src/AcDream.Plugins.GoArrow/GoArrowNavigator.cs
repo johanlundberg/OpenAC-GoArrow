@@ -89,13 +89,44 @@ internal sealed class GoArrowNavigator : IDisposable
         _currentNavPosition = navPosition;
     }
 
+    /// <summary>Compute a route from the live position without driving the character.</summary>
+    public bool PlanRoute()
+    {
+        if (_destination.TargetLocation is null || !_host.Automation.IsAvailable)
+            return false;
+
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (snapshot.IsAvailable)
+            _currentNavPosition = snapshot.Position;
+        if (_currentNavPosition is null)
+        {
+            _host.Log.Warn("GoArrow: Current position unavailable; cannot calculate a route.");
+            return false;
+        }
+
+        var currentLoc = new RouteFinding.Location(
+            "Current Position",
+            _currentNavPosition.Value.NorthSouth,
+            _currentNavPosition.Value.EastWest);
+        _destination.CalculateRoute(currentLoc);
+        if (_destination.CurrentRoute is not { StepCount: > 0 })
+        {
+            _host.Log.Warn("GoArrow: No route found.");
+            return false;
+        }
+        return true;
+    }
+
     /// <summary>
     /// Start navigating to the current destination.
     /// </summary>
     public void StartNavigation()
     {
-        if (_destination.TargetLocation == null || _currentNavPosition == null)
+        if (!_settings.UseNavigationAutomation)
+        {
+            PlanRoute();
             return;
+        }
 
         if (!_host.Automation.IsAvailable)
         {
@@ -103,17 +134,10 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        var currentLoc = new RouteFinding.Location(
-            "Current Position",
-            _currentNavPosition.Value.NorthSouth,
-            _currentNavPosition.Value.EastWest);
-
-        _destination.CalculateRoute(currentLoc);
-        if (_destination.CurrentRoute == null || _destination.CurrentRoute.StepCount == 0)
-        {
-            _host.Log.Warn("GoArrow: No route found.");
+        if (_isNavigating)
+            StopNavigation();
+        if (!PlanRoute())
             return;
-        }
 
         _isNavigating = false;
         HasArrived = false;
@@ -185,9 +209,7 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        // Update distance/bearing
-        _destination.EstimatedDistance = currentLoc.DistanceTo(_destination.TargetLocation);
-        _destination.BearingDegrees = currentLoc.AngleTo(_destination.TargetLocation) * (180.0 / Math.PI);
+        _destination.UpdateGuidance(currentLoc);
 
         // Poll GoTo report for state changes
         HandleNavigationReport(_host.Automation.Navigation.GoToReport);

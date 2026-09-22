@@ -44,4 +44,26 @@ public sealed class DestinationTests
         Assert.True(destination.TargetUnavailable);
         Assert.Equal((uint)12, destination.TargetObjectId);
     }
+
+    [Fact]
+    public void RouteGuidancePointsToFirstGraphWaypoint()
+    {
+        var database = new LocationDatabase();
+        database.LoadLocationsCsv(new[]
+        {
+            "Start;0;0",
+            "First;0;10",
+            "Finish;10;10"
+        });
+        var destination = new GoArrowDestination(
+            new GoArrowSettings(), database, new RouteFinder(database));
+        destination.SetDestination("Finish");
+
+        destination.CalculateRoute(new Location("Current", 0, 0));
+
+        Assert.Equal("First", destination.GetImmediateTarget()?.Name);
+        Assert.Equal(90, destination.BearingDegrees, 6);
+        Assert.Equal(10, destination.GuidanceDistance, 6);
+        Assert.Equal(Math.Sqrt(200), destination.EstimatedDistance, 6);
+    }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<panel x="0" y="0" w="360" h="330" title="GoArrow" resizable="true" minw="300" minh="260">
+<panel x="0" y="0" w="360" h="485" title="GoArrow" resizable="true" minw="300" minh="485">
   <group x="8" y="8" w="344" h="110" border="#FF4A3A14">
     <label x="8" y="8" text="Destination" />
     <field x="8" y="28" w="250" h="20" text="{DestinationInput}" onchange="{UpdateDestinationInputAction}" onsubmit="{SubmitDestinationTextAction}" />
@@ -22,7 +22,13 @@
     <label x="52" y="40" text="{RouteStepsText}" />
   </group>
 
-  <group x="8" y="198" w="344" h="112" border="#FF4A3A14">
+  <group x="8" y="198" w="344" h="160" border="#FF4A3A14">
+    <label x="8" y="8" text="Route steps" />
+    <label x="88" y="8" text="{NextTargetText}" />
+    <list x="8" y="32" w="328" h="120" rowheight="18" items="{RouteSteps}" selected="{SelectedRouteStep}" selectionband="true" />
+  </group>
+
+  <group x="8" y="366" w="344" h="112" border="#FF4A3A14">
     <label x="8" y="8" text="Display" />
     <toggle x="8" y="30" w="150" h="20" text="Show Distance" checked="{ShowDistance}" onclick="{ToggleShowDistance}" />
     <toggle x="170" y="30" w="150" h="20" text="Show Bearing" checked="{ShowBearing}" onclick="{ToggleShowBearing}" />

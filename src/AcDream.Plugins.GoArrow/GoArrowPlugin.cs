@@ -194,6 +194,22 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _navigator?.StopNavigation();
     }
 
+    /// <summary>Show a route and start walking only when auto-navigation is enabled.</summary>
+    internal void Go()
+    {
+        if (_navigator is null)
+            return;
+        if (_settings?.AutoNavigate == true)
+        {
+            _navigator.StartNavigation();
+            return;
+        }
+
+        if (_navigator.IsNavigating)
+            _navigator.StopNavigation();
+        _navigator.PlanRoute();
+    }
+
     /// <summary>
     /// Resume after manually completing a portal or recall interaction.
     /// </summary>
@@ -517,13 +533,22 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             // Recalculate while idle. During navigation the navigator owns
             // the current route and advances it from navigation reports.
-            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived)
+            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
+                && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true))
             {
                 var currentLoc = new RouteFinding.Location(
                     "Current Position",
                     position.NorthSouth,
                     position.EastWest);
                 _destination.CalculateRoute(currentLoc);
+            }
+            else if (_destination.HasDestination)
+            {
+                var currentLoc = new RouteFinding.Location(
+                    "Current Position",
+                    position.NorthSouth,
+                    position.EastWest);
+                _destination.UpdateGuidance(currentLoc);
             }
         }
 
