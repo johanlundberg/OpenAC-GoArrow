@@ -119,6 +119,16 @@ internal sealed class GoArrowPanel
     /// <summary>Submit the destination field as a markup-compatible action.</summary>
     public Action SubmitDestinationAction => SubmitDestination;
 
+    /// <summary>Keep the input value current when the field changes.</summary>
+    public Action<string> UpdateDestinationInputAction => text => DestinationInput = text;
+
+    /// <summary>Submit the text supplied by OpenAC's field callback.</summary>
+    public Action<string> SubmitDestinationTextAction => text =>
+    {
+        DestinationInput = text;
+        SubmitDestination();
+    };
+
     public void SelectSuggestion(string name)
     {
         DestinationInput = name;

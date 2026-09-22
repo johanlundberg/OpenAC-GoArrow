@@ -12,27 +12,8 @@ on:
 permissions:
   contents: read
 
-# OpenAC is checked out at the EXACT commit whose abstractions GoArrow is built
-# and verified against, not at moving `main`. OpenAC's in-tree <Version> is not
-# enough: 0.1.13 (for example) spans commits with and without the map/rendering
-# contracts GoArrow needs, and there is no git tag for 0.1.13. Pinning here is
-# what makes a GoArrow build and the client it runs on a true match.
-#
-# NOTE: the checkout tracks either a tag or a commit, not moving `main`. OpenAC's
-# in-tree <Version> is not enough: 0.1.13 (for example) spans commits with and
-# without the map/rendering contracts GoArrow needs. Pinning here is what makes
-# a GoArrow build and the client it runs on a true match.
-#
-# Prefer a tag when the OpenAC maintainer tags releases again (e.g. OPENAC_TAG
-# = v0.1.14). Until a suitable tag exists, fall back to the known-good commit
-# SHA in OPENAC_REF below; the resolve step uses the tag only if it exists.
-#
-#   OPENAC_REF = 85211dbf  -> OpenAC "0.1.13" with map/rendering/resource contracts
-#   OPENAC_TAG = v0.1.14   -> preferred once the maintainer tags that release
-#
-# Bump OPENAC_REF/OPENAC_TAG in the same commit that bumps minHostVersion in
-# plugin.json, and make sure plugin.json's minHostVersion matches the OpenAC
-# <Version> at the chosen ref.
+# Build releases against a tagged OpenAC contract. Update OPENAC_TAG and
+# plugin.json's minHostVersion together when the required contract changes.
 env:
   OPENAC_TAG: "v0.1.15"
 
@@ -47,23 +28,6 @@ jobs:
         with:
           path: OpenAC-GoArrow
 
-      # Resolve which OpenAC ref to build against. Use OPENAC_TAG when it names a
-      # tag that actually exists on the OpenAC repo (so a tagged release is
-      # honoured the moment the maintainer tags it), otherwise fall back to the
-      # known-good commit SHA in OPENAC_REF.
-      - name: Resolve OpenAC ref (tag preferred)
-        id: openac-resolve
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${{ env.OPENAC_TAG }}" ]] && \
-             git ls-remote --tags https://github.com/eriknihlen/OpenAC \
-               "refs/tags/${{ env.OPENAC_TAG }}" | grep -q .; then
-            echo "ref=${{ env.OPENAC_TAG }}"
-          else
-            echo "ref=${{ env.OPENAC_REF }}"
-          fi >> "$GITHUB_OUTPUT"
-
       # The plugin references the OpenAC abstractions project until the
       # published contract package is available. Check it out beside this repo
       # so Directory.Build.props resolves ../OpenAC in CI.
@@ -71,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: eriknihlen/OpenAC
-          ref: ${{ steps.openac-resolve.outputs.ref }}
+          ref: ${{ env.OPENAC_TAG }}
           path: OpenAC
 
       - name: Set up .NET
@@ -105,10 +69,10 @@ jobs:
           # OpenAC (above the declared minimum) passes.
           ordered="$(printf '%s\n%s\n' "$min_host_version" "$openac_version" | sort -V | head -n1)"
           if [[ "$ordered" != "$min_host_version" ]]; then
-            echo "plugin.json minHostVersion=$min_host_version exceeds OpenAC Version=$openac_version at ${{ steps.openac-resolve.outputs.ref }}; raise OPENAC_REF/OPENAC_TAG or lower minHostVersion" >&2
+            echo "plugin.json minHostVersion=$min_host_version exceeds OpenAC Version=$openac_version at ${{ env.OPENAC_TAG }}; raise OPENAC_TAG or lower minHostVersion" >&2
             exit 1
           fi
-          echo "minHostVersion $min_host_version <= OpenAC Version $openac_version at ${{ steps.openac-resolve.outputs.ref }}"
+          echo "minHostVersion $min_host_version <= OpenAC Version $openac_version at ${{ env.OPENAC_TAG }}"
 
       - name: Run tests
         working-directory: OpenAC-GoArrow
@@ -116,7 +80,7 @@ jobs:
 
   # Forward-compatibility signal. Kitária is concerned that a future OpenAC
   # release might change the plugin contract without breaking the pinned
-  # release build (which only ever sees the resolved OPENAC_TAG/OPENAC_REF). This
+  # release build (which only ever sees the pinned OPENAC_TAG). This
   # job checks out OpenAC
   # top-of-main — the best available proxy for the next release — rebuilds and
   # re-runs the entire GoArrow suite against it. If OpenAC makes a breaking
@@ -170,24 +134,11 @@ jobs:
           path: OpenAC-GoArrow
           fetch-depth: 0
 
-      - name: Resolve OpenAC ref (tag preferred)
-        id: openac-resolve
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${{ env.OPENAC_TAG }}" ]] && \
-             git ls-remote --tags https://github.com/eriknihlen/OpenAC \
-               "refs/tags/${{ env.OPENAC_TAG }}" | grep -q .; then
-            echo "ref=${{ env.OPENAC_TAG }}"
-          else
-            echo "ref=${{ env.OPENAC_REF }}"
-          fi >> "$GITHUB_OUTPUT"
-
       - name: Check out OpenAC abstractions
         uses: actions/checkout@v4
         with:
           repository: eriknihlen/OpenAC
-          ref: ${{ steps.openac-resolve.outputs.ref }}
+          ref: ${{ env.OPENAC_TAG }}
           path: OpenAC
 
       - name: Set up .NET

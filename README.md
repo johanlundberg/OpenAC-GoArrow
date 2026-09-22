@@ -34,6 +34,9 @@ The current port includes:
 - `/go` chat commands;
 - persistent settings through `IPluginStorage`;
 - a declarative OpenAC panel;
+- a plugin-owned directional HUD and compact Stop/Resume toolbar;
+- a Dereth map surface with route and position markers, plus a background when the host supplies the map resource;
+- coordinate chat links that set a destination;
 - destination distance, bearing, and route status display;
 - optional integration with `INavigationAutomation.GoTo`;
 - graceful behavior when running in a headless host or outside a live world session;
@@ -45,16 +48,16 @@ The original plugin was built for Virindi/Decal and could use client-specific se
 
 | Original GoArrow capability | OpenAC port | Current status |
 | --- | --- | --- |
-| Directional D3D arrow HUD | Declarative panel with bearing and distance | Rendering HUD deferred until OpenAC exposes a supported rendering surface |
-| Dereth and dungeon map HUDs | Embedded route data and panel status | Map canvas support not currently available |
-| Floating toolbar HUD | Panel buttons and `/go` commands | Adapted |
-| Clickable coordinate chat links | Manual `/go` commands | Chat link API not currently available |
+| Directional D3D arrow HUD | Plugin-owned text HUD with bearing and distance, plus a declarative panel | Adapted; original arrow graphics are not reproduced |
+| Dereth and dungeon map HUDs | Dereth map surface with route and position markers | Dereth map adapted; dungeon maps are not implemented |
+| Floating toolbar HUD | Compact Stop/Resume HUD, panel buttons, and `/go` commands | Partially adapted |
+| Clickable coordinate chat links | Coordinate-link handler sets the destination | Adapted through OpenAC's chat API |
 | Raw client/network tracking | Supported snapshots and chat/state heuristics | Limited by available abstractions |
 | Manual movement/key control | `INavigationAutomation.GoTo` | Adapted to OpenAC navigation |
 | Decal XML/data services | `System.Xml` and embedded resources | Adapted |
 | Virindi settings/profile storage | `IPluginStorage` | Adapted |
 
-The detailed improvement backlog is in [`OpenAC-improvements.md`](OpenAC-improvements.md). It describes the OpenAC capabilities that would be needed for a fully feature-equivalent port.
+The historical improvement backlog is in [`OpenAC-improvements.md`](docs/OpenAC-improvements.md). Some APIs proposed there have since been added to OpenAC.
 
 ## Project layout
 
@@ -66,6 +69,8 @@ src/AcDream.Plugins.GoArrow/
 ├── GoArrowDestination.cs
 ├── GoArrowNavigator.cs
 ├── GoArrowSettings.cs
+├── GoArrowHud.cs
+├── GoArrowMap.cs
 ├── goarrow-panel.xml
 ├── plugin.json
 ├── RouteFinding/
@@ -82,7 +87,7 @@ src/AcDream.Plugins.GoArrow/
     └── DefaultRouteStarts.xml
 ```
 
-`PORTING_PLAN.md` contains the original feature-by-feature porting plan. `REFERENCES.md` lists the primary source references.
+[`PORTING_PLAN.md`](docs/PORTING_PLAN.md) contains the original feature-by-feature porting plan. [`REFERENCES.md`](docs/REFERENCES.md) lists the primary source references.
 
 ## Building
 
@@ -155,16 +160,15 @@ Navigation automation is optional. When no live session or navigation provider i
 
 This repository is a porting project, not a claim that every original GoArrow feature is already reproduced. In particular, the current port does not yet provide:
 
-- custom arrow rendering;
-- Dereth or dungeon map windows;
-- the original toolbar and tooltip HUDs;
-- clickable coordinates in chat;
+- the original arrow artwork and tooltip HUDs;
+- dungeon and floor maps;
+- every action from the original toolbar;
 - authoritative recall, house, and allegiance tracking;
 - complete portal/NPC/door interaction automation;
 - all original data files and map assets;
 - every original Virindi settings/profile workflow.
 
-These limitations are intentional where OpenAC does not currently expose an equivalent supported API. They should not be worked around with references to OpenAC internals, raw network messages, or client memory access. Improvements should be made in OpenAC's public abstractions first, then consumed by this plugin.
+These features remain outside the current port. Extensions should use OpenAC's public abstractions instead of references to client internals, raw network messages, or client memory access.
 
 ## Contributing
 
@@ -177,7 +181,7 @@ When extending this port:
 5. Keep original GoArrow behavior and attribution documented when porting additional code or data.
 6. Prefer semantic OpenAC APIs over raw protocol or renderer-specific shortcuts.
 
-For proposed OpenAC API changes, use [`OpenAC-improvements.md`](OpenAC-improvements.md) as the starting backlog.
+For proposed OpenAC API changes, use the historical [`OpenAC-improvements.md`](docs/OpenAC-improvements.md) backlog as a starting point and check which APIs are already available.
 
 ## License and provenance
 

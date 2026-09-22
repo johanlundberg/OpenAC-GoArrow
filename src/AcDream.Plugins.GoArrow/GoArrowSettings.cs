@@ -124,36 +124,24 @@ public class GoArrowSettings
             LastHouseRecall = structured.LastHouseRecall;
             LastMansionRecall = structured.LastMansionRecall;
             FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
+            RestorePanelWhenAllUiWasHidden();
             return;
         }
 
         DestinationName = storage.ReadText("destination") ?? string.Empty;
 
-        bool.TryParse(storage.ReadText("autoNavigate"), out bool autoNav);
-        AutoNavigate = autoNav;
-
-        bool.TryParse(storage.ReadText("recalculate"), out bool recalc);
-        RecalculateRoute = recalc;
-
-        bool.TryParse(storage.ReadText("panelVisible"), out bool panelVis);
-        PanelVisible = panelVis;
-
-        bool.TryParse(storage.ReadText("showDistance"), out bool showDist);
-        ShowDistance = showDist;
-
-        bool.TryParse(storage.ReadText("showBearing"), out bool showBear);
-        ShowBearing = showBear;
-        bool.TryParse(storage.ReadText("hudVisible"), out bool hudVisible);
-        HudVisible = hudVisible;
-        bool.TryParse(storage.ReadText("toolbarVisible"), out bool toolbarVisible);
-        ToolbarVisible = toolbarVisible;
-        bool.TryParse(storage.ReadText("hudClickThrough"), out bool hudClickThrough);
-        HudClickThrough = hudClickThrough;
+        AutoNavigate = ReadLegacyBoolean(storage, "autoNavigate", AutoNavigate);
+        RecalculateRoute = ReadLegacyBoolean(storage, "recalculate", RecalculateRoute);
+        PanelVisible = ReadLegacyBoolean(storage, "panelVisible", PanelVisible);
+        ShowDistance = ReadLegacyBoolean(storage, "showDistance", ShowDistance);
+        ShowBearing = ReadLegacyBoolean(storage, "showBearing", ShowBearing);
+        HudVisible = ReadLegacyBoolean(storage, "hudVisible", HudVisible);
+        ToolbarVisible = ReadLegacyBoolean(storage, "toolbarVisible", ToolbarVisible);
+        HudClickThrough = ReadLegacyBoolean(storage, "hudClickThrough", HudClickThrough);
         if (double.TryParse(storage.ReadText("hudScale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double hudScale)
             && hudScale > 0)
             HudScale = hudScale;
-        bool.TryParse(storage.ReadText("mapVisible"), out bool mapVisible);
-        MapVisible = mapVisible;
+        MapVisible = ReadLegacyBoolean(storage, "mapVisible", MapVisible);
         if (double.TryParse(storage.ReadText("mapCenterEW"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapEW)) MapCenterEastWest = mapEW;
         if (double.TryParse(storage.ReadText("mapCenterNS"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapNS)) MapCenterNorthSouth = mapNS;
         if (double.TryParse(storage.ReadText("mapWidth"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapWidth) && mapWidth > 0) MapWidth = mapWidth;
@@ -162,10 +150,8 @@ public class GoArrowSettings
         double.TryParse(storage.ReadText("arrivalDistance"), NumberStyles.Float, CultureInfo.InvariantCulture, out double arrDist);
         ArrivalDistance = arrDist > 0 ? arrDist : 0.5;
 
-        bool.TryParse(storage.ReadText("useNavigation"), out bool useNav);
-        UseNavigationAutomation = useNav;
-        bool.TryParse(storage.ReadText("navigationLocked"), out bool navigationLocked);
-        NavigationLocked = navigationLocked;
+        UseNavigationAutomation = ReadLegacyBoolean(storage, "useNavigation", UseNavigationAutomation);
+        NavigationLocked = ReadLegacyBoolean(storage, "navigationLocked", NavigationLocked);
         if (Enum.TryParse(storage.ReadText("routeCostProfile"), true, out RouteFinding.RouteCostProfile profile))
             RouteCostProfile = profile;
         if (int.TryParse(storage.ReadText("maxNavigationRetries"), out int retries))
@@ -189,5 +175,18 @@ public class GoArrowSettings
 
         var favs = storage.ReadText("favorites") ?? string.Empty;
         FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        RestorePanelWhenAllUiWasHidden();
+    }
+
+    private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
+        bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
+
+    private void RestorePanelWhenAllUiWasHidden()
+    {
+        // Earlier builds interpreted missing legacy keys as false and saved all
+        // four hidden states to settings.json on shutdown. Leave one way to
+        // reach the plugin UI when loading those affected profiles.
+        if (!PanelVisible && !HudVisible && !ToolbarVisible && !MapVisible)
+            PanelVisible = true;
     }
 }
