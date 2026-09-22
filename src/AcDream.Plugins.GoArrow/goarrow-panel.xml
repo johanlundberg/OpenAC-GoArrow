@@ -1,50 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<panel>
-  <group label="Destination" icon="Target">
-    <label text="{Binding DestinationText}" />
-    <group orientation="Horizontal">
-      <label text="Distance:" />
-      <label text="{Binding DistanceText}" />
-    </group>
-    <group orientation="Horizontal">
-      <label text="Bearing:" />
-      <label text="{Binding BearingText}" />
-    </group>
-    <group orientation="Horizontal">
-      <label text="Status:" />
-      <label text="{Binding NavStatusText}" />
-    </group>
-    <group orientation="Horizontal">
-      <label text="Route:" />
-      <label text="{Binding RouteStepsText}" />
-    </group>
-    <label text="{Binding CurrentLegText}" />
-    <group orientation="Horizontal">
-      <label text="Host:" />
-      <label text="{Binding NavigationReportText}" />
-    </group>
+<panel x="0" y="0" w="360" h="330" title="GoArrow" resizable="true" minw="300" minh="260">
+  <group x="8" y="8" w="344" h="110" border="#FF4A3A14">
+    <label x="8" y="8" text="Destination" />
+    <field x="8" y="28" w="250" h="20" text="{DestinationInput}" onsubmit="{SubmitDestination}" />
+    <button x="266" y="28" w="78" h="20" text="Set" onclick="{SubmitDestination}" />
+    <label x="8" y="56" text="{DestinationText}" />
+    <label x="8" y="76" text="Distance:" />
+    <label x="62" y="76" text="{DistanceText}" />
+    <label x="180" y="76" text="Bearing:" />
+    <label x="238" y="76" text="{BearingText}" />
+    <label x="8" y="94" text="Status:" />
+    <label x="62" y="94" text="{NavStatusText}" />
   </group>
 
-  <group label="Navigation">
-    <group orientation="Horizontal">
-      <button text="Go" action="{Binding StartNavigation}" enabled="{Binding HasDestination}" />
-      <button text="Stop" action="{Binding StopNavigation}" enabled="{Binding IsNavigating}" />
-      <button text="Resume" action="{Binding ResumeNavigation}" enabled="{Binding WaitingForInteraction}" />
-      <button text="Clear" action="{Binding ClearDestination}" enabled="{Binding HasDestination}" />
-    </group>
-    <group orientation="Horizontal">
-      <checkbox text="Auto-Navigate" checked="{Binding AutoNavigate}" />
-    </group>
+  <group x="8" y="126" w="344" h="64" border="#FF4A3A14">
+    <button x="8" y="8" w="72" h="22" text="Go" enabled="{HasDestination}" onclick="{StartNavigation}" />
+    <button x="88" y="8" w="72" h="22" text="Stop" enabled="{IsNavigating}" onclick="{StopNavigation}" />
+    <button x="168" y="8" w="80" h="22" text="Resume" enabled="{WaitingForInteraction}" onclick="{ResumeNavigation}" />
+    <button x="256" y="8" w="80" h="22" text="Clear" enabled="{HasDestination}" onclick="{ClearDestination}" />
+    <label x="8" y="40" text="Route:" />
+    <label x="52" y="40" text="{RouteStepsText}" />
   </group>
 
-  <group label="Display">
-    <checkbox text="Show Distance" checked="{Binding ShowDistance}" />
-    <checkbox text="Show Bearing" checked="{Binding ShowBearing}" />
-    <checkbox text="Recalculate" checked="{Binding RecalculateRoute}" />
-  </group>
-
-  <group label="Commands">
-    <label text="Use /go &lt;destination&gt; in chat" />
-    <button text="List Destinations" action="{Binding ShowDestinationInput}" />
+  <group x="8" y="198" w="344" h="112" border="#FF4A3A14">
+    <label x="8" y="8" text="Display" />
+    <toggle x="8" y="30" w="150" h="20" text="Show Distance" checked="{ShowDistance}" onclick="{ToggleShowDistance}" />
+    <toggle x="170" y="30" w="150" h="20" text="Show Bearing" checked="{ShowBearing}" onclick="{ToggleShowBearing}" />
+    <toggle x="8" y="56" w="150" h="20" text="Auto-Navigate" checked="{AutoNavigate}" onclick="{ToggleAutoNavigate}" />
+    <toggle x="170" y="56" w="150" h="20" text="Recalculate" checked="{RecalculateRoute}" onclick="{ToggleRecalculateRoute}" />
+    <label x="8" y="84" text="Use /go &lt;destination&gt; in chat for commands." />
   </group>
 </panel>

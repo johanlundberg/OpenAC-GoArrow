@@ -179,6 +179,9 @@ internal sealed class GoArrowPanel
     /// <summary>Toggle bearing display.</summary>
     public Action ToggleShowBearing => () => ShowBearing = !ShowBearing;
 
+    /// <summary>Toggle route recalculation on/off.</summary>
+    public Action ToggleRecalculateRoute => () => RecalculateRoute = !RecalculateRoute;
+
     /// <summary>Start navigation.</summary>
     public Action StartNavigation => () => _navigator.StartNavigation();
 
