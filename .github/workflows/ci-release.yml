@@ -99,6 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           openac_version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props)"
+          openac_version="${openac_version%%-*}"  # a pre-release suffix is not part of the assembly version
           min_host_version="$(python3 -c 'import json;print(json.load(open("../OpenAC-GoArrow/src/AcDream.Plugins.GoArrow/plugin.json"))["minHostVersion"])')"
           if [[ "$min_host_version" != "$openac_version" ]]; then
             echo "plugin.json minHostVersion=$min_host_version does not match the OpenAC Version=$openac_version at ${{ steps.openac-resolve.outputs.ref }}" >&2
@@ -218,8 +219,22 @@ jobs:
             src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj \
             --configuration Release \
             --no-restore \
-            -p:Version="$VERSION" \
+            -p:PluginVersion="$VERSION" \
             --output "$RUNNER_TEMP/goarrow-publish"
+
+          # The plugin must ask for the API assembly version the pinned OpenAC
+          # build actually has. A global -p:Version once renamed the referenced
+          # abstractions build to the plugin's own version, and that plugin
+          # (1.0.1) could not load on any client: the host ships the API as
+          # its own version, and .NET will not bind a newer request to it.
+          openac_version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' ../OpenAC/Directory.Build.props)"
+          openac_version="${openac_version%%-*}"  # a pre-release suffix is not part of the assembly version
+          referenced="$(pwsh -NoProfile -Command "[Reflection.Assembly]::LoadFile('$RUNNER_TEMP/goarrow-publish/AcDream.Plugins.GoArrow.dll').GetReferencedAssemblies() | Where-Object Name -eq AcDream.Plugin.Abstractions | ForEach-Object { \$_.Version.ToString(3) }")"
+          if [[ "$referenced" != "$openac_version" ]]; then
+            echo "The plugin references AcDream.Plugin.Abstractions $referenced; the pinned OpenAC build is $openac_version" >&2
+            exit 1
+          fi
+          echo "plugin references AcDream.Plugin.Abstractions $referenced"
 
           # plugin.json is the host-facing manifest. Keep its version aligned
           # with the Git tag rather than the development version in source.
