@@ -20,6 +20,10 @@ release:
 	@test -z "$$(git status --porcelain)" || \
 		(echo "working tree is not clean; commit or stash changes first" >&2; git status --short; exit 1)
 	@tag="v$(v)"; \
+		branch="$$(git branch --show-current)"; \
+		if [ -z "$$branch" ]; then \
+			echo "release must run from a branch" >&2; exit 1; \
+		fi; \
 		if git rev-parse --verify --quiet "refs/tags/$$tag" >/dev/null; then \
 			echo "tag already exists locally: $$tag" >&2; exit 1; \
 		fi; \
@@ -27,4 +31,5 @@ release:
 			echo "tag already exists on origin: $$tag" >&2; exit 1; \
 		fi; \
 		git tag -a "$$tag" -m "Release $$tag"; \
+		git push origin "HEAD:$$branch"; \
 		git push origin "$$tag"
