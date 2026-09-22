@@ -16,6 +16,11 @@
     <ProjectReference Include="$(OpenAcDir)/src/AcDream.Plugin.Abstractions/AcDream.Plugin.Abstractions.csproj">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
+      <!-- Release publishing passes Version for this plugin. Do not propagate
+           that plugin version into the host contract project: otherwise the
+           plugin records a dependency on (for example) 1.0.2.0 while the host
+           supplies AcDream.Plugin.Abstractions 0.1.15. -->
+      <GlobalPropertiesToRemove>Version</GlobalPropertiesToRemove>
     </ProjectReference>
   </ItemGroup>
 
