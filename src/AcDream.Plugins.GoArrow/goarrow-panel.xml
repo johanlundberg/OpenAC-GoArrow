@@ -2,8 +2,8 @@
 <panel x="0" y="0" w="360" h="330" title="GoArrow" resizable="true" minw="300" minh="260">
   <group x="8" y="8" w="344" h="110" border="#FF4A3A14">
     <label x="8" y="8" text="Destination" />
-    <field x="8" y="28" w="250" h="20" text="{DestinationInput}" onsubmit="{SubmitDestination}" />
-    <button x="266" y="28" w="78" h="20" text="Set" onclick="{SubmitDestination}" />
+    <field x="8" y="28" w="250" h="20" text="{DestinationInput}" onsubmit="{SubmitDestinationAction}" />
+    <button x="266" y="28" w="78" h="20" text="Set" onclick="{SubmitDestinationAction}" />
     <label x="8" y="56" text="{DestinationText}" />
     <label x="8" y="76" text="Distance:" />
     <label x="62" y="76" text="{DistanceText}" />

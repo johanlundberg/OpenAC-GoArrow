@@ -116,6 +116,9 @@ internal sealed class GoArrowPanel
             _plugin.SetDestination(DestinationInput.Trim());
     }
 
+    /// <summary>Submit the destination field as a markup-compatible action.</summary>
+    public Action SubmitDestinationAction => SubmitDestination;
+
     public void SelectSuggestion(string name)
     {
         DestinationInput = name;
