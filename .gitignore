@@ -41,6 +41,7 @@ plugins-local/
 
 # Local reference repositories
 /reference_repos/
+/data/
 
 # OS metadata
 .DS_Store
