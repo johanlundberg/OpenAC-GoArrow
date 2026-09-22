@@ -90,20 +90,25 @@ jobs:
       # The pinned OpenAC ref must actually supply the version GoArrow claims as
       # its minimum. If a future ref bumps the version without updating
       # plugin.json (or vice versa), fail here rather than shipping a package
-      # whose manifest names a host version that does not match the abstractions
-      # it was compiled against.
-      - name: Verify minHostVersion matches the pinned OpenAC version
+      # built against an OpenAC version older than the manifest declares. The
+      # check mirrors the host's own semantics: minHostVersion is a MINIMUM, so
+      # a newer OpenAC (version >= minHostVersion) is acceptable; only an OpenAC
+      # version that cannot supply the declared minimum is an error.
+      - name: Verify minHostVersion does not exceed the resolved OpenAC version
         working-directory: OpenAC
         shell: bash
         run: |
           set -euo pipefail
           openac_version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props)"
           min_host_version="$(python3 -c 'import json;print(json.load(open("../OpenAC-GoArrow/src/AcDream.Plugins.GoArrow/plugin.json"))["minHostVersion"])')"
-          if [[ "$min_host_version" != "$openac_version" ]]; then
-            echo "plugin.json minHostVersion=$min_host_version does not match the OpenAC Version=$openac_version at ${{ steps.openac-resolve.outputs.ref }}" >&2
+          # Check minHostVersion <= openac_version using version sort, so a newer
+          # OpenAC (above the declared minimum) passes.
+          ordered="$(printf '%s\n%s\n' "$min_host_version" "$openac_version" | sort -V | head -n1)"
+          if [[ "$ordered" != "$min_host_version" ]]; then
+            echo "plugin.json minHostVersion=$min_host_version exceeds OpenAC Version=$openac_version at ${{ steps.openac-resolve.outputs.ref }}; raise OPENAC_REF/OPENAC_TAG or lower minHostVersion" >&2
             exit 1
           fi
-          echo "minHostVersion $min_host_version == OpenAC Version at ${{ steps.openac-resolve.outputs.ref }}"
+          echo "minHostVersion $min_host_version <= OpenAC Version $openac_version at ${{ steps.openac-resolve.outputs.ref }}"
 
       - name: Run tests
         working-directory: OpenAC-GoArrow
