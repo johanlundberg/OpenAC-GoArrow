@@ -23,6 +23,7 @@ public class GoArrowSettings
     public bool HudClickThrough { get; set; }
     public double HudScale { get; set; } = 1;
     public bool MapVisible { get; set; } = true;
+    public bool DungeonMapVisible { get; set; } = true;
     public double MapCenterEastWest { get; set; }
     public double MapCenterNorthSouth { get; set; }
     public double MapWidth { get; set; } = 1000;
@@ -68,6 +69,7 @@ public class GoArrowSettings
         storage.WriteText("hudClickThrough", HudClickThrough.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("hudScale", HudScale.ToString("F3", CultureInfo.InvariantCulture));
         storage.WriteText("mapVisible", MapVisible.ToString(CultureInfo.InvariantCulture));
+        storage.WriteText("dungeonMapVisible", DungeonMapVisible.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("mapCenterEW", MapCenterEastWest.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("mapCenterNS", MapCenterNorthSouth.ToString("F4", CultureInfo.InvariantCulture));
         storage.WriteText("mapWidth", MapWidth.ToString("F4", CultureInfo.InvariantCulture));
@@ -106,6 +108,7 @@ public class GoArrowSettings
             HudClickThrough = structured.HudClickThrough;
             HudScale = structured.HudScale > 0 ? structured.HudScale : 1;
             MapVisible = structured.MapVisible;
+            DungeonMapVisible = structured.DungeonMapVisible;
             MapCenterEastWest = structured.MapCenterEastWest;
             MapCenterNorthSouth = structured.MapCenterNorthSouth;
             MapWidth = structured.MapWidth > 0 ? structured.MapWidth : 1000;
@@ -143,6 +146,7 @@ public class GoArrowSettings
             && hudScale > 0)
             HudScale = hudScale;
         MapVisible = ReadLegacyBoolean(storage, "mapVisible", MapVisible);
+        DungeonMapVisible = ReadLegacyBoolean(storage, "dungeonMapVisible", DungeonMapVisible);
         if (double.TryParse(storage.ReadText("mapCenterEW"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapEW)) MapCenterEastWest = mapEW;
         if (double.TryParse(storage.ReadText("mapCenterNS"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapNS)) MapCenterNorthSouth = mapNS;
         if (double.TryParse(storage.ReadText("mapWidth"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapWidth) && mapWidth > 0) MapWidth = mapWidth;

@@ -21,6 +21,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private GoArrowPanel? _panel;
     private GoArrowHud? _hud;
     private GoArrowMap? _map;
+    private GoArrowDungeonMap? _dungeonMap;
     private WarcryAtlasDataProvider? _atlasProvider;
     private int _atlasUpdateInProgress;
     private IDisposable? _commandRegistration;
@@ -113,6 +114,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _hud.Enable();
             _map = new GoArrowMap(_host, _destination, _settings!);
             _map.Enable();
+            ReloadDungeonMaps();
         }
         _tickHandler = OnTick;
         _host.Events.Tick += _tickHandler;
@@ -137,6 +139,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _host.Events.PortalTransition -= _portalTransitionHandler;
         _portalTransitionHandler = null;
 
+        _dungeonMap?.Dispose();
+        _dungeonMap = null;
         _map?.Dispose();
         _map = null;
         _hud?.Dispose();
@@ -517,6 +521,49 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (!_settings.FavoriteDestinations.Contains(name, StringComparer.OrdinalIgnoreCase))
         {
             _settings.FavoriteDestinations.Add(name);
+            _settings.Save(_host.Storage);
+        }
+    }
+
+    internal bool DungeonMapVisible => _settings?.DungeonMapVisible ?? false;
+
+    internal string? DungeonMapDirectory =>
+        _host is null ? null : DungeonMapCatalog.UserMapDirectory(_host.Storage);
+
+    internal bool ReloadDungeonMaps()
+    {
+        _dungeonMap?.Dispose();
+        _dungeonMap = null;
+        if (_host is null || _settings is null || !_host.HasUi)
+            return false;
+
+        try
+        {
+            DungeonMapCatalog? catalog = DungeonMapCatalog.OpenUserMaps(_host.Storage);
+            if (catalog is null)
+                return false;
+            _dungeonMap = new GoArrowDungeonMap(_host, _settings, catalog);
+            _dungeonMap.Enable();
+            _host.Log.Info($"GoArrow: Loaded {catalog.Count} user dungeon maps.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _dungeonMap?.Dispose();
+            _dungeonMap = null;
+            _host.Log.Warn($"GoArrow: Dungeon maps unavailable: {exception.Message}");
+            return false;
+        }
+    }
+
+    internal void SetDungeonMapVisible(bool visible)
+    {
+        if (visible && _dungeonMap is null)
+            ReloadDungeonMaps();
+        _dungeonMap?.SetVisible(visible);
+        if (_dungeonMap is null && _settings is not null && _host is not null)
+        {
+            _settings.DungeonMapVisible = visible;
             _settings.Save(_host.Storage);
         }
     }

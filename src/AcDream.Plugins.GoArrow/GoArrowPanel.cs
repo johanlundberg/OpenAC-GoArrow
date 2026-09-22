@@ -185,6 +185,8 @@ internal sealed class GoArrowPanel
         }
     }
 
+    public bool DungeonMapVisible => _plugin.DungeonMapVisible;
+
     // ── Actions bound to the panel ──────────────────────────────────
 
     /// <summary>Toggle auto-navigate on/off.</summary>
@@ -202,6 +204,8 @@ internal sealed class GoArrowPanel
 
     /// <summary>Toggle route recalculation on/off.</summary>
     public Action ToggleRecalculateRoute => () => RecalculateRoute = !RecalculateRoute;
+
+    public Action ToggleDungeonMap => () => _plugin.SetDungeonMapVisible(!DungeonMapVisible);
 
     /// <summary>Compute and display the route; optionally start navigation.</summary>
     public Action StartNavigation => _plugin.Go;

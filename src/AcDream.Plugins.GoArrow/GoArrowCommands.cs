@@ -154,6 +154,34 @@ internal sealed class GoArrowCommands
                 ShowRoute();
                 break;
 
+            case "dungeon":
+                string mode = args.Length > 1 ? args[1].ToLowerInvariant() : "toggle";
+                if (args.Length > 2 || mode is not ("on" or "off" or "toggle" or "path" or "reload"))
+                {
+                    _host.Automation.Chat.PostSystemMessage("GoArrow: Usage: /go dungeon [on|off|toggle|path|reload]");
+                    break;
+                }
+                if (mode == "path")
+                {
+                    _host.Automation.Chat.PostSystemMessage(
+                        $"GoArrow: Dungeon map folder: {_plugin.DungeonMapDirectory ?? "unavailable"}");
+                    break;
+                }
+                if (mode == "reload")
+                {
+                    _host.Automation.Chat.PostSystemMessage(_plugin.ReloadDungeonMaps()
+                        ? "GoArrow: Dungeon maps reloaded."
+                        : "GoArrow: No usable dungeon maps found. Use /go dungeon path for the folder.");
+                    break;
+                }
+                bool visible = mode == "toggle"
+                    ? !_plugin.DungeonMapVisible
+                    : mode == "on";
+                _plugin.SetDungeonMapVisible(visible);
+                _host.Automation.Chat.PostSystemMessage(
+                    $"GoArrow: Dungeon map {(visible ? "enabled" : "disabled")}.");
+                break;
+
             case "favorites":
             case "favs":
                 ListFavorites();
@@ -310,6 +338,7 @@ internal sealed class GoArrowCommands
                "  /go search <term> - Search locations\n" +
                "  /go status - Show current destination\n" +
                "  /go route - Show the current route steps\n" +
+               "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n" +
                "  /go stop - Stop navigation\n" +
                "  /go resume - Resume after a portal or recall interaction\n" +
                "  /go clear - Clear destination\n" +

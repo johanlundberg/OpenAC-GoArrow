@@ -7,6 +7,23 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class CommandIntegrationTests
 {
     [Fact]
+    public void DungeonCommandControlsAutomaticMapVisibility()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+
+        Assert.True(host.PluginCommands.Invoke("go", "dungeon off"));
+        Assert.False(plugin.DungeonMapVisible);
+        Assert.Equal("False", host.PluginStorage.ReadText("dungeonMapVisible"));
+        Assert.True(host.PluginCommands.Invoke("go", "dungeon on"));
+        Assert.True(plugin.DungeonMapVisible);
+
+        plugin.Disable();
+    }
+
+    [Fact]
     public void CoordinateCommandAndChatLinkSetCoordinateDestination()
     {
         var host = new FakePluginHost { HasUiValue = false };

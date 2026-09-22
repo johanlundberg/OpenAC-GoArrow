@@ -34,6 +34,7 @@
     <toggle x="170" y="30" w="150" h="20" text="Show Bearing" checked="{ShowBearing}" onclick="{ToggleShowBearing}" />
     <toggle x="8" y="56" w="150" h="20" text="Auto-Navigate" checked="{AutoNavigate}" onclick="{ToggleAutoNavigate}" />
     <toggle x="170" y="56" w="150" h="20" text="Recalculate" checked="{RecalculateRoute}" onclick="{ToggleRecalculateRoute}" />
-    <label x="8" y="84" text="Use /go &lt;destination&gt; in chat for commands." />
+    <toggle x="8" y="84" w="160" h="20" text="Dungeon Map" checked="{DungeonMapVisible}" onclick="{ToggleDungeonMap}" />
+    <label x="176" y="84" text="Auto-show indoors" />
   </group>
 </panel>

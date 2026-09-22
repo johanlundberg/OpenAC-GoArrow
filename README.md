@@ -36,6 +36,7 @@ The current port includes:
 - a declarative OpenAC panel;
 - plugin canvases for a directional arrow and compact Stop/Resume toolbar;
 - a Dereth map surface with route and position markers, plus a background when the host supplies the map resource;
+- user supplied schematic dungeon maps that open automatically for supported indoor cells, with zoom and pan;
 - coordinate chat links that set a destination;
 - destination distance, bearing, and route status display;
 - optional integration with `INavigationAutomation.GoTo`;
@@ -49,7 +50,7 @@ The original plugin was built for Virindi/Decal and could use client-specific se
 | Original GoArrow capability | OpenAC port | Current status |
 | --- | --- | --- |
 | Directional D3D arrow HUD | Plugin canvas arrow pointing to the next route waypoint, plus a declarative panel | Adapted; original arrow artwork is not reproduced |
-| Dereth and dungeon map HUDs | Dereth map surface with route and position markers | Dereth map adapted; dungeon maps are not implemented |
+| Dereth and dungeon map HUDs | Dereth map surface and an indoor dungeon map canvas | Dungeon diagrams display by cell ID; player and route positions cannot be placed on the schematic images |
 | Floating toolbar HUD | Compact Stop/Resume canvas, panel buttons, and `/go` commands | Partially adapted |
 | Clickable coordinate chat links | Coordinate-link handler sets the destination | Adapted through OpenAC's chat API |
 | Raw client/network tracking | Supported snapshots and chat/state heuristics | Limited by available abstractions |
@@ -146,6 +147,9 @@ After the plugin is enabled:
 /go update
 /go url https://example.test/locations.xml
 /go update https://example.test/locations.xml
+/go dungeon path
+/go dungeon reload
+/go dungeon on
 /go Holtburg
 /go status
 /go stop
@@ -154,7 +158,11 @@ After the plugin is enabled:
 
 The destination name must exist in the loaded location database. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking the route. The panel displays the destination, estimated distance, bearing, route status, and steps.
 
-Run `/go update` to download the configured [Atlas location data](https://github.com/Darktorizo/GoArrow_Data_CoD/blob/master/data_cod.xml). The route graph uses its portal entrance and arrival coordinates as directed links, and the downloaded data is cached for later starts. Portals marked retired or without usable arrival coordinates are excluded. A custom Atlas URL set with `/go url` is preserved.
+Dungeon maps are optional and are not included in the plugin package. Download the dungeon map cache from [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD). Run `/go dungeon path` to find the persistent map folder. Place a `Dungeon_Map_Cache.zip` archive there, or extract its images and `dungeons.txt` under that folder (the archive's `Dungeon Map Cache/` subfolder can remain). Run `/go dungeon reload` after adding or changing files. Extracted images take precedence if both forms are present. PNG and GIF images named by four-digit hexadecimal dungeon ID are supported; `dungeons.txt` supplies display names. OpenAC currently limits plugin images to 2048 pixels on each side, so larger maps need resizing before they can display.
+
+When the character enters a dungeon with a matching map, its diagram opens automatically. Use the mouse wheel to zoom, drag to pan, and the × button to hide it. The panel's **Dungeon Map** toggle or `/go dungeon on|off|toggle` controls automatic display. The diagrams may show several floors in one image; the map cache has no calibration data for a player marker or floor-specific focus.
+
+For location data, use [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD) as the primary source; its data is more up to date. [Roogon's map site](http://maps.roogon.com/index.html) also provides location data. Run `/go update` to download the configured [Darktorizo location data](https://github.com/Darktorizo/GoArrow_Data_CoD/blob/master/data_cod.xml). The route graph uses its portal entrance and arrival coordinates as directed links, and the downloaded data is cached for later starts. Portals marked retired or without usable arrival coordinates are excluded. A custom Atlas URL set with `/go url` is preserved.
 
 Navigation automation is optional. When no live session or navigation provider is available, GoArrow remains usable for route and destination information but cannot walk the character.
 
@@ -163,7 +171,7 @@ Navigation automation is optional. When no live session or navigation provider i
 This repository is a porting project, not a claim that every original GoArrow feature is already reproduced. In particular, the current port does not yet provide:
 
 - the original arrow artwork and tooltip HUDs;
-- dungeon and floor maps;
+- player-position overlays and automatic floor focus on schematic dungeon maps;
 - every action from the original toolbar;
 - authoritative recall, house, and allegiance tracking;
 - complete portal/NPC/door interaction automation;

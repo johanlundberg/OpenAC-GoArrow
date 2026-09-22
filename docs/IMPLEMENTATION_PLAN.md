@@ -13,7 +13,7 @@ The GoArrow repository already contains:
 - plugin lifecycle, manifest, declarative panel, settings persistence, and `/go` registration;
 - embedded location, portal-device, and route-start data;
 - compact GoArrow, OpenAC, and Warcry Atlas XML parsing;
-- location search, favorites, coordinate calculations, and weighted A* routing;
+- location search, favorites, coordinate calculations, and weighted shortest-path routing;
 - multi-hop walking, route-start edges, portal metadata, and direct-walk fallback;
 - navigation report handling, request sequence filtering, failure handling, and manual interaction pauses;
 - opt-in validated external data download with cache fallback;
@@ -235,6 +235,14 @@ Restore the original directional arrow, floating toolbar, and status overlays.
 ---
 
 ## Phase 6 — Dereth and dungeon map HUDs
+
+Current progress: the Dereth surface and optional schematic dungeon map canvas
+are implemented. Players supply a ZIP or extracted images in the persistent
+`dungeon-maps` folder and can reload them with `/go dungeon reload`. Dungeon
+images are selected from the indoor cell's landblock ID and can be zoomed or
+panned. The source images combine floors and do not
+contain a pixel-to-world transform, so floor focus and player/route overlays
+on dungeon diagrams remain open items below.
 
 ### Objectives
 

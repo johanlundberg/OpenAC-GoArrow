@@ -17,6 +17,7 @@ public sealed class UiStartupTests
         Assert.True(settings.HudVisible);
         Assert.True(settings.ToolbarVisible);
         Assert.True(settings.MapVisible);
+        Assert.True(settings.DungeonMapVisible);
         Assert.True(settings.ShowDistance);
         Assert.True(settings.ShowBearing);
         Assert.True(settings.RecalculateRoute);
@@ -131,6 +132,20 @@ public sealed class UiStartupTests
             typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("items")!.Value))!.PropertyType);
         Assert.Equal(typeof(int),
             typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("selected")!.Value))!.PropertyType);
+    }
+
+    [Fact]
+    public void DungeonMapToggleBindsToVisibleSettingAndAction()
+    {
+        string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
+        var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
+        XElement toggle = markup.Descendants("toggle")
+            .Single(element => (string?)element.Attribute("text") == "Dungeon Map");
+
+        Assert.Equal(typeof(bool),
+            typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("checked")!.Value))!.PropertyType);
+        Assert.Equal(typeof(Action),
+            typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!.PropertyType);
     }
 
     private static string BindingName(string value) => value.Trim('{', '}');

@@ -61,7 +61,7 @@ The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal 
 | --- | --- | --- |
 | `@go`/configurable command prefix | `/go` command registration | Adapted; OpenAC does not currently require legacy `@` support |
 | Arrow D3D HUD | Declarative panel with destination, distance, bearing, and status | Adapted; custom rendering unavailable |
-| Map/dungeon HUD | No equivalent map canvas currently | Deferred |
+| Map/dungeon HUD | Dereth map surface and optional indoor dungeon canvas | User supplied schematic maps implemented; calibrated floor and player overlays remain deferred |
 | Toolbar HUD | Panel actions and chat commands | Adapted |
 | Manual key-held movement | `INavigationAutomation.GoTo` | Adapted |
 | Decal settings | `IPluginStorage` text keys | Adapted |
@@ -282,7 +282,12 @@ Still needed:
 
 ### 8. HUDs and maps
 
-Deferred because OpenAC currently has no plugin-owned transparent rendering surface or general map/canvas control.
+The plugin now uses OpenAC's canvas and image APIs to display a user supplied
+dungeon map by indoor cell ID. Maps can be loaded from a ZIP or extracted images
+in the persistent `dungeon-maps` folder. The supplied maps are composite diagrams without
+pixel-to-world or floor-region metadata, so player and route overlays on these
+images remain deferred. The Dereth map uses the map resource API where the host
+provides it.
 
 Required OpenAC capabilities are documented in `docs/OpenAC-improvements.md`, including:
 
