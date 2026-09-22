@@ -34,8 +34,7 @@ permissions:
 # plugin.json, and make sure plugin.json's minHostVersion matches the OpenAC
 # <Version> at the chosen ref.
 env:
-  OPENAC_REF: 85211dbfbee187d175a3cf4e2134cc35f5c45f82
-  OPENAC_TAG: ""
+  OPENAC_TAG: "v0.1.15"
 
 jobs:
   test:
