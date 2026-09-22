@@ -118,4 +118,49 @@ public class RouteFinderTests
         // Direct graph edge: TownA → TownB via Walk
         Assert.Contains("Walk", route.Steps[0].Via);
     }
+
+    [Fact]
+    public void RouteFinder_UsesAtlasPortalEntranceAndArrivalCoordinates()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <atlas>
+              <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
+              <location><id>2</id><name>Shared Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>20</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>50</arrival_longitude><retired>N</retired></location>
+              <location><id>3</id><name>Shared Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
+              <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
+            </atlas>
+            """);
+
+        var route = new RouteFinder(db).FindRoute(new Location("Here", 0, 1), "End");
+
+        Assert.Equal(1, route.PortalCount);
+        Assert.Equal(3, route.StepCount);
+        Assert.Equal(RouteStepKind.Travel, route.Steps[0].Kind);
+        Assert.Equal(2, route.Steps[0].To.EW);
+        Assert.Equal(RouteStepKind.Portal, route.Steps[1].Kind);
+        Assert.Equal("Shared Portal", route.Steps[1].Via);
+        Assert.Equal(2, route.Steps[1].From.EW);
+        Assert.Equal(95, route.Steps[1].To.EW);
+        Assert.Equal(96, route.Steps[2].To.EW);
+    }
+
+    [Fact]
+    public void RouteFinder_IgnoresRetiredAndUnmappedAtlasPortals()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <atlas>
+              <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
+              <location><id>2</id><name>Retired Portal</name><type>Town Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>Y</retired></location>
+              <location><id>3</id><name>Unknown Exit</name><type>Town Portal</type><latitude>0</latitude><longitude>3</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>0</arrival_longitude><retired>N</retired></location>
+              <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
+            </atlas>
+            """);
+
+        var route = new RouteFinder(db).FindRoute(new Location("Here", 0, 1), "End");
+
+        Assert.Equal(0, route.PortalCount);
+        Assert.Contains("Direct walk", route.Description);
+    }
 }

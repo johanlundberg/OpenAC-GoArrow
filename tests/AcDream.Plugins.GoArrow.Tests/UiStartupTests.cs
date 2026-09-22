@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using AcDream.Plugin.Tests.Fixtures;
+using AcDream.Plugins.GoArrow.RouteFinding;
 
 namespace AcDream.Plugins.GoArrow.Tests;
 
@@ -20,6 +21,19 @@ public sealed class UiStartupTests
         Assert.True(settings.ShowBearing);
         Assert.True(settings.RecalculateRoute);
         Assert.True(settings.UseNavigationAutomation);
+        Assert.Equal(WarcryAtlasDataProvider.DefaultUrl, settings.ExternalDataUrl);
+    }
+
+    [Fact]
+    public void SavedPreviousDefaultAtlasUrlMovesToPortalAtlas()
+    {
+        var storage = new FakePluginStorage();
+        storage.WriteText("externalDataUrl", WarcryAtlasDataProvider.PreviousDefaultUrl);
+        var settings = new GoArrowSettings();
+
+        settings.Load(storage);
+
+        Assert.Equal(WarcryAtlasDataProvider.DefaultUrl, settings.ExternalDataUrl);
     }
 
     [Fact]

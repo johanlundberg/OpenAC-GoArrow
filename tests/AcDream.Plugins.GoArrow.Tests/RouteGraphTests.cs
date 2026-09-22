@@ -179,7 +179,7 @@ public class RouteGraphTests
         Assert.Equal(0, graph.GetLocation(idx).NS);
     }
 
-    // ── A* Shortest Path tests ──────────────────────────────────────
+    // ── Shortest Path tests ─────────────────────────────────────────
 
     [Fact]
     public void FindShortestPath_DirectWalk_ReturnsSingleEdge()

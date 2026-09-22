@@ -154,6 +154,8 @@ After the plugin is enabled:
 
 The destination name must exist in the loaded location database. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking the route. The panel displays the destination, estimated distance, bearing, route status, and steps.
 
+Run `/go update` to download the configured [Atlas location data](https://github.com/Darktorizo/GoArrow_Data_CoD/blob/master/data_cod.xml). The route graph uses its portal entrance and arrival coordinates as directed links, and the downloaded data is cached for later starts. Portals marked retired or without usable arrival coordinates are excluded. A custom Atlas URL set with `/go url` is preserved.
+
 Navigation automation is optional. When no live session or navigation provider is available, GoArrow remains usable for route and destination information but cannot walk the character.
 
 ## Scope and limitations

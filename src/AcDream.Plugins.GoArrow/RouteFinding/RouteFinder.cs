@@ -37,7 +37,7 @@ public class RouteFinder
 
     /// <summary>
     /// Find a route from the current position to a named destination.
-    /// Uses A* shortest path on the route graph when possible.
+    /// Uses shortest path on the route graph when possible.
     /// </summary>
     public Route FindRoute(Location currentPosition, string destinationName)
     {
@@ -50,7 +50,7 @@ public class RouteFinder
 
     /// <summary>
     /// Find a route from the current position to a destination location.
-    /// Uses A* shortest path on the route graph when possible,
+    /// Uses shortest path on the route graph when possible,
     /// falling back to direct walk if the graph doesn't cover the route.
     /// </summary>
     public Route FindRoute(Location currentPosition, Location destination,

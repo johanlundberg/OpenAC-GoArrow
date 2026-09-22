@@ -218,12 +218,13 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         string? arrivalLatitude = ChildText(element, "arrival_latitude");
         string? arrivalLongitude = ChildText(element, "arrival_longitude");
         Coordinates exit = Coordinates.NoCoordinates;
-        if (!string.IsNullOrWhiteSpace(arrivalLatitude)
-            && !string.IsNullOrWhiteSpace(arrivalLongitude)
-            && ParseDouble(arrivalLatitude) != 0
-            && ParseDouble(arrivalLongitude) != 0)
+        double arrivalNS = ParseDouble(arrivalLatitude);
+        double arrivalEW = ParseDouble(arrivalLongitude);
+        if (double.IsFinite(arrivalNS)
+            && double.IsFinite(arrivalEW)
+            && (arrivalNS != 0 || arrivalEW != 0))
         {
-            exit = new Coordinates(-ParseDouble(arrivalLatitude), ParseDouble(arrivalLongitude));
+            exit = new Coordinates(-arrivalNS, arrivalEW);
         }
 
         var location = new Location(

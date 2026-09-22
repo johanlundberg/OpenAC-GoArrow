@@ -13,6 +13,8 @@ namespace AcDream.Plugins.GoArrow.RouteFinding;
 internal sealed class WarcryAtlasDataProvider
 {
     public const string DefaultUrl =
+        "https://raw.githubusercontent.com/Darktorizo/GoArrow_Data_CoD/master/data_cod.xml";
+    public const string PreviousDefaultUrl =
         "http://maps.roogon.com/downloads/data_cod_TN_Directions_Non_Olthoi.xml";
     private const string CacheKey = "data/warcry-atlas.xml";
     private const string MetadataKey = "data/warcry-atlas.metadata.json";

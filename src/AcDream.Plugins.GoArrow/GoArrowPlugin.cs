@@ -46,9 +46,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // ── Initialize database and load embedded data ──────────────
         _database = new LocationDatabase();
-        LoadEmbeddedData();
-        LoadLayeredData();
         _atlasProvider = new WarcryAtlasDataProvider(host.Storage, url: _settings.ExternalDataUrl);
+        LoadEmbeddedData();
+        LoadCachedAtlasData();
+        LoadLayeredData();
 
         // ── Initialize route finding ───────────────────────────────
         _routeFinder = new RouteFinder(_database);
@@ -554,6 +555,25 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // Tick navigator
         _navigator.OnTick(elapsed);
+    }
+
+    private void LoadCachedAtlasData()
+    {
+        if (_host is null || _database is null || _atlasProvider is null)
+            return;
+
+        try
+        {
+            string? cached = _atlasProvider.ReadCached();
+            if (cached is null)
+                return;
+            _database.LoadLocationsXml(cached);
+            _host.Log.Info($"GoArrow: Loaded {_database.LocationCount} cached Atlas locations.");
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Warn($"GoArrow: Ignoring invalid cached Atlas data: {exception.Message}");
+        }
     }
 
     private void LoadLayeredData()

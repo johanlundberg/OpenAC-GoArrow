@@ -118,6 +118,7 @@ public class GoArrowSettings
             InteractionTimeoutSeconds = structured.InteractionTimeoutSeconds > 0 ? structured.InteractionTimeoutSeconds : 15;
             AtlasCacheMaxAgeDays = Math.Max(0, structured.AtlasCacheMaxAgeDays);
             ExternalDataUrl = string.IsNullOrWhiteSpace(structured.ExternalDataUrl) ? ExternalDataUrl : structured.ExternalDataUrl;
+            MigrateDefaultAtlasUrl();
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
             LastAllegianceRecall = structured.LastAllegianceRecall;
@@ -166,6 +167,7 @@ public class GoArrowSettings
             ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
         if (string.IsNullOrWhiteSpace(ExternalDataUrl))
             ExternalDataUrl = RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
+        MigrateDefaultAtlasUrl();
 
         LastPortalRecall = storage.ReadText("lastPortalRecall") ?? string.Empty;
         LastSecondaryRecall = storage.ReadText("lastSecondaryRecall") ?? string.Empty;
@@ -180,6 +182,13 @@ public class GoArrowSettings
 
     private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
         bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
+
+    private void MigrateDefaultAtlasUrl()
+    {
+        if (string.Equals(ExternalDataUrl, RouteFinding.WarcryAtlasDataProvider.PreviousDefaultUrl,
+            StringComparison.OrdinalIgnoreCase))
+            ExternalDataUrl = RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
+    }
 
     private void RestoreUiHiddenByOldDefaults()
     {

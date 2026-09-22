@@ -45,7 +45,7 @@ public sealed class RouteGraphEdge
 
 /// <summary>
 /// A weighted directed graph built from a <see cref="LocationDatabase"/>.
-/// Supports A* shortest-path queries between named locations.
+/// Supports shortest-path queries between named locations.
 /// </summary>
 public sealed class RouteGraph
 {
@@ -80,14 +80,12 @@ public sealed class RouteGraph
     /// <summary>Node index for a location, or -1 if not in the graph (matched by name).</summary>
     public int GetNodeIndex(Location location)
     {
-        int idx = GetNodeIndex(location.Name);
-        if (idx >= 0)
-            return idx;
-        // Fallback: scan by reference / equality
+        // The Atlas can contain several distinct portals with one name.
+        // Prefer the selected instance over the name's first match.
         for (int i = 0; i < _locations.Count; i++)
-            if (ReferenceEquals(_locations[i], location) || _locations[i] == location)
+            if (ReferenceEquals(_locations[i], location))
                 return i;
-        return -1;
+        return GetNodeIndex(location.Name);
     }
 
     /// <summary>Outgoing edges from the given node index.</summary>
@@ -114,7 +112,7 @@ public sealed class RouteGraph
 
         var eligible = db.AllLocations
             .Where(l => l.UseInRouteFinding && !l.IsRetired && l.HasCoordinates)
-            .Distinct(LocationNameComparer.Instance)  // deduplicate by name
+            .Distinct(LocationNameComparer.Instance)
             .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(l => l.Id)
             .ToList();
@@ -123,13 +121,28 @@ public sealed class RouteGraph
         foreach (var loc in eligible)
         {
             string name = loc.Name;
-            if (!_nameToIndex.ContainsKey(name))
-            {
-                int idx = _locations.Count;
-                _nameToIndex[name] = idx;
-                _locations.Add(loc);
-                _adjacency.Add(new List<RouteGraphEdge>());
-            }
+            int idx = _locations.Count;
+            _nameToIndex.TryAdd(name, idx);
+            _locations.Add(loc);
+            _adjacency.Add(new List<RouteGraphEdge>());
+        }
+
+        // Atlas portal locations carry both their entrance and arrival
+        // coordinates. Give each arrival its own node so the walk after a
+        // portal begins at the actual exit, even when several portals have
+        // the same name or arrive near the same town.
+        var atlasPortals = new List<(int entrance, int arrival)>();
+        int entranceCount = _locations.Count;
+        for (int i = 0; i < entranceCount; i++)
+        {
+            var portal = _locations[i];
+            if ((portal.Type & LocationType.AnyPortal) == 0 || !portal.HasExitCoords)
+                continue;
+
+            int arrivalIndex = _locations.Count;
+            _locations.Add(new Location($"{portal.Name} arrival ({portal.Id})", portal.ExitCoords));
+            _adjacency.Add(new List<RouteGraphEdge>());
+            atlasPortals.Add((i, arrivalIndex));
         }
 
         // ── Walk edges: connect nearby locations ────────────────
@@ -138,7 +151,7 @@ public sealed class RouteGraph
             for (int j = i + 1; j < _locations.Count; j++)
             {
                 double dist = _locations[i].DistanceTo(_locations[j]);
-                if (dist <= maxWalkDistance && dist > 0)
+                if (dist <= maxWalkDistance)
                 {
                     // Undirected: add both directions
                     _adjacency[i].Add(new RouteGraphEdge(i, j, RouteEdgeKind.Walk, dist, "Walk"));
@@ -146,6 +159,10 @@ public sealed class RouteGraph
                 }
             }
         }
+
+        foreach (var (entrance, arrival) in atlasPortals)
+            _adjacency[entrance].Add(new RouteGraphEdge(
+                entrance, arrival, RouteEdgeKind.Portal, 0.1, _locations[entrance].Name));
 
         // ── Portal edges ────────────────────────────────────────
         // Older PortalDevice records only identify the destination and device.
@@ -191,11 +208,12 @@ public sealed class RouteGraph
         _built = true;
     }
 
-    // ── A* Shortest Path ───────────────────────────────────────────
+    // ── Shortest Path ───────────────────────────────────────────────
 
     /// <summary>
-    /// Find the shortest path between two nodes using A* with Euclidean
-    /// distance heuristic. Returns the sequence of edges, or null if
+    /// Find the shortest path between two nodes using Dijkstra's algorithm.
+    /// Portal and recall links make straight-line distance an unsafe heuristic.
+    /// Returns the sequence of edges, or null if
     /// the destination is unreachable.
     /// </summary>
     public List<RouteGraphEdge>? FindShortestPath(int fromIndex, int toIndex,
@@ -219,7 +237,7 @@ public sealed class RouteGraph
         Array.Fill(cameFrom, -1);
 
         gScore[fromIndex] = 0;
-        fScore[fromIndex] = costSelector is null ? Heuristic(fromIndex, toIndex) : 0d;
+        fScore[fromIndex] = 0d;
 
         // Priority queue: (fScore, gScore, nodeIndex, tieBreaker)
         var open = new SortedSet<(double f, double g, int node, int tie)>();
@@ -258,7 +276,7 @@ public sealed class RouteGraph
                 cameFrom[neighbor] = current;
                 cameFromEdge[neighbor] = edge;
                 gScore[neighbor] = tentativeG;
-                fScore[neighbor] = tentativeG + (costSelector is null ? Heuristic(neighbor, toIndex) : 0d);
+                fScore[neighbor] = tentativeG;
 
                 open.Add((fScore[neighbor], gScore[neighbor], neighbor, tieCounter++));
             }
@@ -321,11 +339,6 @@ public sealed class RouteGraph
 
     // ── Private helpers ─────────────────────────────────────────────
 
-    private double Heuristic(int fromIndex, int toIndex)
-    {
-        return _locations[fromIndex].DistanceTo(_locations[toIndex]);
-    }
-
     private List<RouteGraphEdge> ReconstructPath(int[] cameFrom, RouteGraphEdge?[] cameFromEdge, int current)
     {
         var edges = new List<RouteGraphEdge>();
@@ -359,9 +372,9 @@ public sealed class RouteGraph
     }
 
     /// <summary>
-    /// Equality comparer that treats two Locations as equal when they
-    /// have the same name (case-insensitive) and coordinates.
-    /// Used to deduplicate nodes during Build.
+    /// Keep separate Atlas portals with the same name: each can have a
+    /// different entrance and arrival. Other locations retain name-based
+    /// deduplication for compatibility with existing route data.
     /// </summary>
     private sealed class LocationNameComparer : IEqualityComparer<Location>
     {
@@ -370,10 +383,17 @@ public sealed class RouteGraph
         public bool Equals(Location? x, Location? y)
         {
             if (x is null || y is null) return x == y;
+            if (IsAtlasPortal(x) || IsAtlasPortal(y))
+                return ReferenceEquals(x, y);
             return string.Equals(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);
         }
 
         public int GetHashCode(Location obj) =>
-            StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Name);
+            IsAtlasPortal(obj)
+                ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj)
+                : StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Name);
+
+        private static bool IsAtlasPortal(Location location) =>
+            (location.Type & LocationType.AnyPortal) != 0 && location.HasExitCoords;
     }
 }
