@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<panel x="0" y="0" w="360" h="585" title="GoArrow" resizable="true" minw="300" minh="585">
-  <group x="8" y="8" w="344" h="196" border="#FF4A3A14">
+<panel x="0" y="0" w="360" h="625" title="GoArrow" resizable="true" minw="300" minh="625">
+  <tab x="8" y="8" w="84" h="26" text="Route" selected="{RouteTabSelected}" onclick="{ShowRouteTab}" />
+  <tab x="96" y="8" w="84" h="26" text="Config" selected="{ConfigTabSelected}" onclick="{ShowConfigTab}" />
+
+  <group x="8" y="42" w="344" h="196" border="#FF4A3A14" visible="{RouteTabVisible}">
     <label x="8" y="8" text="From" />
     <field x="8" y="26" w="250" h="20" text="{FromEditorInput}" onchange="{UpdateFromInputAction}" onsubmit="{SubmitFromTextAction}" visible="{FromEditorVisible}" />
     <button x="8" y="26" w="250" h="20" text="{FromInput}" onclick="{EditFromAction}" visible="{FromSelectionVisible}" />
@@ -13,7 +16,7 @@
     <list x="8" y="112" w="328" h="72" rowheight="18" items="{SearchResults}" selected="{SelectedSearchResult}" onchange="{SelectSearchResultAction}" visible="{SearchResultsVisible}" selectionband="true" />
   </group>
 
-  <group x="8" y="212" w="344" h="72" border="#FF4A3A14">
+  <group x="8" y="246" w="344" h="72" border="#FF4A3A14" visible="{RouteTabVisible}">
     <button x="8" y="8" w="72" h="22" text="Go" enabled="{HasDestination}" onclick="{StartNavigation}" />
     <button x="88" y="8" w="72" h="22" text="Stop" enabled="{IsNavigating}" onclick="{StopNavigation}" />
     <button x="168" y="8" w="80" h="22" text="Resume" enabled="{WaitingForInteraction}" onclick="{ResumeNavigation}" />
@@ -23,13 +26,13 @@
     <label x="120" y="40" text="{FromText}" />
   </group>
 
-  <group x="8" y="292" w="344" h="160" border="#FF4A3A14">
+  <group x="8" y="326" w="344" h="160" border="#FF4A3A14" visible="{RouteTabVisible}">
     <label x="8" y="8" text="Route steps" />
     <label x="88" y="8" text="{NextTargetText}" />
     <list x="8" y="32" w="328" h="120" rowheight="18" items="{RouteSteps}" selected="{SelectedRouteStep}" selectionband="true" />
   </group>
 
-  <group x="8" y="460" w="344" h="112" border="#FF4A3A14">
+  <group x="8" y="494" w="344" h="112" border="#FF4A3A14" visible="{RouteTabVisible}">
     <label x="8" y="8" text="Display" />
     <toggle x="8" y="30" w="150" h="20" text="Show Distance" checked="{ShowDistance}" onclick="{ToggleShowDistance}" />
     <toggle x="170" y="30" w="150" h="20" text="Show Bearing" checked="{ShowBearing}" onclick="{ToggleShowBearing}" />
@@ -37,5 +40,22 @@
     <toggle x="170" y="56" w="150" h="20" text="Recalculate" checked="{RecalculateRoute}" onclick="{ToggleRecalculateRoute}" />
     <toggle x="8" y="84" w="160" h="20" text="Dungeon Map" checked="{DungeonMapVisible}" onclick="{ToggleDungeonMap}" />
     <label x="176" y="84" text="Auto-show indoors" />
+  </group>
+
+  <group x="8" y="42" w="344" h="146" border="#FF4A3A14" visible="{ConfigTabVisible}">
+    <label x="8" y="8" text="Location data URL" />
+    <field x="8" y="30" w="328" h="22" maxlength="1024" text="{LocationDataUrlInput}" onchange="{UpdateLocationDataUrlAction}" onsubmit="{SubmitLocationDataUrlAction}" />
+    <button x="8" y="62" w="90" h="24" text="Save URL" onclick="{SaveLocationDataUrlAction}" />
+    <button x="106" y="62" w="100" h="24" text="Download" onclick="{DownloadLocationDataAction}" />
+    <label x="8" y="96" text="{LocationDownloadStatus}" />
+  </group>
+
+  <group x="8" y="196" w="344" h="170" border="#FF4A3A14" visible="{ConfigTabVisible}">
+    <label x="8" y="8" text="Dungeon map ZIP URL" />
+    <field x="8" y="30" w="328" h="22" maxlength="1024" text="{DungeonMapUrlInput}" onchange="{UpdateDungeonMapUrlAction}" onsubmit="{SubmitDungeonMapUrlAction}" />
+    <button x="8" y="62" w="90" h="24" text="Save URL" onclick="{SaveDungeonMapUrlAction}" />
+    <button x="106" y="62" w="100" h="24" text="Download" onclick="{DownloadDungeonMapsAction}" />
+    <label x="8" y="96" text="{DungeonDownloadStatus}" />
+    <label x="8" y="128" text="Extracted maps take precedence over the ZIP." />
   </group>
 </panel>

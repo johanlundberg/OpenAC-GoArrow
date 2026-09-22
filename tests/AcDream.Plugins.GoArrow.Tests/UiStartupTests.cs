@@ -22,19 +22,20 @@ public sealed class UiStartupTests
         Assert.True(settings.ShowBearing);
         Assert.True(settings.RecalculateRoute);
         Assert.True(settings.UseNavigationAutomation);
-        Assert.Equal(WarcryAtlasDataProvider.DefaultUrl, settings.ExternalDataUrl);
+        Assert.Equal(string.Empty, settings.ExternalDataUrl);
+        Assert.Equal(DungeonMapDownloader.DefaultUrl, settings.DungeonMapUrl);
     }
 
     [Fact]
-    public void SavedPreviousDefaultAtlasUrlMovesToPortalAtlas()
+    public void SavedLocationDataUrlIsPreserved()
     {
         var storage = new FakePluginStorage();
-        storage.WriteText("externalDataUrl", WarcryAtlasDataProvider.PreviousDefaultUrl);
+        storage.WriteText("externalDataUrl", "https://example.test/locations.xml");
         var settings = new GoArrowSettings();
 
         settings.Load(storage);
 
-        Assert.Equal(WarcryAtlasDataProvider.DefaultUrl, settings.ExternalDataUrl);
+        Assert.Equal("https://example.test/locations.xml", settings.ExternalDataUrl);
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public sealed class UiStartupTests
     {
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
-        Assert.Equal(2, markup.Descendants("field").Count());
+        Assert.Equal(4, markup.Descendants("field").Count());
         foreach (XElement field in markup.Descendants("field"))
         {
             Assert.Equal(typeof(Action<string>), typeof(GoArrowPanel)
@@ -122,6 +123,26 @@ public sealed class UiStartupTests
         foreach (XElement button in markup.Descendants("button").Take(2))
             Assert.Equal(typeof(Action), typeof(GoArrowPanel)
                 .GetProperty(BindingName(button.Attribute("onclick")!.Value))!.PropertyType);
+    }
+
+    [Fact]
+    public void RouteAndConfigTabsBindToExclusivePanelViews()
+    {
+        string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
+        var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
+        XElement[] tabs = markup.Descendants("tab").ToArray();
+        Assert.Equal(new[] { "Route", "Config" },
+            tabs.Select(tab => (string?)tab.Attribute("text")));
+        foreach (XElement tab in tabs)
+        {
+            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
+                .GetProperty(BindingName(tab.Attribute("selected")!.Value))!.PropertyType);
+            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
+                .GetProperty(BindingName(tab.Attribute("onclick")!.Value))!.PropertyType);
+        }
+        foreach (XElement group in markup.Descendants("group"))
+            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
+                .GetProperty(BindingName(group.Attribute("visible")!.Value))!.PropertyType);
     }
 
     [Fact]

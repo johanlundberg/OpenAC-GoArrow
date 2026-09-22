@@ -28,8 +28,9 @@ public sealed class HudCanvasTests
         Assert.Contains("goarrow.toolbar", ui.PaintCallbacks.Keys);
         var painter = new RecordingPainter();
         ui.PaintCallbacks["goarrow.arrow"](painter);
-        Assert.True(painter.Lines[0].To.X > painter.Lines[0].From.X);
-        Assert.Equal(painter.Lines[0].From.Y, painter.Lines[0].To.Y, 6);
+        var shaft = painter.Lines.First(line => line.Thickness == 12);
+        Assert.True(shaft.To.X > shaft.From.X);
+        Assert.Equal(shaft.From.Y, shaft.To.Y, 6);
 
         fake.PluginNavigation.SnapshotValue = fake.PluginNavigation.SnapshotValue with
         {
@@ -37,7 +38,8 @@ public sealed class HudCanvasTests
         };
         painter.Lines.Clear();
         ui.PaintCallbacks["goarrow.arrow"](painter);
-        Assert.True(painter.Lines[0].To.Y < painter.Lines[0].From.Y);
+        shaft = painter.Lines.First(line => line.Thickness == 12);
+        Assert.True(shaft.To.Y < shaft.From.Y);
     }
 
     private sealed class CanvasHost(FakePluginHost inner, IUiRegistry ui) : IPluginHost
@@ -68,12 +70,12 @@ public sealed class HudCanvasTests
     {
         public int Width => 260;
         public int Height => 90;
-        public List<(PluginPoint From, PluginPoint To)> Lines { get; } = new();
+        public List<(PluginPoint From, PluginPoint To, float Thickness)> Lines { get; } = new();
         public void Clear(PluginColor color) { }
         public void FillRect(PluginRect rect, PluginColor color) { }
         public void StrokeRect(PluginRect rect, PluginColor color, float thickness = 1f) { }
         public void DrawLine(PluginPoint from, PluginPoint to, PluginColor color, float thickness = 1f) =>
-            Lines.Add((from, to));
+            Lines.Add((from, to, thickness));
         public void DrawText(string text, PluginPoint position, PluginColor color, bool outline = false) { }
         public PluginSize MeasureText(string text) => new(0, 0);
         public void DrawImage(PluginImage image, PluginRect destination, PluginColor tint) { }

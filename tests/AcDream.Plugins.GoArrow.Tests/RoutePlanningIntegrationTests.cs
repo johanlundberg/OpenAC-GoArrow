@@ -6,6 +6,33 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class RoutePlanningIntegrationTests
 {
     [Fact]
+    public void ConfigTabSavesDownloadUrlsAndRejectsInvalidInput()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        GoArrowPanel panel = plugin.Panel!;
+
+        Assert.True(panel.RouteTabSelected);
+        panel.ShowConfigTab();
+        Assert.True(panel.ConfigTabSelected);
+        Assert.False(panel.RouteTabVisible);
+        panel.SubmitLocationDataUrlAction("https://example.test/locations.xml");
+        panel.SubmitDungeonMapUrlAction("https://example.test/maps.zip");
+        Assert.Equal("https://example.test/locations.xml",
+            host.PluginStorage.ReadText("externalDataUrl"));
+        Assert.Equal("https://example.test/maps.zip",
+            host.PluginStorage.ReadText("dungeonMapUrl"));
+
+        panel.SubmitDungeonMapUrlAction("file:///tmp/maps.zip");
+        Assert.Contains("valid", panel.DungeonDownloadStatus);
+        Assert.Equal("https://example.test/maps.zip",
+            host.PluginStorage.ReadText("dungeonMapUrl"));
+        panel.ShowRouteTab();
+        Assert.True(panel.RouteTabSelected);
+    }
+
+    [Fact]
     public void SearchFieldsPlanFromNamedPlaceToCurrentLocationWithoutMoving()
     {
         var host = new FakePluginHost { HasUiValue = false };

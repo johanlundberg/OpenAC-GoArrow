@@ -24,6 +24,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private GoArrowDungeonMap? _dungeonMap;
     private WarcryAtlasDataProvider? _atlasProvider;
     private int _atlasUpdateInProgress;
+    private int _dungeonUpdateInProgress;
+    private int _pendingDungeonMapReload;
+    private int _downloadedDungeonMapCount;
     private IDisposable? _commandRegistration;
     private Action<double>? _tickHandler;
     private PluginChatCoordinateLinkRouter? _coordinateLinkRouter;
@@ -37,6 +40,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal string CurrentDestinationName => _destination?.TargetName ?? string.Empty;
     internal GoArrowPanel? Panel => _panel;
+    internal string LocationDownloadStatus { get; private set; } = string.Empty;
+    internal string DungeonDownloadStatus { get; private set; } = string.Empty;
 
     public void Initialize(IPluginHost host)
     {
@@ -314,15 +319,27 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal bool SetExternalDataUrl(string url)
     {
-        if (_settings is null || _host is null || !Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed)
-            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        if (_settings is null || _host is null || !TryDownloadUrl(url, out Uri? parsed))
             return false;
 
-        _settings.ExternalDataUrl = parsed.ToString();
+        _settings.ExternalDataUrl = parsed!.ToString();
         _atlasProvider = new WarcryAtlasDataProvider(_host.Storage, url: _settings.ExternalDataUrl);
         _settings.Save(_host.Storage);
         return true;
     }
+
+    internal bool SetDungeonMapUrl(string url)
+    {
+        if (_settings is null || _host is null || !TryDownloadUrl(url, out Uri? parsed))
+            return false;
+        _settings.DungeonMapUrl = parsed!.ToString();
+        _settings.Save(_host.Storage);
+        return true;
+    }
+
+    private static bool TryDownloadUrl(string url, out Uri? parsed) =>
+        Uri.TryCreate(url.Trim(), UriKind.Absolute, out parsed)
+        && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
 
     /// <summary>
     /// Explicitly downloads and installs the latest Warcry Atlas location data.
@@ -332,6 +349,12 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_host is null || _database is null || _atlasProvider is null)
             return;
+        if (string.IsNullOrWhiteSpace(_settings?.ExternalDataUrl))
+        {
+            LocationDownloadStatus = "Set a location data URL first.";
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Set a location data URL in Config before downloading.");
+            return;
+        }
         if (Interlocked.Exchange(ref _atlasUpdateInProgress, 1) != 0)
         {
             _host.Automation.Chat.PostSystemMessage("GoArrow: A location-data update is already running.");
@@ -340,12 +363,14 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         try
         {
+            LocationDownloadStatus = "Downloading location data...";
             _host.Automation.Chat.PostSystemMessage("GoArrow: Downloading location data...");
             string xml = await _atlasProvider.DownloadAsync().ConfigureAwait(false);
             _database.LoadLocationsXml(xml);
             _routeFinder?.InvalidateGraph();
             _host.Automation.Chat.PostSystemMessage(
                 $"GoArrow: Loaded {_database.LocationCount} locations from the Atlas data source.");
+            LocationDownloadStatus = $"Loaded {_database.LocationCount} locations.";
         }
         catch (Exception exception)
         {
@@ -369,11 +394,13 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 _routeFinder?.InvalidateGraph();
                 _host.Automation.Chat.PostSystemMessage(
                     $"GoArrow: Download failed; loaded {_database.LocationCount} cached locations.");
+                LocationDownloadStatus = "Download failed; loaded cached data.";
             }
             else
             {
                 _host.Automation.Chat.PostSystemMessage(
                     "GoArrow: Location-data update failed; keeping the existing database.");
+                LocationDownloadStatus = "Download failed; existing data kept.";
             }
         }
         finally
@@ -570,6 +597,37 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     internal bool DungeonMapVisible => _settings?.DungeonMapVisible ?? false;
 
+    internal async Task UpdateDungeonMapsAsync()
+    {
+        if (_host is null || _settings is null)
+            return;
+        if (Interlocked.Exchange(ref _dungeonUpdateInProgress, 1) != 0)
+        {
+            _host.Automation.Chat.PostSystemMessage("GoArrow: A dungeon map download is already running.");
+            return;
+        }
+        try
+        {
+            DungeonDownloadStatus = "Downloading dungeon maps...";
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Downloading dungeon maps...");
+            int count = await new DungeonMapDownloader(_host.Storage)
+                .DownloadAsync(_settings.DungeonMapUrl).ConfigureAwait(false);
+            _downloadedDungeonMapCount = count;
+            DungeonDownloadStatus = $"Downloaded {count} maps; loading...";
+            Interlocked.Exchange(ref _pendingDungeonMapReload, 1);
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Error("GoArrow: Dungeon map download failed.", exception);
+            DungeonDownloadStatus = "Download failed; existing maps kept.";
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Dungeon map download failed: {exception.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _dungeonUpdateInProgress, 0);
+        }
+    }
+
     internal string? DungeonMapDirectory =>
         _host is null ? null : DungeonMapCatalog.UserMapDirectory(_host.Storage);
 
@@ -613,6 +671,14 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void OnTick(double elapsed)
     {
+        if (Interlocked.Exchange(ref _pendingDungeonMapReload, 0) != 0)
+        {
+            bool loaded = ReloadDungeonMaps();
+            DungeonDownloadStatus = loaded
+                ? $"Loaded {_downloadedDungeonMapCount} dungeon maps."
+                : "Downloaded maps; enable UI to display them.";
+            _host?.Automation.Chat.PostSystemMessage($"GoArrow: {DungeonDownloadStatus}");
+        }
         if (_host == null || _destination == null || _navigator == null)
             return;
 

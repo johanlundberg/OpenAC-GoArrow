@@ -48,6 +48,14 @@ public class WarcryAtlasDataProviderTests
         await Assert.ThrowsAsync<HttpRequestException>(() => provider.DownloadAsync());
     }
 
+    [Fact]
+    public async Task DownloadAsync_RequiresConfiguredUrl()
+    {
+        var provider = new WarcryAtlasDataProvider(new MemoryStorage());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => provider.DownloadAsync());
+    }
+
     private sealed class StubHandler : HttpMessageHandler
     {
         private readonly string _content;

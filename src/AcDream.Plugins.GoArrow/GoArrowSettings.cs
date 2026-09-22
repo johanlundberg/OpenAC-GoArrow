@@ -40,8 +40,8 @@ public class GoArrowSettings
 
     // ── External data ──────────────────────────────────────────────
     /// <summary>Location-data URL used by the explicit update command.</summary>
-    public string ExternalDataUrl { get; set; } =
-        RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
+    public string ExternalDataUrl { get; set; } = string.Empty;
+    public string DungeonMapUrl { get; set; } = DungeonMapDownloader.DefaultUrl;
 
     // ── Recall Tracking ────────────────────────────────────────────
     public string LastPortalRecall { get; set; } = string.Empty;
@@ -82,6 +82,7 @@ public class GoArrowSettings
         storage.WriteText("interactionTimeoutSeconds", InteractionTimeoutSeconds.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("atlasCacheMaxAgeDays", AtlasCacheMaxAgeDays.ToString(CultureInfo.InvariantCulture));
         storage.WriteText("externalDataUrl", ExternalDataUrl);
+        storage.WriteText("dungeonMapUrl", DungeonMapUrl);
         storage.WriteText("lastPortalRecall", LastPortalRecall);
         storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
         storage.WriteText("lastAllegianceRecall", LastAllegianceRecall);
@@ -120,8 +121,9 @@ public class GoArrowSettings
             MaxNavigationRetries = Math.Max(0, structured.MaxNavigationRetries);
             InteractionTimeoutSeconds = structured.InteractionTimeoutSeconds > 0 ? structured.InteractionTimeoutSeconds : 15;
             AtlasCacheMaxAgeDays = Math.Max(0, structured.AtlasCacheMaxAgeDays);
-            ExternalDataUrl = string.IsNullOrWhiteSpace(structured.ExternalDataUrl) ? ExternalDataUrl : structured.ExternalDataUrl;
-            MigrateDefaultAtlasUrl();
+            ExternalDataUrl = structured.ExternalDataUrl ?? string.Empty;
+            DungeonMapUrl = string.IsNullOrWhiteSpace(structured.DungeonMapUrl)
+                ? DungeonMapDownloader.DefaultUrl : structured.DungeonMapUrl;
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
             LastAllegianceRecall = structured.LastAllegianceRecall;
@@ -167,11 +169,10 @@ public class GoArrowSettings
         if (int.TryParse(storage.ReadText("atlasCacheMaxAgeDays"), out int cacheDays))
             AtlasCacheMaxAgeDays = Math.Max(0, cacheDays);
 
-        ExternalDataUrl = storage.ReadText("externalDataUrl")
-            ?? RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
-        if (string.IsNullOrWhiteSpace(ExternalDataUrl))
-            ExternalDataUrl = RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
-        MigrateDefaultAtlasUrl();
+        ExternalDataUrl = storage.ReadText("externalDataUrl") ?? string.Empty;
+        DungeonMapUrl = storage.ReadText("dungeonMapUrl") ?? DungeonMapDownloader.DefaultUrl;
+        if (string.IsNullOrWhiteSpace(DungeonMapUrl))
+            DungeonMapUrl = DungeonMapDownloader.DefaultUrl;
 
         LastPortalRecall = storage.ReadText("lastPortalRecall") ?? string.Empty;
         LastSecondaryRecall = storage.ReadText("lastSecondaryRecall") ?? string.Empty;
@@ -186,13 +187,6 @@ public class GoArrowSettings
 
     private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
         bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
-
-    private void MigrateDefaultAtlasUrl()
-    {
-        if (string.Equals(ExternalDataUrl, RouteFinding.WarcryAtlasDataProvider.PreviousDefaultUrl,
-            StringComparison.OrdinalIgnoreCase))
-            ExternalDataUrl = RouteFinding.WarcryAtlasDataProvider.DefaultUrl;
-    }
 
     private void RestoreUiHiddenByOldDefaults()
     {

@@ -12,10 +12,6 @@ namespace AcDream.Plugins.GoArrow.RouteFinding;
 /// </summary>
 internal sealed class WarcryAtlasDataProvider
 {
-    public const string DefaultUrl =
-        "https://raw.githubusercontent.com/Darktorizo/GoArrow_Data_CoD/master/data_cod.xml";
-    public const string PreviousDefaultUrl =
-        "http://maps.roogon.com/downloads/data_cod_TN_Directions_Non_Olthoi.xml";
     private const string CacheKey = "data/warcry-atlas.xml";
     private const string MetadataKey = "data/warcry-atlas.metadata.json";
     private const int MaximumDownloadBytes = 16 * 1024 * 1024;
@@ -31,7 +27,7 @@ internal sealed class WarcryAtlasDataProvider
     {
         _storage = storage;
         _httpClient = httpClient ?? new HttpClient();
-        _url = string.IsNullOrWhiteSpace(url) ? DefaultUrl : url;
+        _url = url ?? string.Empty;
     }
 
     public string Url => _url;
@@ -42,6 +38,8 @@ internal sealed class WarcryAtlasDataProvider
     /// </summary>
     public async Task<string> DownloadAsync(CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_url))
+            throw new InvalidOperationException("Set a location data URL before downloading.");
         using HttpResponseMessage response = await _httpClient.GetAsync(
             _url,
             HttpCompletionOption.ResponseHeadersRead,

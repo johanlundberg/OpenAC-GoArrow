@@ -18,6 +18,9 @@ internal sealed class GoArrowPanel
     private bool _showSearchResults;
     private bool _editingFrom;
     private bool _editingDestination = true;
+    private bool _showConfig;
+    private string _locationUrlStatus = string.Empty;
+    private string _dungeonUrlStatus = string.Empty;
 
     public GoArrowPanel(
         IPluginHost host,
@@ -32,6 +35,8 @@ internal sealed class GoArrowPanel
         _destination = destination;
         _navigator = navigator;
         DestinationInput = settings.DestinationName;
+        LocationDataUrlInput = settings.ExternalDataUrl;
+        DungeonMapUrlInput = settings.DungeonMapUrl;
     }
 
     // ── Panel display properties ────────────────────────────────────
@@ -115,6 +120,88 @@ internal sealed class GoArrowPanel
     public bool DestinationEditorVisible => _editingDestination;
 
     public bool DestinationSelectionVisible => !_editingDestination;
+
+    public bool RouteTabSelected => !_showConfig;
+    public bool ConfigTabSelected => _showConfig;
+    public bool RouteTabVisible => !_showConfig;
+    public bool ConfigTabVisible => _showConfig;
+    public Action ShowRouteTab => () => _showConfig = false;
+    public Action ShowConfigTab => () =>
+    {
+        _showSearchResults = false;
+        _showConfig = true;
+    };
+
+    public string LocationDataUrlInput { get; set; }
+    public string DungeonMapUrlInput { get; set; }
+    public string LocationDownloadStatus => _locationUrlStatus.Length > 0
+        ? _locationUrlStatus : _plugin.LocationDownloadStatus;
+    public string DungeonDownloadStatus => _dungeonUrlStatus.Length > 0
+        ? _dungeonUrlStatus : _plugin.DungeonDownloadStatus;
+
+    public Action<string> UpdateLocationDataUrlAction => value =>
+    {
+        LocationDataUrlInput = value;
+        _locationUrlStatus = string.Empty;
+    };
+    public Action<string> SubmitLocationDataUrlAction => value =>
+    {
+        LocationDataUrlInput = value;
+        SaveLocationDataUrl();
+    };
+    public Action SaveLocationDataUrlAction => () => SaveLocationDataUrl();
+    public Action DownloadLocationDataAction => () =>
+    {
+        if (SaveLocationDataUrl())
+        {
+            _locationUrlStatus = string.Empty;
+            _ = _plugin.UpdateDataAsync();
+        }
+    };
+
+    public Action<string> UpdateDungeonMapUrlAction => value =>
+    {
+        DungeonMapUrlInput = value;
+        _dungeonUrlStatus = string.Empty;
+    };
+    public Action<string> SubmitDungeonMapUrlAction => value =>
+    {
+        DungeonMapUrlInput = value;
+        SaveDungeonMapUrl();
+    };
+    public Action SaveDungeonMapUrlAction => () => SaveDungeonMapUrl();
+    public Action DownloadDungeonMapsAction => () =>
+    {
+        if (SaveDungeonMapUrl())
+        {
+            _dungeonUrlStatus = string.Empty;
+            _ = _plugin.UpdateDungeonMapsAsync();
+        }
+    };
+
+    private bool SaveLocationDataUrl()
+    {
+        if (!_plugin.SetExternalDataUrl(LocationDataUrlInput.Trim()))
+        {
+            _locationUrlStatus = "Enter a valid http:// or https:// URL.";
+            return false;
+        }
+        LocationDataUrlInput = _settings.ExternalDataUrl;
+        _locationUrlStatus = "Location data URL saved.";
+        return true;
+    }
+
+    private bool SaveDungeonMapUrl()
+    {
+        if (!_plugin.SetDungeonMapUrl(DungeonMapUrlInput.Trim()))
+        {
+            _dungeonUrlStatus = "Enter a valid http:// or https:// URL.";
+            return false;
+        }
+        DungeonMapUrlInput = _settings.DungeonMapUrl;
+        _dungeonUrlStatus = "Dungeon map URL saved.";
+        return true;
+    }
 
     public IReadOnlyList<string> SearchResults
     {
