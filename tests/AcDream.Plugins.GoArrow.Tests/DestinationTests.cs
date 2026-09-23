@@ -66,4 +66,21 @@ public sealed class DestinationTests
         Assert.Equal(10, destination.GuidanceDistance, 6);
         Assert.Equal(Math.Sqrt(200), destination.EstimatedDistance, 6);
     }
+
+    [Theory]
+    [InlineData(0, 1, 90)]
+    [InlineData(-1, 0, 180)]
+    [InlineData(0, -1, 270)]
+    [InlineData(1, -1, 315)]
+    public void BearingUsesClockwiseDegreesFromNorth(double northSouth, double eastWest, double expected)
+    {
+        var database = new LocationDatabase();
+        var destination = new GoArrowDestination(
+            new GoArrowSettings(), database, new RouteFinder(database));
+        destination.SetCoordinate(northSouth, eastWest, "Target");
+
+        destination.UpdateGuidance(new Location("Current", 0, 0));
+
+        Assert.Equal(expected, destination.BearingDegrees, 6);
+    }
 }

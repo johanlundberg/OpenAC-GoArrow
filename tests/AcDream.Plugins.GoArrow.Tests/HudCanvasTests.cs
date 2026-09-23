@@ -99,6 +99,7 @@ public sealed class HudCanvasTests
             new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
         Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
         Assert.Equal(-40, settings.ArrowOffsetX);
+        Assert.Equal(-40, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ArrowOffsetX);
 
         var toolbar = ui.Canvases["goarrow.toolbar"];
         toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
@@ -113,6 +114,7 @@ public sealed class HudCanvasTests
             new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
         Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
         Assert.Equal(-50, settings.ToolbarOffsetX);
+        Assert.Equal(-50, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX);
         fake.PluginEvents.RaiseTick(0.1);
         var saved = new GoArrowSettings();
         saved.Load(fake.Storage);
@@ -127,6 +129,7 @@ public sealed class HudCanvasTests
             new PluginPoint(55, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
         Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
         Assert.Equal(-35, settings.ToolbarOffsetX);
+        Assert.Equal(-35, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX);
 
         navigator.StartNavigation();
         Assert.True(navigator.IsNavigating);
@@ -140,6 +143,42 @@ public sealed class HudCanvasTests
         toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
             new PluginPoint(190, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
         Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
+    }
+
+    [Fact]
+    public void ReleasedOverlayPositionsRestoreOnNewCanvasesWithoutAnotherTick()
+    {
+        var fake = new FakePluginHost();
+        var ui = new RecordingUi();
+        var host = new CanvasHost(fake, ui);
+        var database = new LocationDatabase();
+        var settings = new GoArrowSettings();
+        var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        using var hud = new GoArrowHud(host, destination, navigator, settings);
+        hud.Enable();
+        var arrow = ui.Canvases["goarrow.arrow"];
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(20, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(50, 45), PluginPointerButton.Left, PluginKeyModifiers.None));
+        var toolbar = ui.Canvases["goarrow.toolbar"];
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(20, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(60, 50), PluginPointerButton.Left, PluginKeyModifiers.None));
+
+        var restoredSettings = new GoArrowSettings();
+        restoredSettings.Load(fake.PluginStorage);
+        var restoredUi = new RecordingUi();
+        var restoredHost = new CanvasHost(fake, restoredUi);
+        var restoredDestination = new GoArrowDestination(restoredSettings, database, new RouteFinder(database));
+        using var restoredNavigator = new GoArrowNavigator(restoredHost, restoredDestination, restoredSettings);
+        using var restoredHud = new GoArrowHud(restoredHost, restoredDestination, restoredNavigator, restoredSettings);
+        restoredHud.Enable();
+
+        Assert.Equal(new PluginPoint(-40, 145), restoredUi.Canvases["goarrow.arrow"].Offset);
+        Assert.Equal(new PluginPoint(-30, 245), restoredUi.Canvases["goarrow.toolbar"].Offset);
     }
 
     [Fact]

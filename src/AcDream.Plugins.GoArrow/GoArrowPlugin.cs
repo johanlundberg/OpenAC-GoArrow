@@ -55,7 +55,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private PluginNavigationPosition? _lastPreviewPosition;
     private long _lastPreviewAt;
     private const string IndoorLocationsStorageKey = "GoArrow/indoor-locations.xml";
-    private enum PendingRouteWork { None, Go, Preview }
+    private enum PendingRouteWork { None, Go, Preview, Resume }
 
     internal bool IsComputingRoute => _pendingRouteWork != PendingRouteWork.None || _routeWorkInProgress;
 
@@ -63,6 +63,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// The name of the current destination, or empty.
     /// </summary>
     internal string CurrentDestinationName => _destination?.TargetName ?? string.Empty;
+    internal string NavigationFailureReason => _navigator?.FailureReason ?? string.Empty;
     internal GoArrowPanel? Panel => _panel;
     internal string LocationDownloadStatus { get; private set; } = string.Empty;
     internal string DungeonDownloadStatus { get; private set; } = string.Empty;
@@ -356,11 +357,23 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     }
 
     /// <summary>
-    /// Resume after manually completing a portal or recall interaction.
+    /// Resume a stopped route or a manually completed portal/recall interaction.
     /// </summary>
     internal void ResumeNavigation()
     {
-        _navigator?.ResumeAfterInteraction();
+        if (_navigator?.CanResumeNavigation != true)
+            return;
+        if (_navigator.WaitingForInteraction)
+        {
+            _navigator.ResumeNavigation();
+            return;
+        }
+        if (_host?.HasUi == true && _tickHandler is not null)
+        {
+            QueueRouteWork(PendingRouteWork.Resume);
+            return;
+        }
+        _navigator.ResumeNavigation();
     }
 
     /// <summary>
@@ -881,6 +894,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             {
                 if (work == PendingRouteWork.Go)
                     ExecuteGo();
+                else if (work == PendingRouteWork.Resume)
+                    _navigator?.ResumeNavigation();
                 else if (_destination?.HasDestination == true && _host?.Automation.IsAvailable == true)
                 {
                     var preview = _host.Automation.Navigation.Snapshot;
@@ -927,6 +942,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             if (_pendingRouteWork == PendingRouteWork.None
                 && _destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
                 && position.IsOutdoor && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
+                && _navigator.FailureReason.Length == 0
                 && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true)
                 && (_lastPreviewAt == 0 || Stopwatch.GetElapsedTime(_lastPreviewAt).TotalSeconds >= 1)
                 && (_destination.CurrentRoute is null || _lastPreviewPosition is not { } last

@@ -17,7 +17,6 @@ internal sealed class GoArrowHud : IDisposable
     private bool _toolbarDragging;
     private PluginPoint _arrowDisplayedOffset;
     private PluginPoint _toolbarDisplayedOffset;
-    private bool _positionDirty;
 
     public GoArrowHud(IPluginHost host, GoArrowDestination destination, GoArrowNavigator navigator, GoArrowSettings settings)
     {
@@ -59,11 +58,6 @@ internal sealed class GoArrowHud : IDisposable
             // the offset that pointer-local coordinates are measured against.
             _arrowDisplayedOffset = _arrow.Offset;
             _toolbarDisplayedOffset = _toolbar.Offset;
-            if (_positionDirty)
-            {
-                _positionDirty = false;
-                _settings.Save(_host.Storage);
-            }
             _arrow.Invalidate();
             _toolbar.Invalidate();
         };
@@ -118,7 +112,7 @@ internal sealed class GoArrowHud : IDisposable
                 if (input.Position.X < 130)
                     _navigator.StopNavigation();
                 else
-                    _navigator.ResumeAfterInteraction();
+                    _navigator.ResumeNavigation();
             }
         }
         if (input.Kind == PluginPointerEventKind.Up)
@@ -153,14 +147,14 @@ internal sealed class GoArrowHud : IDisposable
             {
                 start = null;
                 saveOffset(offset);
-                _positionDirty = true;
+                _settings.Save(_host.Storage);
             }
         }
         else if (input.Kind == PluginPointerEventKind.Cancelled && start is not null)
         {
             start = null;
             saveOffset(canvas.Offset);
-            _positionDirty = true;
+            _settings.Save(_host.Storage);
         }
     }
 
@@ -308,8 +302,6 @@ internal sealed class GoArrowHud : IDisposable
 
     public void Dispose()
     {
-        if (_positionDirty)
-            _settings.Save(_host.Storage);
         if (_tick is not null)
             _host.Events.Tick -= _tick;
         _tick = null;

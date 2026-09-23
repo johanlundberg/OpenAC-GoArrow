@@ -289,6 +289,17 @@ internal sealed class GoArrowCommands
     private void ShowStatus()
     {
         var dest = _plugin.CurrentDestinationName;
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        string place = !snapshot.IsAvailable ? "position unavailable"
+            : snapshot.IsPortalSpace ? "portal space"
+            : snapshot.Position.IsOutdoor ? "outdoors" : "indoors";
+        string step = _plugin.GetCurrentRouteSteps().FirstOrDefault() ?? "no active step";
+        _host.Automation.Chat.PostSystemMessage(
+            $"{GoArrowPlugin.DisplayTitle}: {_plugin.Panel?.NavStatusText ?? "Idle"}; {place}; "
+            + $"client {_host.Automation.Navigation.GoToReport.State}; next {step}.");
+        if (_plugin.NavigationFailureReason.Length > 0)
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Reason: {_plugin.NavigationFailureReason}");
         if (_host.Automation.Recalls.IsAvailable)
         {
             int known = _host.Automation.Recalls.CaptureLocations().Count(location => location.IsKnown);
@@ -297,7 +308,7 @@ internal sealed class GoArrowCommands
         if (string.IsNullOrEmpty(dest))
             _host.Automation.Chat.PostSystemMessage("GoArrow: No destination set. Use /go <name>");
         else
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigating to '{dest}'. Use /go stop to cancel.");
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{dest}'. Use /go stop to cancel.");
     }
 
     private void ShowRoute()

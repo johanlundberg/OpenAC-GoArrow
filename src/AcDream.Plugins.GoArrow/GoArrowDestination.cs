@@ -222,7 +222,8 @@ internal sealed class GoArrowDestination
         EstimatedDistance = currentPosition.DistanceTo(TargetLocation);
         var next = GetImmediateTarget() ?? TargetLocation;
         GuidanceDistance = currentPosition.DistanceTo(next);
-        BearingDegrees = currentPosition.AngleTo(next) * (180.0 / Math.PI);
+        double bearing = currentPosition.AngleTo(next) * (180.0 / Math.PI);
+        BearingDegrees = bearing < 0 ? bearing + 360.0 : bearing;
     }
 
     /// <summary>Find the next waypoint to walk toward or interact with.</summary>

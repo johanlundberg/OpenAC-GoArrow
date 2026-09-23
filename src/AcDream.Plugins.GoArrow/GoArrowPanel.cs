@@ -91,6 +91,8 @@ internal sealed class GoArrowPanel
                 return "Indoor target ready";
             if (OutdoorRoutePaused)
                 return "Outdoor route paused indoors";
+            if (_navigator.FailureReason.Length > 0)
+                return "Navigation stopped";
             return _destination.CurrentRoute is { StepCount: > 0 } ? "Route ready" : "Ready";
         }
     }
@@ -131,6 +133,8 @@ internal sealed class GoArrowPanel
 
     /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
+
+    public bool CanResumeNavigation => _navigator.CanResumeNavigation && !_plugin.IsComputingRoute;
 
     /// <summary>Editable destination input used by panel hosts that support text controls.</summary>
     public string DestinationInput { get; set; } = string.Empty;
@@ -578,8 +582,8 @@ internal sealed class GoArrowPanel
     /// <summary>Stop navigation.</summary>
     public Action StopNavigation => () => _plugin.StopNavigation();
 
-    /// <summary>Resume after manually completing a portal or recall action.</summary>
-    public Action ResumeNavigation => () => _navigator.ResumeAfterInteraction();
+    /// <summary>Resume a stopped route or a manually completed interaction.</summary>
+    public Action ResumeNavigation => () => _plugin.ResumeNavigation();
 
     /// <summary>Clear destination.</summary>
     public Action ClearDestination => () =>

@@ -7,6 +7,23 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class CommandIntegrationTests
 {
     [Fact]
+    public void StatusShowsLoadedVersionAndCurrentNavigationState()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 1, 1, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+
+        Assert.True(host.PluginCommands.Invoke("go", "status"));
+        Assert.Contains(host.PluginChat.SystemMessages,
+            message => message.Contains(GoArrowPlugin.DisplayTitle)
+                && message.Contains("outdoors") && message.Contains("no active step"));
+        plugin.Disable();
+    }
+
+    [Fact]
     public void MarkCommandAddsAnIndoorLocationToSearchableData()
     {
         var host = new FakePluginHost { HasUiValue = false };
