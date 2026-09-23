@@ -6,6 +6,38 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class RoutePlanningIntegrationTests
 {
     [Fact]
+    public void AutoNavigateWaitsForGoAfterDestinationChanges()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        new GoArrowSettings
+        {
+            AutoNavigate = true,
+            DestinationName = "Holtburg",
+        }.Save(host.PluginStorage);
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+
+        Assert.Equal("Holtburg", plugin.CurrentDestinationName);
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+        Assert.True(plugin.SetDestination("Arwic"));
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+
+        plugin.Panel!.StartNavigation();
+        Assert.NotEmpty(host.PluginNavigation.GoToPositionCalls);
+        int startedLegs = host.PluginNavigation.GoToPositionCalls.Count;
+        Assert.True(plugin.SetDestination("Holtburg"));
+        Assert.Equal(1, host.PluginNavigation.StopGoToCount);
+        Assert.Equal(startedLegs, host.PluginNavigation.GoToPositionCalls.Count);
+
+        Assert.True(plugin.TrySetCoordinateDestination("42.1N 33.6E"));
+        Assert.Equal(startedLegs, host.PluginNavigation.GoToPositionCalls.Count);
+        plugin.Disable();
+    }
+
+    [Fact]
     public void ConfigTabSavesDownloadUrlsAndRejectsInvalidInput()
     {
         var host = new FakePluginHost { HasUiValue = false };

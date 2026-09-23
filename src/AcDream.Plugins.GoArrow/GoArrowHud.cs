@@ -14,6 +14,7 @@ internal sealed class GoArrowHud : IDisposable
     private Action<double>? _tick;
     private PluginPoint? _arrowDrag;
     private PluginPoint? _toolbarDrag;
+    private bool _toolbarDragging;
     private PluginPoint _arrowDisplayedOffset;
     private PluginPoint _toolbarDisplayedOffset;
     private bool _positionDirty;
@@ -82,23 +83,54 @@ internal sealed class GoArrowHud : IDisposable
 
     private void OnToolbarInput(PluginPointerEvent input)
     {
-        if (_toolbarDrag is not null || (input.Kind == PluginPointerEventKind.Down && input.Position.X >= 180))
+        if (input.Kind == PluginPointerEventKind.Down && input.Button == PluginPointerButton.Left)
         {
-            HandleDrag(_toolbar, input, ref _toolbarDrag, ref _toolbarDisplayedOffset, offset =>
-            {
-                _settings.ToolbarOffsetX = offset.X;
-                _settings.ToolbarOffsetY = offset.Y;
-            });
+            _toolbarDragging = false;
+            HandleToolbarDrag(input);
             return;
         }
-        if (input.Kind != PluginPointerEventKind.Up || input.Button != PluginPointerButton.Left
-            || input.Position.Y < 0 || input.Position.Y >= 35)
+        if (_toolbarDrag is not { } origin)
             return;
-        if (input.Position.X is >= 0 and < 90)
-            _navigator.StopNavigation();
-        else if (input.Position.X is >= 90 and < 180)
-            _navigator.ResumeAfterInteraction();
+        if (input.Kind == PluginPointerEventKind.Cancelled)
+        {
+            if (_toolbarDragging)
+                HandleToolbarDrag(input);
+            else
+                _toolbarDrag = null;
+            _toolbarDragging = false;
+            return;
+        }
+        if (input.Kind is not (PluginPointerEventKind.Move or PluginPointerEventKind.Up))
+            return;
+        double dx = input.Position.X - origin.X;
+        double dy = input.Position.Y - origin.Y;
+        _toolbarDragging |= dx * dx + dy * dy >= 16;
+        if (_toolbarDragging)
+            HandleToolbarDrag(input);
+        else if (input.Kind == PluginPointerEventKind.Up)
+        {
+            _toolbarDrag = null;
+            if (input.Button == PluginPointerButton.Left
+                && input.Position.X >= 0 && input.Position.X < 260
+                && input.Position.Y >= 0 && input.Position.Y < 35
+                && (origin.X < 130) == (input.Position.X < 130))
+            {
+                if (input.Position.X < 130)
+                    _navigator.StopNavigation();
+                else
+                    _navigator.ResumeAfterInteraction();
+            }
+        }
+        if (input.Kind == PluginPointerEventKind.Up)
+            _toolbarDragging = false;
     }
+
+    private void HandleToolbarDrag(PluginPointerEvent input) =>
+        HandleDrag(_toolbar, input, ref _toolbarDrag, ref _toolbarDisplayedOffset, offset =>
+        {
+            _settings.ToolbarOffsetX = offset.X;
+            _settings.ToolbarOffsetY = offset.Y;
+        });
 
     private void HandleDrag(IPluginCanvas? canvas, PluginPointerEvent input,
         ref PluginPoint? start, ref PluginPoint displayedOffset, Action<PluginPoint> saveOffset)
@@ -168,7 +200,6 @@ internal sealed class GoArrowHud : IDisposable
             _ => string.Empty,
         };
         painter.DrawText("NEXT WAYPOINT", new PluginPoint(84, 8), new PluginColor(156, 177, 186), outline: true);
-        painter.DrawText("DRAG", new PluginPoint(220, 8), new PluginColor(156, 177, 186));
         painter.DrawText(FitText(painter, name, painter.Width - 94),
             new PluginPoint(84, 31), PluginColor.White, outline: true);
         if (readout.Length > 0)
@@ -240,17 +271,16 @@ internal sealed class GoArrowHud : IDisposable
         painter.Clear(PluginColor.Transparent);
         painter.FillRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(0, 0, 0, 175));
         painter.StrokeRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(128, 128, 128));
-        painter.DrawLine(new PluginPoint(90, 0), new PluginPoint(90, 35), new PluginColor(128, 128, 128));
-        painter.DrawLine(new PluginPoint(180, 0), new PluginPoint(180, 35), new PluginColor(128, 128, 128));
-        painter.DrawText("Stop", new PluginPoint(24, 9), PluginColor.White);
-        painter.DrawText("Resume", new PluginPoint(108, 9), PluginColor.White);
-        painter.DrawText("Move", new PluginPoint(198, 9), PluginColor.White);
+        painter.DrawLine(new PluginPoint(130, 0), new PluginPoint(130, 35), new PluginColor(128, 128, 128));
+        painter.DrawText("Stop", new PluginPoint(48, 9), PluginColor.White);
+        painter.DrawText("Resume", new PluginPoint(166, 9), PluginColor.White);
     }
 
     public void ResetPositions()
     {
         _arrowDrag = null;
         _toolbarDrag = null;
+        _toolbarDragging = false;
         if (_arrow is not null)
             _arrow.Offset = new PluginPoint(_settings.ArrowOffsetX, _settings.ArrowOffsetY);
         if (_toolbar is not null)

@@ -198,14 +198,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         bool found = _destination.SetDestination(name);
         if (found)
         {
+            _navigator?.StopNavigation();
             _settings?.Save(_host.Storage);
-
-            // Auto-start navigation if enabled
-            if (_settings?.AutoNavigate == true && _routeFromOverride is null)
-            {
-                _navigator?.StartNavigation();
-            }
-
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{name}' set.");
         }
         return found;
@@ -280,6 +274,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         var snapshot = _host.Automation.Navigation.Snapshot;
         if (!snapshot.IsAvailable)
             return false;
+        _navigator?.StopNavigation();
         _destination.SetCoordinate(snapshot.Position.NorthSouth,
             snapshot.Position.EastWest, "Current Location");
         _settings?.Save(_host.Storage);
@@ -489,10 +484,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_destination is null || _host is null)
             return;
+        _navigator?.StopNavigation();
         _destination.SetCoordinate(northSouth, eastWest, displayText);
         _settings?.Save(_host.Storage);
-        if (_settings?.AutoNavigate == true && _routeFromOverride is null)
-            _navigator?.StartNavigation();
     }
 
     internal void Recall(string value)
@@ -611,9 +605,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             || !_host.Automation.Objects.TryGet(objectId, out PluginWorldObject obj)
             || !_destination.SetObject(obj))
             return false;
+        _navigator?.StopNavigation();
         _settings?.Save(_host.Storage);
-        if (_settings?.AutoNavigate == true && _routeFromOverride is null)
-            _navigator?.StartNavigation();
         return true;
     }
 

@@ -56,7 +56,8 @@ public sealed class HudCanvasTests
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         destination.SetDestination("Finish");
         destination.CalculateRoute(new Location("Current", 0, 0));
-        using var hud = new GoArrowHud(host, destination, new GoArrowNavigator(host, destination, settings), settings);
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        using var hud = new GoArrowHud(host, destination, navigator, settings);
 
         hud.Enable();
 
@@ -64,6 +65,10 @@ public sealed class HudCanvasTests
         Assert.Contains("goarrow.toolbar", ui.PaintCallbacks.Keys);
         var painter = new RecordingPainter();
         ui.PaintCallbacks["goarrow.arrow"](painter);
+        Assert.DoesNotContain("DRAG", painter.Texts);
+        painter.Texts.Clear();
+        ui.PaintCallbacks["goarrow.toolbar"](painter);
+        Assert.Equal(new[] { "Stop", "Resume" }, painter.Texts);
         var shaft = painter.Lines.First(line => line.Thickness == 9);
         Assert.True(shaft.To.X > shaft.From.X);
         Assert.Equal(shaft.From.Y, shaft.To.Y, 6);
@@ -113,6 +118,28 @@ public sealed class HudCanvasTests
         saved.Load(fake.Storage);
         Assert.Equal(-40, saved.ArrowOffsetX);
         Assert.Equal(225, saved.ToolbarOffsetY);
+
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(55, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(55, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
+        Assert.Equal(-35, settings.ToolbarOffsetX);
+
+        navigator.StartNavigation();
+        Assert.True(navigator.IsNavigating);
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.False(navigator.IsNavigating);
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(190, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(190, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
     }
 
     private sealed class CanvasHost(FakePluginHost inner, IUiRegistry ui) : IPluginHost
