@@ -343,6 +343,8 @@ public sealed class UiStartupTests
             XElement field = markup
                 .Descendants("field")
                 .Single(element => (string?)element.Attribute("text") == $"{{{editor}}}");
+            Assert.Equal("{SelectPreviousSearchResultAction}", (string?)field.Attribute("onup"));
+            Assert.Equal("{SelectNextSearchResultAction}", (string?)field.Attribute("ondown"));
             XElement selected = markup
                 .Descendants("button")
                 .Single(element => (string?)element.Attribute("text") == $"{{{input}}}");

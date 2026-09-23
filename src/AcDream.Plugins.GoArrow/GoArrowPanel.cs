@@ -17,6 +17,7 @@ internal sealed class GoArrowPanel
     private readonly GoArrowNavigator _navigator;
     private bool _searchingFrom;
     private bool _showSearchResults;
+    private int _selectedSearchResult = -1;
     private bool _editingFrom;
     private bool _editingDestination = true;
     private bool _showConfig;
@@ -283,7 +284,21 @@ internal sealed class GoArrowPanel
 
     public bool SearchResultsVisible => _showSearchResults && SearchResults.Count > 0;
 
-    public int SelectedSearchResult => -1;
+    public int SelectedSearchResult => _selectedSearchResult;
+
+    public Action SelectPreviousSearchResultAction => () => MoveSearchSelection(-1);
+
+    public Action SelectNextSearchResultAction => () => MoveSearchSelection(1);
+
+    private void MoveSearchSelection(int direction)
+    {
+        int count = SearchResults.Count;
+        if (count == 0)
+            return;
+        _selectedSearchResult = _selectedSearchResult < 0
+            ? direction > 0 ? 0 : count - 1
+            : (_selectedSearchResult + direction + count) % count;
+    }
 
     public string SearchResultsLabel => _searchingFrom ? "From matches" : "Destination matches";
 
@@ -492,6 +507,7 @@ internal sealed class GoArrowPanel
             _editingFrom = true;
             _searchingFrom = true;
             _showSearchResults = true;
+            _selectedSearchResult = -1;
         };
 
     public Action<string> SubmitFromTextAction =>
@@ -499,7 +515,10 @@ internal sealed class GoArrowPanel
         {
             FromInput = text;
             FromEditorInput = text;
-            SubmitFrom();
+            if (_selectedSearchResult >= 0)
+                SelectSearchResultAction(_selectedSearchResult);
+            else
+                SubmitFrom();
         };
 
     /// <summary>Submit the destination field as a markup-compatible action.</summary>
@@ -513,6 +532,7 @@ internal sealed class GoArrowPanel
             _editingDestination = true;
             _searchingFrom = false;
             _showSearchResults = true;
+            _selectedSearchResult = -1;
         };
 
     /// <summary>Submit the text supplied by OpenAC's field callback.</summary>
@@ -520,7 +540,10 @@ internal sealed class GoArrowPanel
         text =>
         {
             DestinationInput = text;
-            SubmitDestination();
+            if (_selectedSearchResult >= 0)
+                SelectSearchResultAction(_selectedSearchResult);
+            else
+                SubmitDestination();
         };
 
     public Action<int> SelectSearchResultAction =>
@@ -529,6 +552,7 @@ internal sealed class GoArrowPanel
             var results = SearchResults;
             if (index < 0 || index >= results.Count)
                 return;
+            _selectedSearchResult = -1;
             if (_searchingFrom)
             {
                 FromInput = results[index];

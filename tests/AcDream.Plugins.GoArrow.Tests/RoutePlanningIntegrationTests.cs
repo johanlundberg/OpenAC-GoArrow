@@ -279,6 +279,44 @@ public sealed class RoutePlanningIntegrationTests
     }
 
     [Fact]
+    public void ArrowKeysSelectSearchResultAndEnterUsesIt()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginStorage.WriteText(
+            "GoArrow/test.xml",
+            """
+            <Locations><Location name="Test Alpha"><Coords NS="1" EW="1" /></Location>
+            <Location name="Test Beta"><Coords NS="2" EW="2" /></Location></Locations>
+            """
+        );
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.LoadDataFile("test.xml"));
+        GoArrowPanel panel = plugin.Panel!;
+
+        panel.UpdateDestinationInputAction("Test");
+        Assert.Equal(2, panel.SearchResults.Count);
+        Assert.Equal(-1, panel.SelectedSearchResult);
+
+        panel.SelectNextSearchResultAction();
+        Assert.Equal(0, panel.SelectedSearchResult);
+        panel.SelectNextSearchResultAction();
+        Assert.Equal(1, panel.SelectedSearchResult);
+        panel.SelectPreviousSearchResultAction();
+        Assert.Equal(0, panel.SelectedSearchResult);
+        panel.SelectPreviousSearchResultAction();
+        Assert.Equal(1, panel.SelectedSearchResult);
+        string selected = panel.SearchResults[1];
+        panel.SubmitDestinationTextAction("Test");
+
+        Assert.Equal(selected, panel.DestinationInput);
+        Assert.Equal(selected, plugin.CurrentDestinationName);
+        Assert.Equal(-1, panel.SelectedSearchResult);
+        plugin.Disable();
+    }
+
+    [Fact]
     public void SearchFieldsPlanFromNamedPlaceToCurrentLocationWithoutMoving()
     {
         var host = new FakePluginHost { HasUiValue = false };

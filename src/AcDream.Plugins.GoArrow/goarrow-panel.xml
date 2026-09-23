@@ -48,6 +48,8 @@
       text="{FromEditorInput}"
       onchange="{UpdateFromInputAction}"
       onsubmit="{SubmitFromTextAction}"
+      onup="{SelectPreviousSearchResultAction}"
+      ondown="{SelectNextSearchResultAction}"
       visible="{FromEditorVisible}"
     />
     <button
@@ -79,6 +81,8 @@
       text="{DestinationInput}"
       onchange="{UpdateDestinationInputAction}"
       onsubmit="{SubmitDestinationTextAction}"
+      onup="{SelectPreviousSearchResultAction}"
+      ondown="{SelectNextSearchResultAction}"
       visible="{DestinationEditorVisible}"
     />
     <button
