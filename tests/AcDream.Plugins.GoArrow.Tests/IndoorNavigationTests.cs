@@ -207,7 +207,7 @@ public sealed class IndoorNavigationTests
     public void StoppingIndoorWalkCancelsHostRequest()
     {
         var host = HostAt(0x12340100);
-        var (_, navigator) = CreateNavigator(host, ObjectAt(0x12340122));
+        var (_, navigator) = CreateNavigator(host, ObjectAt(0x12340122), autoNavigate: true);
         using (navigator)
         {
             navigator.StartNavigation();
@@ -253,9 +253,9 @@ public sealed class IndoorNavigationTests
     }
 
     private static (GoArrowDestination Destination, GoArrowNavigator Navigator) CreateNavigator(
-        FakePluginHost host, PluginWorldObject target)
+        FakePluginHost host, PluginWorldObject target, bool autoNavigate = false)
     {
-        var settings = new GoArrowSettings();
+        var settings = new GoArrowSettings { AutoNavigate = autoNavigate };
         var database = new LocationDatabase();
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         Assert.True(destination.SetObject(target));

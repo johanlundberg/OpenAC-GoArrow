@@ -43,7 +43,8 @@ internal sealed class GoArrowNavigator : IDisposable
     public bool IsNavigating => _isNavigating;
 
     public bool CanResumeNavigation => _destination.HasDestination && !_isNavigating
-        && !HasArrived && (WaitingForInteraction || !_pausedForOutdoorRoute);
+        && !HasArrived && (WaitingForInteraction
+            || (_settings.AutoNavigate && !_pausedForOutdoorRoute));
 
     public bool IsPlanningPath => _isNavigating
         && _host.Automation.Navigation.GoToReport is { State: PluginGoToState.Planning } report
@@ -359,7 +360,7 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         if (WaitingForInteraction)
         {
-            ResumeAfterInteraction();
+            ResumeAfterInteraction(startNextLeg: _settings.AutoNavigate);
             return;
         }
 
@@ -398,7 +399,7 @@ internal sealed class GoArrowNavigator : IDisposable
         StartNavigation();
     }
 
-    public void ResumeAfterInteraction()
+    public void ResumeAfterInteraction(bool startNextLeg = true)
     {
         if (!WaitingForInteraction || _destination.CurrentRoute is not { StepCount: > 0 } route
             || route.Steps[0].Kind == RouteStepKind.Travel)
@@ -419,7 +420,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        StartCurrentLeg();
+        if (startNextLeg)
+            StartCurrentLeg();
     }
 
     private void StartCurrentLeg()

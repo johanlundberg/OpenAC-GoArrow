@@ -210,9 +210,11 @@ public sealed class PortalNavigationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PortalRouteWaitsForTransitionThenContinuesWalking(bool arrivesIndoors)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void PortalRouteWaitsForTransitionThenContinuesWalking(
+        bool arrivesIndoors, bool manualResumeWithAutoNavigateOff)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
@@ -266,6 +268,20 @@ public sealed class PortalNavigationTests
         host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
             1, 1, 0, true, true, true, false) { Kind = PluginPortalTransitionKind.Login });
         Assert.True(navigator.WaitingForInteraction);
+        if (manualResumeWithAutoNavigateOff)
+        {
+            settings.AutoNavigate = false;
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            {
+                Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
+            };
+            navigator.ResumeNavigation();
+            Assert.False(navigator.WaitingForInteraction);
+            Assert.False(navigator.IsNavigating);
+            Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
+            Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls);
+            return;
+        }
         if (arrivesIndoors)
             host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
             {

@@ -38,6 +38,36 @@ public sealed class RoutePlanningIntegrationTests
     }
 
     [Fact]
+    public void ResumeDoesNotStartWalkingWhenAutoNavigateIsOff()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("Holtburg"));
+        GoArrowPanel panel = plugin.Panel!;
+        panel.StartNavigation();
+        int firstLegCount = host.PluginNavigation.GoToPositionCalls.Count;
+        panel.StopNavigation();
+
+        panel.AutoNavigate = false;
+        Assert.False(panel.CanResumeNavigation);
+        panel.ResumeNavigation();
+        Assert.True(host.PluginCommands.Invoke("go", "resume"));
+        Assert.Equal(firstLegCount, host.PluginNavigation.GoToPositionCalls.Count);
+        Assert.False(panel.IsNavigating);
+
+        panel.AutoNavigate = true;
+        Assert.True(panel.CanResumeNavigation);
+        panel.ResumeNavigation();
+        Assert.True(host.PluginNavigation.GoToPositionCalls.Count > firstLegCount);
+        plugin.Disable();
+    }
+
+    [Fact]
     public void ResumeCommandRestartsStoppedRoute()
     {
         var host = new FakePluginHost { HasUiValue = false };
@@ -84,6 +114,33 @@ public sealed class RoutePlanningIntegrationTests
         host.PluginEvents.RaiseTick(0.1);
 
         Assert.True(host.PluginNavigation.GoToPositionCalls.Count > firstLegCount);
+        plugin.Disable();
+    }
+
+    [Fact]
+    public void DisablingAutoNavigateCancelsQueuedResume()
+    {
+        var host = new FakePluginHost { HasUiValue = true };
+        new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("Holtburg"));
+        plugin.Go();
+        Thread.Sleep(70);
+        host.PluginEvents.RaiseTick(0.1);
+        int firstLegCount = host.PluginNavigation.GoToPositionCalls.Count;
+        GoArrowPanel panel = plugin.Panel!;
+        panel.StopNavigation();
+        panel.ResumeNavigation();
+        panel.AutoNavigate = false;
+        Thread.Sleep(70);
+        host.PluginEvents.RaiseTick(0.1);
+
+        Assert.Equal(firstLegCount, host.PluginNavigation.GoToPositionCalls.Count);
+        Assert.False(panel.IsNavigating);
         plugin.Disable();
     }
 
