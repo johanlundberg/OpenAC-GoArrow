@@ -48,6 +48,28 @@ public sealed class DungeonMapCanvasTests
         ui.Paint(painter);
         Assert.True(Assert.Single(painter.ImageRects).X > zoomedImage.X);
 
+        ui.Canvas.PointerHandler!(new PluginPointerEvent(
+            PluginPointerEventKind.Down, new PluginPoint(100, 15),
+            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(new PluginPointerEvent(
+            PluginPointerEventKind.Move, new PluginPoint(135, 30),
+            PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
+        ui.Canvas.PointerHandler!(new PluginPointerEvent(
+            PluginPointerEventKind.Move, new PluginPoint(135, 30),
+            PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
+        fake.PluginEvents.RaiseTick(0.1);
+        ui.Canvas.PointerHandler!(new PluginPointerEvent(
+            PluginPointerEventKind.Move, new PluginPoint(100, 15),
+            PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
+        ui.Canvas.PointerHandler!(new PluginPointerEvent(
+            PluginPointerEventKind.Up, new PluginPoint(100, 15),
+            PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
+        Assert.Equal(60, settings.DungeonOffsetX);
+
         fake.PluginNavigation.SnapshotValue = Snapshot(0x00020001, isOutdoor: false);
         fake.PluginEvents.RaiseTick(0.1);
         Assert.Equal(0x0002, map.CurrentDungeonId);

@@ -6,6 +6,42 @@ namespace AcDream.Plugins.GoArrow.Tests;
 
 public sealed class HudCanvasTests
 {
+    [Theory]
+    [InlineData(true, true, true, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, false, false, false)]
+    public void DisplayTogglesControlArrowReadout(
+        bool showBearing, bool showDistance, bool expectBearing, bool expectDistance)
+    {
+        var fake = new FakePluginHost();
+        fake.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var ui = new RecordingUi();
+        var host = new CanvasHost(fake, ui);
+        var database = new LocationDatabase();
+        database.LoadLocationsCsv(new[] { "Start;0;0", "Finish;0;10" });
+        var settings = new GoArrowSettings
+        {
+            ShowBearing = showBearing,
+            ShowDistance = showDistance,
+        };
+        var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
+        destination.SetDestination("Finish");
+        destination.CalculateRoute(new Location("Current", 0, 0));
+        using var hud = new GoArrowHud(host, destination,
+            new GoArrowNavigator(host, destination, settings), settings);
+        hud.Enable();
+
+        var painter = new RecordingPainter();
+        ui.PaintCallbacks["goarrow.arrow"](painter);
+        string? readout = painter.Texts.SingleOrDefault(text =>
+            text.Contains('°') || text.EndsWith(" m") || text.EndsWith(" km"));
+        Assert.Equal(expectBearing, readout?.Contains('°') == true);
+        Assert.Equal(expectDistance,
+            readout?.EndsWith(" m") == true || readout?.EndsWith(" km") == true);
+    }
+
     [Fact]
     public void VisibleArrowUsesCanvasAndTurnsTowardFirstWaypoint()
     {
@@ -28,7 +64,7 @@ public sealed class HudCanvasTests
         Assert.Contains("goarrow.toolbar", ui.PaintCallbacks.Keys);
         var painter = new RecordingPainter();
         ui.PaintCallbacks["goarrow.arrow"](painter);
-        var shaft = painter.Lines.First(line => line.Thickness == 12);
+        var shaft = painter.Lines.First(line => line.Thickness == 9);
         Assert.True(shaft.To.X > shaft.From.X);
         Assert.Equal(shaft.From.Y, shaft.To.Y, 6);
 
@@ -38,8 +74,45 @@ public sealed class HudCanvasTests
         };
         painter.Lines.Clear();
         ui.PaintCallbacks["goarrow.arrow"](painter);
-        shaft = painter.Lines.First(line => line.Thickness == 12);
+        shaft = painter.Lines.First(line => line.Thickness == 9);
         Assert.True(shaft.To.Y < shaft.From.Y);
+
+        var arrow = ui.Canvases["goarrow.arrow"];
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(70, 60), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(70, 60), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
+        fake.PluginEvents.RaiseTick(0.1);
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
+        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
+        Assert.Equal(-40, settings.ArrowOffsetX);
+
+        var toolbar = ui.Canvases["goarrow.toolbar"];
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
+            new PluginPoint(200, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
+            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
+        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
+            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
+        Assert.Equal(-50, settings.ToolbarOffsetX);
+        fake.PluginEvents.RaiseTick(0.1);
+        var saved = new GoArrowSettings();
+        saved.Load(fake.Storage);
+        Assert.Equal(-40, saved.ArrowOffsetX);
+        Assert.Equal(225, saved.ToolbarOffsetY);
     }
 
     private sealed class CanvasHost(FakePluginHost inner, IUiRegistry ui) : IPluginHost
@@ -51,18 +124,22 @@ public sealed class HudCanvasTests
         public ISelectionService Selection => inner.Selection;
         public IUiRegistry Ui => ui;
         public IAutomationSurface Automation => inner.Automation;
+        public IPluginStorage Storage => inner.Storage;
     }
 
     private sealed class RecordingUi : IUiRegistry
     {
         public Dictionary<string, Action<IPluginPainter>> PaintCallbacks { get; } = new();
+        public Dictionary<string, NoOpPluginCanvas> Canvases { get; } = new();
 
         public void AddMarkupPanel(string markupPath, object binding) { }
 
         public IPluginCanvas RegisterCanvas(PluginCanvasDescriptor descriptor, Action<IPluginPainter> paint)
         {
             PaintCallbacks.Add(descriptor.CanvasId, paint);
-            return new NoOpPluginCanvas(descriptor);
+            var canvas = new NoOpPluginCanvas(descriptor);
+            Canvases.Add(descriptor.CanvasId, canvas);
+            return canvas;
         }
     }
 
@@ -71,12 +148,14 @@ public sealed class HudCanvasTests
         public int Width => 260;
         public int Height => 90;
         public List<(PluginPoint From, PluginPoint To, float Thickness)> Lines { get; } = new();
+        public List<string> Texts { get; } = new();
         public void Clear(PluginColor color) { }
         public void FillRect(PluginRect rect, PluginColor color) { }
         public void StrokeRect(PluginRect rect, PluginColor color, float thickness = 1f) { }
         public void DrawLine(PluginPoint from, PluginPoint to, PluginColor color, float thickness = 1f) =>
             Lines.Add((from, to, thickness));
-        public void DrawText(string text, PluginPoint position, PluginColor color, bool outline = false) { }
+        public void DrawText(string text, PluginPoint position, PluginColor color, bool outline = false) =>
+            Texts.Add(text);
         public PluginSize MeasureText(string text) => new(0, 0);
         public void DrawImage(PluginImage image, PluginRect destination, PluginColor tint) { }
         public void DrawImageTransformed(

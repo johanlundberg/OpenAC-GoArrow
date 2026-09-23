@@ -16,7 +16,7 @@ public sealed class CommandIntegrationTests
 
         Assert.True(host.PluginCommands.Invoke("go", "dungeon off"));
         Assert.False(plugin.DungeonMapVisible);
-        Assert.Equal("False", host.PluginStorage.ReadText("dungeonMapVisible"));
+        Assert.False(host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.DungeonMapVisible);
         Assert.True(host.PluginCommands.Invoke("go", "dungeon on"));
         Assert.True(plugin.DungeonMapVisible);
 

@@ -1,14 +1,30 @@
 using System.Globalization;
+using System.Text.Json;
 using AcDream.Plugin.Abstractions;
 
 namespace AcDream.Plugins.GoArrow;
 
 /// <summary>
-/// Persistent settings for GoArrow, stored via IPluginStorage.
-/// Uses ReadText/WriteText key-value API.
+/// Persistent settings for GoArrow, stored in one JSON document.
 /// </summary>
 public class GoArrowSettings
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly string[] LegacyKeys =
+    [
+        "destination", "autoNavigate", "recalculate", "panelVisible",
+        "showDistance", "showBearing", "hudVisible", "toolbarVisible",
+        "hudClickThrough", "hudScale", "arrowOffsetX", "arrowOffsetY",
+        "toolbarOffsetX", "toolbarOffsetY", "dungeonOffsetX", "dungeonOffsetY",
+        "overlayPositionVersion", "mapVisible", "dungeonMapVisible",
+        "mapCenterEW", "mapCenterNS", "mapWidth", "mapHeight",
+        "arrivalDistance", "useNavigation", "navigationLocked",
+        "routeCostProfile", "maxNavigationRetries", "interactionTimeoutSeconds",
+        "atlasCacheMaxAgeDays", "externalDataUrl", "dungeonMapUrl",
+        "lastPortalRecall", "lastSecondaryRecall", "lastAllegianceRecall",
+        "lastHouseRecall", "lastMansionRecall", "favorites",
+    ];
+
     // ── Destination Tracking ───────────────────────────────────────
     public string DestinationName { get; set; } = string.Empty;
     public bool AutoNavigate { get; set; } = false;
@@ -22,6 +38,13 @@ public class GoArrowSettings
     public bool ToolbarVisible { get; set; } = true;
     public bool HudClickThrough { get; set; }
     public double HudScale { get; set; } = 1;
+    public double ArrowOffsetX { get; set; } = -70;
+    public double ArrowOffsetY { get; set; } = 120;
+    public double ToolbarOffsetX { get; set; } = -70;
+    public double ToolbarOffsetY { get; set; } = 215;
+    public double DungeonOffsetX { get; set; } = 25;
+    public double DungeonOffsetY { get; set; } = 95;
+    public int OverlayPositionVersion { get; set; }
     public bool MapVisible { get; set; } = true;
     public bool DungeonMapVisible { get; set; } = true;
     public double MapCenterEastWest { get; set; }
@@ -49,46 +72,26 @@ public class GoArrowSettings
     public string LastAllegianceRecall { get; set; } = string.Empty;
     public string LastHouseRecall { get; set; } = string.Empty;
     public string LastMansionRecall { get; set; } = string.Empty;
+    public Dictionary<string, CharacterRecalls> RecallsByCharacter { get; set; } = new();
+
+    public sealed class CharacterRecalls
+    {
+        public string Lifestone { get; set; } = string.Empty;
+        public string Marketplace { get; set; } = string.Empty;
+        public string Allegiance { get; set; } = string.Empty;
+        public string House { get; set; } = string.Empty;
+        public string Mansion { get; set; } = string.Empty;
+    }
 
     // ── Favorites ──────────────────────────────────────────────────
     public List<string> FavoriteDestinations { get; set; } = new();
 
     public void Save(IPluginStorage storage)
     {
-        // Keep the legacy keys for older installations while using one atomic
-        // structured document for new hosts.
-        storage.WriteJson("settings.json", this);
-        storage.WriteText("destination", DestinationName);
-        storage.WriteText("autoNavigate", AutoNavigate.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("recalculate", RecalculateRoute.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("panelVisible", PanelVisible.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("showDistance", ShowDistance.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("showBearing", ShowBearing.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("hudVisible", HudVisible.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("toolbarVisible", ToolbarVisible.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("hudClickThrough", HudClickThrough.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("hudScale", HudScale.ToString("F3", CultureInfo.InvariantCulture));
-        storage.WriteText("mapVisible", MapVisible.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("dungeonMapVisible", DungeonMapVisible.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("mapCenterEW", MapCenterEastWest.ToString("F4", CultureInfo.InvariantCulture));
-        storage.WriteText("mapCenterNS", MapCenterNorthSouth.ToString("F4", CultureInfo.InvariantCulture));
-        storage.WriteText("mapWidth", MapWidth.ToString("F4", CultureInfo.InvariantCulture));
-        storage.WriteText("mapHeight", MapHeight.ToString("F4", CultureInfo.InvariantCulture));
-        storage.WriteText("arrivalDistance", ArrivalDistance.ToString("F4", CultureInfo.InvariantCulture));
-        storage.WriteText("useNavigation", UseNavigationAutomation.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("navigationLocked", NavigationLocked.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("routeCostProfile", RouteCostProfile.ToString());
-        storage.WriteText("maxNavigationRetries", MaxNavigationRetries.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("interactionTimeoutSeconds", InteractionTimeoutSeconds.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("atlasCacheMaxAgeDays", AtlasCacheMaxAgeDays.ToString(CultureInfo.InvariantCulture));
-        storage.WriteText("externalDataUrl", ExternalDataUrl);
-        storage.WriteText("dungeonMapUrl", DungeonMapUrl);
-        storage.WriteText("lastPortalRecall", LastPortalRecall);
-        storage.WriteText("lastSecondaryRecall", LastSecondaryRecall);
-        storage.WriteText("lastAllegianceRecall", LastAllegianceRecall);
-        storage.WriteText("lastHouseRecall", LastHouseRecall);
-        storage.WriteText("lastMansionRecall", LastMansionRecall);
-        storage.WriteText("favorites", string.Join(",", FavoriteDestinations));
+        OverlayPositionVersion = 1;
+        storage.WriteJson("settings.json", this, JsonOptions);
+        foreach (string key in LegacyKeys)
+            storage.Delete(key);
     }
 
     public void Load(IPluginStorage storage)
@@ -108,6 +111,15 @@ public class GoArrowSettings
             ToolbarVisible = structured.ToolbarVisible;
             HudClickThrough = structured.HudClickThrough;
             HudScale = structured.HudScale > 0 ? structured.HudScale : 1;
+            ArrowOffsetX = structured.ArrowOffsetX;
+            ArrowOffsetY = structured.ArrowOffsetY;
+            ToolbarOffsetX = structured.ToolbarOffsetX;
+            ToolbarOffsetY = structured.ToolbarOffsetY;
+            DungeonOffsetX = structured.DungeonOffsetX;
+            DungeonOffsetY = structured.DungeonOffsetY;
+            OverlayPositionVersion = structured.OverlayPositionVersion;
+            if (OverlayPositionVersion < 1)
+                ResetOverlayPositions();
             MapVisible = structured.MapVisible;
             DungeonMapVisible = structured.DungeonMapVisible;
             MapCenterEastWest = structured.MapCenterEastWest;
@@ -128,8 +140,11 @@ public class GoArrowSettings
             LastAllegianceRecall = structured.LastAllegianceRecall;
             LastHouseRecall = structured.LastHouseRecall;
             LastMansionRecall = structured.LastMansionRecall;
+            RecallsByCharacter = structured.RecallsByCharacter ?? new();
             FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
             RestoreUiHiddenByOldDefaults();
+            foreach (string key in LegacyKeys)
+                storage.Delete(key);
             return;
         }
 
@@ -146,6 +161,16 @@ public class GoArrowSettings
         if (double.TryParse(storage.ReadText("hudScale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double hudScale)
             && hudScale > 0)
             HudScale = hudScale;
+        ArrowOffsetX = ReadLegacyDouble(storage, "arrowOffsetX", ArrowOffsetX);
+        ArrowOffsetY = ReadLegacyDouble(storage, "arrowOffsetY", ArrowOffsetY);
+        ToolbarOffsetX = ReadLegacyDouble(storage, "toolbarOffsetX", ToolbarOffsetX);
+        ToolbarOffsetY = ReadLegacyDouble(storage, "toolbarOffsetY", ToolbarOffsetY);
+        DungeonOffsetX = ReadLegacyDouble(storage, "dungeonOffsetX", DungeonOffsetX);
+        DungeonOffsetY = ReadLegacyDouble(storage, "dungeonOffsetY", DungeonOffsetY);
+        if (int.TryParse(storage.ReadText("overlayPositionVersion"), out int overlayPositionVersion))
+            OverlayPositionVersion = overlayPositionVersion;
+        if (OverlayPositionVersion < 1)
+            ResetOverlayPositions();
         MapVisible = ReadLegacyBoolean(storage, "mapVisible", MapVisible);
         DungeonMapVisible = ReadLegacyBoolean(storage, "dungeonMapVisible", DungeonMapVisible);
         if (double.TryParse(storage.ReadText("mapCenterEW"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapEW)) MapCenterEastWest = mapEW;
@@ -180,10 +205,27 @@ public class GoArrowSettings
         var favs = storage.ReadText("favorites") ?? string.Empty;
         FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         RestoreUiHiddenByOldDefaults();
+        if (storage.IsAvailable && LegacyKeys.Any(key => storage.ReadText(key) is not null))
+            Save(storage);
     }
 
     private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
         bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
+
+    private static double ReadLegacyDouble(IPluginStorage storage, string key, double defaultValue) =>
+        double.TryParse(storage.ReadText(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+            && double.IsFinite(value) ? value : defaultValue;
+
+    public void ResetOverlayPositions()
+    {
+        ArrowOffsetX = -70;
+        ArrowOffsetY = 120;
+        ToolbarOffsetX = -70;
+        ToolbarOffsetY = 215;
+        DungeonOffsetX = 25;
+        DungeonOffsetY = 95;
+        OverlayPositionVersion = 1;
+    }
 
     private void RestoreUiHiddenByOldDefaults()
     {

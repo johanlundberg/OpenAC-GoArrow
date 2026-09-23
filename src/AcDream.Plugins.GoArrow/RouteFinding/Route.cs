@@ -125,7 +125,7 @@ public class Route
 
     public override string ToString()
     {
-        return $"{Destination}: {StepCount} steps, {TotalDistance:F2}mu, {PortalCount} portals";
+        return $"{Destination}: {StepCount} steps, {TravelDistance.Format(TotalDistance)}, {PortalCount} portals";
     }
 }
 
@@ -163,10 +163,12 @@ public class RouteStep
     {
         return Kind switch
         {
-            RouteStepKind.Travel => $"{Via}: {From.Name} → {To.Name} ({Distance:F2}mu)",
-            RouteStepKind.Portal => $"Portal [{Via}]: {From.Name} → {To.Name}",
-            RouteStepKind.Recall => $"Recall [{Via}]: {From.Name} → {To.Name}",
-            _ => $"{From.Name} → {To.Name}"
+            RouteStepKind.Travel when Via.Equals("Arrived", StringComparison.OrdinalIgnoreCase)
+                => $"Arrived: {To.Name}",
+            RouteStepKind.Travel => $"Walk: {To.Name} ({TravelDistance.Format(Distance)})",
+            RouteStepKind.Portal => $"Portal: {(string.IsNullOrWhiteSpace(Via) ? To.Name : Via)}",
+            RouteStepKind.Recall => $"Recall: {(string.IsNullOrWhiteSpace(Via) ? To.Name : Via)}",
+            _ => To.Name
         };
     }
 }

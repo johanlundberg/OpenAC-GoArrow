@@ -118,6 +118,19 @@ dotnet test tests/AcDream.Plugins.GoArrow.Tests/AcDream.Plugins.GoArrow.Tests.cs
 
 The route-finding tests are intentionally independent of a live Asheron's Call session.
 
+## Saved data
+
+GoArrow keeps preferences, destinations, overlay positions, and character recall
+locations in one `settings.json` under its OpenAC plugin storage directory.
+On the first load of older settings, it imports the individual setting files and
+removes them after the JSON file has been written successfully.
+
+Other files in that directory contain data rather than preferences:
+`data/warcry-atlas.xml` and its metadata are the downloaded location cache,
+`dungeon-maps/` contains downloaded or user supplied map images, and
+`GoArrow/*.xml` can contain user supplied location files. Keep those files if
+you want to use the corresponding data without downloading or importing it again.
+
 ## CI and releases
 
 GitHub Actions runs the plugin build and test suite for pull requests and pushes. A semantic version tag creates a GitHub release containing an installable plugin archive:

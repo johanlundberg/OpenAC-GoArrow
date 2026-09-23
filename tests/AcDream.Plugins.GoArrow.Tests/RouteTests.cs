@@ -77,9 +77,7 @@ public class RouteTests
             1.414, "Walk");
 
         var str = step.ToString();
-        Assert.Contains("Walk", str);
-        Assert.Contains("A", str);
-        Assert.Contains("B", str);
+        Assert.Equal("Walk: B (339 m)", str);
     }
 
     [Fact]
@@ -92,8 +90,7 @@ public class RouteTests
             0, "Portal Device");
 
         var str = step.ToString();
-        Assert.Contains("Portal", str);
-        Assert.Contains("Portal Device", str);
+        Assert.Equal("Portal: Portal Device", str);
     }
 
     [Fact]
@@ -106,7 +103,6 @@ public class RouteTests
             0, "Primary Portal Recall");
 
         var str = step.ToString();
-        Assert.Contains("Recall", str);
-        Assert.Contains("Primary Portal Recall", str);
+        Assert.Equal("Recall: Primary Portal Recall", str);
     }
 }

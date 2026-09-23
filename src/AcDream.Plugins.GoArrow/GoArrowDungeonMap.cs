@@ -21,6 +21,9 @@ internal sealed class GoArrowDungeonMap : IDisposable
     private double _panX;
     private double _panY;
     private PluginPoint? _lastDrag;
+    private PluginPoint? _windowDrag;
+    private PluginPoint _displayedOffset;
+    private bool _positionDirty;
     private double _elevation;
 
     public GoArrowDungeonMap(IPluginHost host, GoArrowSettings settings, DungeonMapCatalog catalog)
@@ -42,12 +45,21 @@ internal sealed class GoArrowDungeonMap : IDisposable
             new PluginCanvasDescriptor("goarrow.dungeon", CanvasWidth, CanvasHeight)
             {
                 Anchor = PluginCanvasAnchor.TopLeft,
-                Offset = new PluginPoint(25, 95),
+                Offset = new PluginPoint(_settings.DungeonOffsetX, _settings.DungeonOffsetY),
                 StartVisible = false,
                 AcceptsPointerInput = true,
             }, Paint);
         _canvas.PointerHandler = OnInput;
-        _tick = _ => Refresh();
+        _tick = _ =>
+        {
+            _displayedOffset = _canvas.Offset;
+            if (_positionDirty)
+            {
+                _positionDirty = false;
+                _settings.Save(_host.Storage);
+            }
+            Refresh();
+        };
         _host.Events.Tick += _tick;
         Refresh();
     }
@@ -57,6 +69,14 @@ internal sealed class GoArrowDungeonMap : IDisposable
         _settings.DungeonMapVisible = visible;
         _settings.Save(_host.Storage);
         Refresh();
+    }
+
+    public void ResetPosition()
+    {
+        _windowDrag = null;
+        if (_canvas is not null)
+            _canvas.Offset = new PluginPoint(_settings.DungeonOffsetX, _settings.DungeonOffsetY);
+        _displayedOffset = _canvas?.Offset ?? default;
     }
 
     private void Refresh()
@@ -132,7 +152,7 @@ internal sealed class GoArrowDungeonMap : IDisposable
         painter.Clear(PluginColor.Transparent);
         painter.FillRect(new PluginRect(0, 0, CanvasWidth, CanvasHeight), new PluginColor(18, 18, 18, 235));
         painter.StrokeRect(new PluginRect(0, 0, CanvasWidth, CanvasHeight), new PluginColor(130, 130, 130));
-        painter.DrawText($"{CurrentMapName} ({CurrentDungeonId:X4})", new PluginPoint(12, 10), PluginColor.White);
+        painter.DrawText($"{CurrentMapName} ({CurrentDungeonId:X4})  ·  Drag title to move", new PluginPoint(12, 10), PluginColor.White);
         painter.DrawText("×", new PluginPoint(CanvasWidth - 24, 10), PluginColor.White);
         if (!_image.IsValid)
             return;
@@ -163,8 +183,19 @@ internal sealed class GoArrowDungeonMap : IDisposable
                 SetVisible(false);
                 return;
             }
-            if (input.Position.Y >= HeaderHeight)
+            if (input.Position.Y < HeaderHeight)
+            {
+                _windowDrag = input.Position;
+                _displayedOffset = _canvas.Offset;
+            }
+            else
                 _lastDrag = input.Position;
+        }
+        else if (input.Kind == PluginPointerEventKind.Move && _windowDrag is { } origin)
+        {
+            _canvas.Offset = new PluginPoint(
+                _displayedOffset.X + input.Position.X - origin.X,
+                _displayedOffset.Y + input.Position.Y - origin.Y);
         }
         else if (input.Kind == PluginPointerEventKind.Move && _lastDrag is { } last)
         {
@@ -174,7 +205,22 @@ internal sealed class GoArrowDungeonMap : IDisposable
             _canvas.Invalidate();
         }
         else if (input.Kind is PluginPointerEventKind.Up or PluginPointerEventKind.Cancelled)
+        {
+            if (_windowDrag is { } dragStart)
+            {
+                var offset = input.Kind == PluginPointerEventKind.Up
+                    ? new PluginPoint(
+                        _displayedOffset.X + input.Position.X - dragStart.X,
+                        _displayedOffset.Y + input.Position.Y - dragStart.Y)
+                    : _canvas.Offset;
+                _canvas.Offset = offset;
+                _settings.DungeonOffsetX = offset.X;
+                _settings.DungeonOffsetY = offset.Y;
+                _positionDirty = true;
+            }
+            _windowDrag = null;
             _lastDrag = null;
+        }
         else if (input.Kind == PluginPointerEventKind.Wheel)
         {
             _zoom = Math.Clamp(_zoom * (input.WheelDelta > 0 ? 1.2 : 1 / 1.2), 1, 8);
@@ -184,6 +230,8 @@ internal sealed class GoArrowDungeonMap : IDisposable
 
     public void Dispose()
     {
+        if (_positionDirty)
+            _settings.Save(_host.Storage);
         if (_tick is not null)
             _host.Events.Tick -= _tick;
         _tick = null;

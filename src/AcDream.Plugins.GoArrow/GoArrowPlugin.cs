@@ -11,6 +11,19 @@ namespace AcDream.Plugins.GoArrow;
 /// </summary>
 public sealed class GoArrowPlugin : IAcDreamPlugin
 {
+    internal static string DisplayTitle
+    {
+        get
+        {
+            string version = typeof(GoArrowPlugin).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion.Split('+')[0]
+                ?? typeof(GoArrowPlugin).Assembly.GetName().Version?.ToString(3)
+                ?? "unknown";
+            return $"GoArrow v{version}";
+        }
+    }
+
     private IPluginHost? _host;
     private GoArrowSettings? _settings;
     private LocationDatabase? _database;
@@ -42,6 +55,16 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     internal GoArrowPanel? Panel => _panel;
     internal string LocationDownloadStatus { get; private set; } = string.Empty;
     internal string DungeonDownloadStatus { get; private set; } = string.Empty;
+
+    internal void ResetOverlayPositions()
+    {
+        if (_settings is null || _host is null)
+            return;
+        _settings.ResetOverlayPositions();
+        _hud?.ResetPositions();
+        _dungeonMap?.ResetPosition();
+        _settings.Save(_host.Storage);
+    }
 
     public void Initialize(IPluginHost host)
     {
@@ -90,7 +113,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location) ?? ".";
 
         _host.Ui.AddPanel(
-            new PluginPanelDescriptor("main", "GoArrow")
+            new PluginPanelDescriptor("main", DisplayTitle)
             {
                 IconText = "GA",
                 StartVisible = _settings?.PanelVisible ?? true,
@@ -514,16 +537,23 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             case PluginRecallKind.House: _settings!.LastHouseRecall = value; break;
             case PluginRecallKind.Mansion: _settings!.LastMansionRecall = value; break;
         }
-        _settings?.Save(_host.Storage);
         if (_host.SessionSettings.TryGetValue("characterId", out string? characterId)
             && _host.SessionSettings.TryGetValue("worldId", out string? worldId)
             && !string.IsNullOrWhiteSpace(characterId) && !string.IsNullOrWhiteSpace(worldId))
         {
-            IPluginStorage scoped = _host.Storage
-                .OpenScope(PluginStorageScope.Character(characterId))
-                .OpenScope(PluginStorageScope.World(worldId));
-            scoped.WriteText($"recall/{known.Kind.ToString().ToLowerInvariant()}", value);
+            string key = $"{characterId}/{worldId}";
+            if (!_settings!.RecallsByCharacter.TryGetValue(key, out var recalls))
+                _settings.RecallsByCharacter[key] = recalls = new GoArrowSettings.CharacterRecalls();
+            switch (known.Kind)
+            {
+                case PluginRecallKind.Lifestone: recalls.Lifestone = value; break;
+                case PluginRecallKind.Marketplace: recalls.Marketplace = value; break;
+                case PluginRecallKind.Allegiance: recalls.Allegiance = value; break;
+                case PluginRecallKind.House: recalls.House = value; break;
+                case PluginRecallKind.Mansion: recalls.Mansion = value; break;
+            }
         }
+        _settings?.Save(_host.Storage);
     }
 
     private void LoadScopedRecallState(IPluginHost host)
@@ -532,14 +562,44 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             || !host.SessionSettings.TryGetValue("worldId", out string? worldId)
             || string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(worldId))
             return;
-        IPluginStorage scoped = host.Storage
-            .OpenScope(PluginStorageScope.Character(characterId))
-            .OpenScope(PluginStorageScope.World(worldId));
-        _settings.LastPortalRecall = scoped.ReadText("recall/lifestone") ?? _settings.LastPortalRecall;
-        _settings.LastSecondaryRecall = scoped.ReadText("recall/marketplace") ?? _settings.LastSecondaryRecall;
-        _settings.LastHouseRecall = scoped.ReadText("recall/house") ?? _settings.LastHouseRecall;
-        _settings.LastMansionRecall = scoped.ReadText("recall/mansion") ?? _settings.LastMansionRecall;
-        _settings.LastAllegianceRecall = scoped.ReadText("recall/allegiance") ?? _settings.LastAllegianceRecall;
+        string key = $"{characterId}/{worldId}";
+        if (!_settings.RecallsByCharacter.TryGetValue(key, out var recalls))
+        {
+            IPluginStorage scoped = host.Storage
+                .OpenScope(PluginStorageScope.Character(characterId))
+                .OpenScope(PluginStorageScope.World(worldId));
+            string? lifestone = scoped.ReadText("recall/lifestone");
+            string? marketplace = scoped.ReadText("recall/marketplace");
+            string? allegiance = scoped.ReadText("recall/allegiance");
+            string? house = scoped.ReadText("recall/house");
+            string? mansion = scoped.ReadText("recall/mansion");
+            if (lifestone is not null || marketplace is not null || allegiance is not null
+                || house is not null || mansion is not null)
+            {
+                recalls = new GoArrowSettings.CharacterRecalls
+                {
+                    Lifestone = lifestone ?? _settings.LastPortalRecall,
+                    Marketplace = marketplace ?? _settings.LastSecondaryRecall,
+                    Allegiance = allegiance ?? _settings.LastAllegianceRecall,
+                    House = house ?? _settings.LastHouseRecall,
+                    Mansion = mansion ?? _settings.LastMansionRecall,
+                };
+                _settings.RecallsByCharacter[key] = recalls;
+                _settings.Save(host.Storage);
+                scoped.Delete("recall/lifestone");
+                scoped.Delete("recall/marketplace");
+                scoped.Delete("recall/allegiance");
+                scoped.Delete("recall/house");
+                scoped.Delete("recall/mansion");
+            }
+        }
+        if (recalls is null)
+            return;
+        _settings.LastPortalRecall = recalls.Lifestone;
+        _settings.LastSecondaryRecall = recalls.Marketplace;
+        _settings.LastAllegianceRecall = recalls.Allegiance;
+        _settings.LastHouseRecall = recalls.House;
+        _settings.LastMansionRecall = recalls.Mansion;
     }
 
     internal bool SetSelectedObjectDestination()

@@ -21,15 +21,14 @@ public sealed class RoutePlanningIntegrationTests
         Assert.False(panel.RouteTabVisible);
         panel.SubmitLocationDataUrlAction("https://example.test/locations.xml");
         panel.SubmitDungeonMapUrlAction("https://example.test/maps.zip");
-        Assert.Equal("https://example.test/locations.xml",
-            host.PluginStorage.ReadText("externalDataUrl"));
-        Assert.Equal("https://example.test/maps.zip",
-            host.PluginStorage.ReadText("dungeonMapUrl"));
+        GoArrowSettings saved = host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!;
+        Assert.Equal("https://example.test/locations.xml", saved.ExternalDataUrl);
+        Assert.Equal("https://example.test/maps.zip", saved.DungeonMapUrl);
 
         panel.SubmitDungeonMapUrlAction("file:///tmp/maps.zip");
         Assert.Contains("valid", panel.DungeonDownloadStatus);
         Assert.Equal("https://example.test/maps.zip",
-            host.PluginStorage.ReadText("dungeonMapUrl"));
+            host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.DungeonMapUrl);
         panel.ShowRouteTab();
         Assert.True(panel.RouteTabSelected);
     }
@@ -150,7 +149,7 @@ public sealed class RoutePlanningIntegrationTests
         host.PluginStorage.WriteText("data/warcry-atlas.xml", """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
-              <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
+              <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><description>Take the portal near the town gate.</description><retired>N</retired></location>
               <location><id>3</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
             """);
@@ -168,7 +167,21 @@ public sealed class RoutePlanningIntegrationTests
         Assert.True(plugin.SetDestination("End"));
         plugin.Go();
 
-        Assert.Contains(plugin.GetCurrentRouteSteps(), step => step.Contains("Portal [Far Portal]"));
+        Assert.Contains(plugin.GetCurrentRouteSteps(), step => step == "Portal: Far Portal");
+        GoArrowPanel panel = plugin.Panel!;
+        int portalIndex = panel.RouteSteps.ToList().IndexOf("Portal: Far Portal");
+        panel.SelectRouteStepAction(portalIndex);
+        Assert.True(panel.DetailsTabSelected);
+        Assert.False(panel.RouteTabVisible);
+        Assert.Equal(portalIndex, panel.SelectedRouteStep);
+        Assert.Equal("Far Portal", panel.DetailsLocationName);
+        Assert.Equal("0.0N, 2.0E", panel.DetailsCoordinates);
+        Assert.True(panel.DetailsArrivalVisible);
+        Assert.Equal("0.0N, 95.0E", panel.DetailsArrivalCoordinates);
+        Assert.Contains(panel.DetailsNotesLines, line => line.Contains("town gate"));
+        panel.ShowRouteTab();
+        Assert.True(panel.RouteTabSelected);
+        Assert.Equal(portalIndex, panel.SelectedRouteStep);
         Assert.Empty(host.PluginNavigation.GoToPositionCalls);
         plugin.Disable();
     }
@@ -193,7 +206,7 @@ public sealed class RoutePlanningIntegrationTests
         Assert.True(plugin.SetDestination("End"));
         plugin.Go();
         string[] original = plugin.GetCurrentRouteSteps().ToArray();
-        Assert.Contains(original, step => step.Contains("Portal [Far Portal]"));
+        Assert.Contains(original, step => step == "Portal: Far Portal");
 
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
@@ -211,7 +224,7 @@ public sealed class RoutePlanningIntegrationTests
             Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
         };
         host.PluginEvents.RaiseTick(0.1);
-        Assert.DoesNotContain(plugin.GetCurrentRouteSteps(), step => step.Contains("Portal [Far Portal]"));
+        Assert.DoesNotContain(plugin.GetCurrentRouteSteps(), step => step == "Portal: Far Portal");
         plugin.Disable();
     }
 

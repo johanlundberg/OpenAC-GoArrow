@@ -1,4 +1,5 @@
 using AcDream.Plugin.Abstractions;
+using AcDream.Plugins.GoArrow.RouteFinding;
 
 namespace AcDream.Plugins.GoArrow;
 
@@ -19,6 +20,11 @@ internal sealed class GoArrowPanel
     private bool _editingFrom;
     private bool _editingDestination = true;
     private bool _showConfig;
+    private bool _showDetails;
+    private Route? _selectedRoute;
+    private int _selectedRouteStep;
+    private Location? _notesLocation;
+    private IReadOnlyList<string> _notesLines = [];
     private string _locationUrlStatus = string.Empty;
     private string _dungeonUrlStatus = string.Empty;
 
@@ -41,6 +47,9 @@ internal sealed class GoArrowPanel
 
     // ── Panel display properties ────────────────────────────────────
 
+    public string TitleText => GoArrowPlugin.DisplayTitle;
+    public Action ResetOverlayPositionsAction => _plugin.ResetOverlayPositions;
+
     /// <summary>The current destination name.</summary>
     public string DestinationText =>
         string.IsNullOrEmpty(_destination.TargetName)
@@ -50,7 +59,7 @@ internal sealed class GoArrowPanel
     /// <summary>Distance to destination (formatted).</summary>
     public string DistanceText =>
         _destination.HasDestination && _settings.ShowDistance && !OutdoorRoutePaused
-            ? $"{_destination.EstimatedDistance:F2} mu"
+            ? TravelDistance.Format(_destination.EstimatedDistance)
             : string.Empty;
 
     /// <summary>Bearing to the next route waypoint (formatted).</summary>
@@ -132,15 +141,28 @@ internal sealed class GoArrowPanel
 
     public bool DestinationSelectionVisible => !_editingDestination;
 
-    public bool RouteTabSelected => !_showConfig;
+    public bool RouteTabSelected => !_showConfig && !_showDetails;
     public bool ConfigTabSelected => _showConfig;
-    public bool RouteTabVisible => !_showConfig;
+    public bool DetailsTabSelected => _showDetails;
+    public bool RouteTabVisible => !_showConfig && !_showDetails;
     public bool ConfigTabVisible => _showConfig;
-    public Action ShowRouteTab => () => _showConfig = false;
+    public bool DetailsTabVisible => _showDetails;
+    public Action ShowRouteTab => () =>
+    {
+        _showConfig = false;
+        _showDetails = false;
+    };
     public Action ShowConfigTab => () =>
     {
         _showSearchResults = false;
         _showConfig = true;
+        _showDetails = false;
+    };
+    public Action ShowDetailsTab => () =>
+    {
+        _showSearchResults = false;
+        _showConfig = false;
+        _showDetails = true;
     };
 
     public string LocationDataUrlInput { get; set; }
@@ -242,7 +264,103 @@ internal sealed class GoArrowPanel
 
     public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
 
-    public int SelectedRouteStep => _destination.CurrentRoute is { StepCount: > 0 } ? 0 : -1;
+    private RouteStep? SelectedStep
+    {
+        get
+        {
+            Route? route = _destination.CurrentRoute;
+            if (route is not { StepCount: > 0 })
+            {
+                _selectedRoute = null;
+                _selectedRouteStep = 0;
+                return null;
+            }
+            if (!ReferenceEquals(route, _selectedRoute))
+            {
+                _selectedRoute = route;
+                _selectedRouteStep = 0;
+            }
+            _selectedRouteStep = Math.Clamp(_selectedRouteStep, 0, route.StepCount - 1);
+            return route.Steps[_selectedRouteStep];
+        }
+    }
+
+    public int SelectedRouteStep => SelectedStep is null ? -1 : _selectedRouteStep;
+
+    public Action<int> SelectRouteStepAction => index =>
+    {
+        Route? route = _destination.CurrentRoute;
+        if (route is null || index < 0 || index >= route.StepCount)
+            return;
+        _selectedRoute = route;
+        _selectedRouteStep = index;
+        ShowDetailsTab();
+    };
+
+    private Location? DetailsLocation => SelectedStep is { } step
+        ? step.Kind == RouteStepKind.Portal ? step.From : step.To
+        : null;
+
+    public string DetailsStepNumberText => SelectedStep is null
+        ? "Select a route step to see details."
+        : $"Step {_selectedRouteStep + 1} of {_selectedRoute!.StepCount}";
+
+    public string DetailsInstructionText => SelectedStep?.ToString() ?? string.Empty;
+    public string DetailsLocationName => DetailsLocation?.Name ?? string.Empty;
+    public string DetailsLocationType => DetailsLocation is { Type: not LocationType.Unknown } location
+        ? location.Type.ToString() : "Unknown";
+    public string DetailsCoordinates => DetailsLocation is { HasCoordinates: true } location
+        ? location.Coords.ToString() : "Unknown";
+    public bool DetailsArrivalVisible => SelectedStep is { Kind: RouteStepKind.Portal }
+        || DetailsLocation?.HasExitCoords == true;
+    public string DetailsArrivalCoordinates => SelectedStep is { Kind: RouteStepKind.Portal } step
+        ? (step.From.HasExitCoords ? step.From.ExitCoords : step.To.Coords).ToString()
+        : DetailsLocation?.ExitCoords.ToString() ?? string.Empty;
+    public bool DetailsDistanceVisible => SelectedStep is { Kind: RouteStepKind.Travel };
+    public string DetailsDistance => SelectedStep is { Kind: RouteStepKind.Travel } step
+        ? TravelDistance.Format(step.Distance) : string.Empty;
+    public int SelectedNotesLine => -1;
+    public IReadOnlyList<string> DetailsNotesLines
+    {
+        get
+        {
+            Location? location = DetailsLocation;
+            if (!ReferenceEquals(location, _notesLocation))
+            {
+                _notesLocation = location;
+                _notesLines = WrapNotes(location?.Notes);
+            }
+            return _notesLines;
+        }
+    }
+
+    private static IReadOnlyList<string> WrapNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+            return ["No additional notes for this location."];
+        var lines = new List<string>();
+        foreach (string paragraph in notes.Replace("\r", string.Empty).Split('\n'))
+        {
+            var words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length == 0)
+            {
+                lines.Add(string.Empty);
+                continue;
+            }
+            string line = string.Empty;
+            foreach (string word in words)
+            {
+                if (line.Length > 0 && line.Length + word.Length + 1 > 64)
+                {
+                    lines.Add(line);
+                    line = string.Empty;
+                }
+                line = line.Length == 0 ? word : $"{line} {word}";
+            }
+            lines.Add(line);
+        }
+        return lines;
+    }
 
     public string NextTargetText => _destination.CurrentRoute is { StepCount: > 0 }
         ? $"Next: {_destination.GetImmediateTarget()?.Name}"

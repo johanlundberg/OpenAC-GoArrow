@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using AcDream.Plugin.Abstractions;
 using AcDream.Plugin.Tests.Fixtures;
 using AcDream.Plugins.GoArrow.RouteFinding;
 
@@ -6,6 +7,108 @@ namespace AcDream.Plugins.GoArrow.Tests;
 
 public sealed class UiStartupTests
 {
+    [Fact]
+    public void SaveKeepsSettingsInOneJsonFileAndPreservesCachedData()
+    {
+        var storage = new FakePluginStorage();
+        storage.WriteText("showDistance", "True");
+        storage.WriteText("destination", "Old destination");
+        storage.WriteText("data/warcry-atlas.xml", "<atlas />");
+        new GoArrowSettings
+        {
+            DestinationName = "New destination",
+            ShowDistance = false,
+            RecallsByCharacter = new()
+            {
+                ["character/world"] = new() { Lifestone = "1,2" },
+            },
+        }.Save(storage);
+
+        Assert.Equal(
+            new[] { "data/warcry-atlas.xml", "settings.json" },
+            storage.Store.Keys.OrderBy(key => key));
+        var reloaded = new GoArrowSettings();
+        reloaded.Load(storage);
+        Assert.Equal("New destination", reloaded.DestinationName);
+        Assert.False(reloaded.ShowDistance);
+        Assert.Equal("1,2", reloaded.RecallsByCharacter["character/world"].Lifestone);
+    }
+
+    [Fact]
+    public void LegacyFilesMigrateToJsonAndAreRemovedAfterSuccessfulWrite()
+    {
+        var storage = new FakePluginStorage();
+        storage.WriteText("destination", "Sawato");
+        storage.WriteText("autoNavigate", "True");
+        storage.WriteText("favorites", "Sawato,Shoushi");
+        var settings = new GoArrowSettings();
+
+        settings.Load(storage);
+
+        Assert.Equal("Sawato", settings.DestinationName);
+        Assert.True(settings.AutoNavigate);
+        Assert.Equal(new[] { "Sawato", "Shoushi" }, settings.FavoriteDestinations);
+        Assert.Equal(new[] { "settings.json" }, storage.Store.Keys);
+    }
+
+    [Fact]
+    public void LegacyRecallFilesMoveIntoCharacterSettings()
+    {
+        var host = new FakePluginHost
+        {
+            SettingsValue = new Dictionary<string, string>
+            {
+                ["characterId"] = "123",
+                ["worldId"] = "456",
+            },
+        };
+        host.PluginStorage.WriteText("recall/lifestone", "1,2");
+        host.PluginStorage.WriteText("recall/house", "3,4");
+
+        new GoArrowPlugin().Initialize(host);
+
+        GoArrowSettings saved = host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!;
+        Assert.Equal("1,2", saved.RecallsByCharacter["123/456"].Lifestone);
+        Assert.Equal("3,4", saved.RecallsByCharacter["123/456"].House);
+        Assert.Null(host.PluginStorage.ReadText("recall/lifestone"));
+        Assert.Null(host.PluginStorage.ReadText("recall/house"));
+    }
+
+    [Fact]
+    public void PanelTitleShowsBuiltPluginVersion()
+    {
+        string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
+        var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
+        XElement title = markup.Root!.Elements("label")
+            .Single(element => (string?)element.Attribute("text") == "{TitleText}");
+
+        Assert.Equal("8", (string?)title.Attribute("x"));
+        Assert.Equal(typeof(string), typeof(GoArrowPanel).GetProperty("TitleText")!.PropertyType);
+        Assert.StartsWith("GoArrow v", GoArrowPlugin.DisplayTitle);
+        Assert.Contains(typeof(GoArrowPlugin).Assembly.GetName().Version!.ToString(3),
+            GoArrowPlugin.DisplayTitle);
+    }
+
+    [Fact]
+    public void PositionsSavedByOldDragHandlerReturnToVisibleDefaults()
+    {
+        var storage = new FakePluginStorage();
+        storage.WriteJson("settings.json", new GoArrowSettings
+        {
+            ArrowOffsetX = 5000,
+            ToolbarOffsetY = 5000,
+            DungeonOffsetX = 5000,
+            OverlayPositionVersion = 0,
+        });
+
+        var settings = new GoArrowSettings();
+        settings.Load(storage);
+
+        Assert.Equal(-70, settings.ArrowOffsetX);
+        Assert.Equal(215, settings.ToolbarOffsetY);
+        Assert.Equal(25, settings.DungeonOffsetX);
+    }
+
     [Fact]
     public void NewInstallKeepsVisibleUiDefaults()
     {
@@ -49,6 +152,8 @@ public sealed class UiStartupTests
 
         Assert.False(settings.HudVisible);
         Assert.True(settings.PanelVisible);
+        storage = new FakePluginStorage();
+        storage.WriteText("hudVisible", "False");
         storage.WriteText("panelVisible", "False");
         storage.WriteText("toolbarVisible", "False");
         storage.WriteText("mapVisible", "False");
@@ -131,7 +236,7 @@ public sealed class UiStartupTests
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
         XElement[] tabs = markup.Descendants("tab").ToArray();
-        Assert.Equal(new[] { "Route", "Config" },
+        Assert.Equal(new[] { "Route", "Config", "Details" },
             tabs.Select(tab => (string?)tab.Attribute("text")));
         foreach (XElement tab in tabs)
         {
@@ -157,6 +262,8 @@ public sealed class UiStartupTests
             typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("items")!.Value))!.PropertyType);
         Assert.Equal(typeof(int),
             typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("selected")!.Value))!.PropertyType);
+        Assert.Equal(typeof(Action<int>),
+            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("onchange")!.Value))!.PropertyType);
     }
 
     [Fact]
