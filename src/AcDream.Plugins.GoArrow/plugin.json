@@ -4,12 +4,23 @@
   "version": "0.1.0",
   "entryDll": "AcDream.Plugins.GoArrow.dll",
   "apiVersion": 1,
-  "kinds": ["Gameplay"],
-  "hosts": ["Graphical", "Headless"],
-  "minHostVersion": "0.1.15",
+  "kinds": [
+    "Gameplay"
+  ],
+  "hosts": [
+    "Graphical",
+    "Headless"
+  ],
+  "minHostVersion": "0.1.16",
   "capabilitiesVersion": 1,
   "capabilities": [
-    { "name": "network", "note": "Downloads location data from the configured URL when you run /go update." },
-    { "name": "chat", "note": "Handles coordinate links in chat and posts GoArrow status messages." }
+    {
+      "name": "network",
+      "note": "Downloads location data from the configured URL when you run /go update."
+    },
+    {
+      "name": "chat",
+      "note": "Handles coordinate links in chat and posts GoArrow status messages."
+    }
   ]
 }
