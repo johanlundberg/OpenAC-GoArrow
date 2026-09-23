@@ -7,16 +7,19 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class PortalNavigationTests
 {
     [Theory]
-    [InlineData(true, false, false, false, false)]
-    [InlineData(false, false, false, false, false)]
-    [InlineData(false, true, false, false, false)]
-    [InlineData(false, true, false, false, true)]
-    [InlineData(true, false, true, false, false)]
-    [InlineData(false, false, false, true, false)]
+    [InlineData(true, false, false, false, false, false, false)]
+    [InlineData(false, false, false, false, false, false, false)]
+    [InlineData(false, true, false, false, false, false, false)]
+    [InlineData(false, true, false, false, true, false, false)]
+    [InlineData(true, false, true, false, false, false, false)]
+    [InlineData(false, false, false, true, false, false, false)]
+    [InlineData(false, false, false, false, false, true, false)]
+    [InlineData(false, false, false, false, false, false, true)]
     public void OutdoorRouteContinuesThroughTownNetworkIndoorPortal(
         bool receivesTransitionEvent, bool exitsBeforeIndoorWalkArrives,
         bool portalEventPrecedesIndoorPosition, bool portalInNextLandblock,
-        bool portalSpaceSeenOnTick)
+        bool portalSpaceSeenOnTick, bool resumeDuringIndoorWalk,
+        bool resumeBeforeEntryStepCompletes)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
@@ -103,7 +106,13 @@ public sealed class PortalNavigationTests
             IsPortalSpace = false,
             Position = new PluginNavigationPosition(0x12340100, 40, 40, 0, 0, false)
         };
-        if (receivesTransitionEvent)
+        if (resumeBeforeEntryStepCompletes)
+        {
+            navigator.StopNavigation();
+            Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute.Steps[0].Kind);
+            navigator.ResumeNavigation();
+        }
+        else if (receivesTransitionEvent)
             host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
                 0, 1, 0x12340100, true, true, true, false)
             {
@@ -118,6 +127,15 @@ public sealed class PortalNavigationTests
         objects.Objects.Add(sawatoPortal);
         navigator.OnTick(0.6);
         Assert.Equal((uint)43, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+        if (resumeDuringIndoorWalk)
+        {
+            navigator.StopNavigation();
+            Assert.True(navigator.CanResumeNavigation);
+            navigator.ResumeNavigation();
+            Assert.Equal((uint)43, host.Inner.PluginNavigation.GoToCalls[^1].ObjectId);
+            Assert.Equal(2, host.Inner.PluginNavigation.GoToCalls.Count);
+            Assert.True(navigator.IsNavigating);
+        }
         if (portalInNextLandblock)
         {
             host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
@@ -152,7 +170,8 @@ public sealed class PortalNavigationTests
             Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
             return;
         }
-        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(2, PluginGoToState.Arrived, 43, 0, 0, null)
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            host.Inner.PluginNavigation.GoToReport.Sequence, PluginGoToState.Arrived, 43, 0, 0, null)
         {
             Revision = 2
         });
@@ -179,7 +198,8 @@ public sealed class PortalNavigationTests
         Assert.True(navigator.IsNavigating);
         Assert.Equal(2, host.Inner.PluginNavigation.GoToPositionCalls.Count);
         host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
-            3, PluginGoToState.ArrivedWithoutSight, 0, 400, 0, "No accessible route")
+            host.Inner.PluginNavigation.GoToReport.Sequence,
+            PluginGoToState.ArrivedWithoutSight, 0, 400, 0, "No accessible route")
         {
             Revision = 3
         });

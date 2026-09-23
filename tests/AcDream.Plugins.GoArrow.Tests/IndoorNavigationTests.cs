@@ -215,6 +215,11 @@ public sealed class IndoorNavigationTests
 
             Assert.False(navigator.IsNavigating);
             Assert.Equal(1, host.PluginNavigation.StopGoToCount);
+
+            navigator.ResumeNavigation();
+
+            Assert.True(navigator.IsNavigating);
+            Assert.Equal(2, host.PluginNavigation.GoToCalls.Count);
         }
     }
 

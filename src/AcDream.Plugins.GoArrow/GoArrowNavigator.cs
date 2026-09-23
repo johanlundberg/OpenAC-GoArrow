@@ -358,9 +358,44 @@ internal sealed class GoArrowNavigator : IDisposable
         if (!CanResumeNavigation)
             return;
         if (WaitingForInteraction)
+        {
             ResumeAfterInteraction();
-        else
-            StartNavigation();
+            return;
+        }
+
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+            && IsIndoorPortalStep())
+        {
+            var route = _destination.CurrentRoute!;
+            if (route.Steps[0].Kind == RouteStepKind.Portal
+                && route.Steps[0].To.HasCoordinates
+                && new Coordinates(snapshot.Position.NorthSouth, snapshot.Position.EastWest)
+                    .DistanceTo(route.Steps[0].To.Coords) * 240 <= 250)
+            {
+                // Stop can clear a pending transition before the entry portal
+                // is marked complete. The live indoor position is its arrival.
+                _destination.AdvanceStep();
+                if (_destination.CurrentRoute?.StepCount == 0)
+                {
+                    HasArrived = true;
+                    _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+                    return;
+                }
+            }
+            _routeId = Guid.NewGuid();
+            _legIndex = 0;
+            _observedIndoorRoute = true;
+            _pausedForOutdoorRoute = false;
+            _failureReason = string.Empty;
+            HasArrived = false;
+            _activeSequence = 0;
+            _lastHandledReportRevision = 0;
+            StartCurrentLeg();
+            return;
+        }
+
+        StartNavigation();
     }
 
     public void ResumeAfterInteraction()
