@@ -34,7 +34,7 @@ public sealed class DestinationTests
         {
             HasPosition = true,
             Position = new PluginNavigationPosition(1, 4, 5, 0, 0, true),
-            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
         };
 
         Assert.True(destination.SetObject(obj));
@@ -49,14 +49,12 @@ public sealed class DestinationTests
     public void RouteGuidancePointsToFirstGraphWaypoint()
     {
         var database = new LocationDatabase();
-        database.LoadLocationsCsv(new[]
-        {
-            "Start;0;0",
-            "First;0;10",
-            "Finish;10;10"
-        });
+        database.LoadLocationsCsv(new[] { "Start;0;0", "First;0;10", "Finish;10;10" });
         var destination = new GoArrowDestination(
-            new GoArrowSettings(), database, new RouteFinder(database));
+            new GoArrowSettings(),
+            database,
+            new RouteFinder(database)
+        );
         destination.SetDestination("Finish");
 
         destination.CalculateRoute(new Location("Current", 0, 0));
@@ -72,11 +70,18 @@ public sealed class DestinationTests
     [InlineData(-1, 0, 180)]
     [InlineData(0, -1, 270)]
     [InlineData(1, -1, 315)]
-    public void BearingUsesClockwiseDegreesFromNorth(double northSouth, double eastWest, double expected)
+    public void BearingUsesClockwiseDegreesFromNorth(
+        double northSouth,
+        double eastWest,
+        double expected
+    )
     {
         var database = new LocationDatabase();
         var destination = new GoArrowDestination(
-            new GoArrowSettings(), database, new RouteFinder(database));
+            new GoArrowSettings(),
+            database,
+            new RouteFinder(database)
+        );
         destination.SetCoordinate(northSouth, eastWest, "Target");
 
         destination.UpdateGuidance(new Location("Current", 0, 0));

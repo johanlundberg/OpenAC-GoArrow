@@ -11,7 +11,8 @@ public class WarcryAtlasDataProviderTests
     public void ValidateAtlasXml_RequiresLocationRecords()
     {
         Assert.Throws<InvalidDataException>(() =>
-            WarcryAtlasDataProvider.ValidateAtlasXml("<atlas />"));
+            WarcryAtlasDataProvider.ValidateAtlasXml("<atlas />")
+        );
     }
 
     [Fact]
@@ -24,11 +25,16 @@ public class WarcryAtlasDataProviderTests
     [Fact]
     public async Task DownloadAsync_ValidatesAndCachesData()
     {
-        const string xml = "<atlas><location><id>1</id><name>Test</name>"
+        const string xml =
+            "<atlas><location><id>1</id><name>Test</name>"
             + "<latitude>1</latitude><longitude>2</longitude></location></atlas>";
         var storage = new MemoryStorage();
         using var client = new HttpClient(new StubHandler(xml));
-        var provider = new WarcryAtlasDataProvider(storage, client, "https://example.test/atlas.xml");
+        var provider = new WarcryAtlasDataProvider(
+            storage,
+            client,
+            "https://example.test/atlas.xml"
+        );
 
         string downloaded = await provider.DownloadAsync();
 
@@ -43,7 +49,10 @@ public class WarcryAtlasDataProviderTests
     {
         using var client = new HttpClient(new StubHandler("", HttpStatusCode.NotFound));
         var provider = new WarcryAtlasDataProvider(
-            new MemoryStorage(), client, "https://example.test/atlas.xml");
+            new MemoryStorage(),
+            client,
+            "https://example.test/atlas.xml"
+        );
 
         await Assert.ThrowsAsync<HttpRequestException>(() => provider.DownloadAsync());
     }
@@ -69,13 +78,16 @@ public class WarcryAtlasDataProviderTests
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
-            return Task.FromResult(new HttpResponseMessage(_status)
-            {
-                Content = new StringContent(_content),
-                RequestMessage = request,
-            });
+            return Task.FromResult(
+                new HttpResponseMessage(_status)
+                {
+                    Content = new StringContent(_content),
+                    RequestMessage = request,
+                }
+            );
         }
     }
 
@@ -83,7 +95,10 @@ public class WarcryAtlasDataProviderTests
     {
         private readonly Dictionary<string, string> _values = new();
         public bool IsAvailable => true;
-        public string? ReadText(string key) => _values.TryGetValue(key, out var value) ? value : null;
+
+        public string? ReadText(string key) =>
+            _values.TryGetValue(key, out var value) ? value : null;
+
         public void WriteText(string key, string content) => _values[key] = content;
     }
 }

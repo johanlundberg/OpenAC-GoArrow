@@ -49,7 +49,9 @@ public sealed class IndoorNavigationTests
         };
         var settings = new GoArrowSettings();
         var database = new LocationDatabase();
-        database.LoadLocationsXml("<locations><loc name='Sawato Portal' type='TownPortal' NS='-28.7' EW='59.3' /></locations>");
+        database.LoadLocationsXml(
+            "<locations><loc name='Sawato Portal' type='TownPortal' NS='-28.7' EW='59.3' /></locations>"
+        );
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         Assert.True(destination.SetDestination("Sawato Portal"));
         using var navigator = new GoArrowNavigator(host, destination, settings);
@@ -70,25 +72,37 @@ public sealed class IndoorNavigationTests
         plugin.Initialize(host);
         plugin.Enable();
         Assert.True(plugin.MarkCurrentIndoorLocation("Lower Chamber"));
-        Assert.Contains("cellId=\"0x12340122\"", host.PluginStorage.ReadText("GoArrow/indoor-locations.xml"));
+        Assert.Contains(
+            "cellId=\"0x12340122\"",
+            host.PluginStorage.ReadText("GoArrow/indoor-locations.xml")
+        );
 
-        host.PluginStorage.WriteText("GoArrow/base.xml", """
+        host.PluginStorage.WriteText(
+            "GoArrow/base.xml",
+            """
             <locations><loc name="Other Place" NS="1" EW="2" /></locations>
-            """);
+            """
+        );
         Assert.True(plugin.LoadDataFile("base.xml"));
         Assert.True(plugin.SetDestination("Lower Chamber"));
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0x12340100, 10, 10, 0, 0, false)
+            Position = new PluginNavigationPosition(0x12340100, 10, 10, 0, 0, false),
         };
         plugin.Panel!.StartNavigation();
-        Assert.Equal((uint)0x12340122, Assert.Single(host.PluginNavigation.GoToPositionCalls).Position.CellId);
+        Assert.Equal(
+            (uint)0x12340122,
+            Assert.Single(host.PluginNavigation.GoToPositionCalls).Position.CellId
+        );
         plugin.Disable();
 
         var restarted = new GoArrowPlugin();
         restarted.Initialize(host);
         Assert.True(restarted.SetDestination("Lower Chamber"));
-        Assert.Contains(restarted.SearchLocations("Lower"), location => location.Name == "Lower Chamber");
+        Assert.Contains(
+            restarted.SearchLocations("Lower"),
+            location => location.Name == "Lower Chamber"
+        );
     }
 
     [Fact]
@@ -97,20 +111,29 @@ public sealed class IndoorNavigationTests
         var host = HostAt(0x12340100);
         host.HasUiValue = false;
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
-        host.PluginStorage.WriteText("GoArrow/indoor.xml", """
+        host.PluginStorage.WriteText(
+            "GoArrow/indoor.xml",
+            """
             <locations><loc name="Dungeon Chest" type="Dungeon"
               cellId="0x12340122" x="35" y="50" z="6" /></locations>
-            """);
+            """
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
 
         Assert.True(plugin.LoadDataFile("indoor.xml"));
-        Assert.Contains(plugin.SearchLocations("Chest"), location => location.Name == "Dungeon Chest");
+        Assert.Contains(
+            plugin.SearchLocations("Chest"),
+            location => location.Name == "Dungeon Chest"
+        );
         Assert.True(plugin.SetDestination("Dungeon Chest"));
         plugin.Panel!.StartNavigation();
 
-        Assert.Equal((uint)0x12340122, Assert.Single(host.PluginNavigation.GoToPositionCalls).Position.CellId);
+        Assert.Equal(
+            (uint)0x12340122,
+            Assert.Single(host.PluginNavigation.GoToPositionCalls).Position.CellId
+        );
         Assert.Equal("Client planning path...", plugin.Panel.NavStatusText);
         plugin.Disable();
     }
@@ -120,11 +143,13 @@ public sealed class IndoorNavigationTests
     {
         var host = HostAt(0x12340100);
         var database = new LocationDatabase();
-        database.LoadLocationsXml("""
+        database.LoadLocationsXml(
+            """
             <locations>
               <loc name="Dungeon Chest" type="Dungeon" cellId="0x12340122" x="35" y="50" z="6" />
             </locations>
-            """);
+            """
+        );
         var settings = new GoArrowSettings();
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         Assert.True(destination.SetDestination("Dungeon Chest"));
@@ -147,10 +172,12 @@ public sealed class IndoorNavigationTests
     {
         var host = HostAt(0x12340100);
         var database = new LocationDatabase();
-        database.LoadLocationsXml("""
+        database.LoadLocationsXml(
+            """
             <locations><loc name="Other Dungeon Chest" NS="10" EW="10"
               cellId="0x56780122" x="35" y="50" z="6" /></locations>
-            """);
+            """
+        );
         var settings = new GoArrowSettings();
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         Assert.True(destination.SetDestination("Other Dungeon Chest"));
@@ -177,8 +204,9 @@ public sealed class IndoorNavigationTests
             Assert.Empty(host.PluginNavigation.GoToPositionCalls);
             Assert.Null(destination.CurrentRoute);
 
-            host.PluginEvents.RaiseNavigationChanged(new PluginGoToReport(
-                1, PluginGoToState.Arrived, 42, 0, 0, null) { Revision = 1 });
+            host.PluginEvents.RaiseNavigationChanged(
+                new PluginGoToReport(1, PluginGoToState.Arrived, 42, 0, 0, null) { Revision = 1 }
+            );
 
             Assert.True(navigator.HasArrived);
             Assert.False(navigator.IsNavigating);
@@ -189,7 +217,10 @@ public sealed class IndoorNavigationTests
     [Theory]
     [InlineData(0x56780122u, false)]
     [InlineData(0x12340122u, true)]
-    public void IndoorObjectOutsideCurrentDungeonOrOutdoorsIsNotRouted(uint targetCell, bool targetOutdoor)
+    public void IndoorObjectOutsideCurrentDungeonOrOutdoorsIsNotRouted(
+        uint targetCell,
+        bool targetOutdoor
+    )
     {
         var host = HostAt(0x12340100);
         var (_, navigator) = CreateNavigator(host, ObjectAt(targetCell, targetOutdoor));
@@ -227,7 +258,13 @@ public sealed class IndoorNavigationTests
     {
         var host = new FakePluginHost();
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(cellId, 10, 10, 0, 0, false), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(cellId, 10, 10, 0, 0, false),
+            false,
+            false
+        );
         return host;
     }
 
@@ -235,7 +272,7 @@ public sealed class IndoorNavigationTests
         new(42, 0, "Dungeon Target", PluginObjectClass.Npc, 0, 0, 0)
         {
             HasPosition = true,
-            Position = new PluginNavigationPosition(cellId, 10.01, 10.01, 0, 0, isOutdoor)
+            Position = new PluginNavigationPosition(cellId, 10.01, 10.01, 0, 0, isOutdoor),
         };
 
     private static PluginWorldObject Portal(uint id, string name, uint cellId, double eastWest) =>
@@ -249,11 +286,15 @@ public sealed class IndoorNavigationTests
     private sealed class PortalWorldObjects : IWorldObjectAutomation
     {
         public List<PluginWorldObject> Objects { get; } = [];
+
         public IReadOnlyList<PluginWorldObject> CaptureObjects() => Objects;
     }
 
     private static (GoArrowDestination Destination, GoArrowNavigator Navigator) CreateNavigator(
-        FakePluginHost host, PluginWorldObject target, bool autoNavigate = false)
+        FakePluginHost host,
+        PluginWorldObject target,
+        bool autoNavigate = false
+    )
     {
         var settings = new GoArrowSettings { AutoNavigate = autoNavigate };
         var database = new LocationDatabase();

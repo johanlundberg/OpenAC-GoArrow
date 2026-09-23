@@ -18,7 +18,12 @@ internal sealed class GoArrowHud : IDisposable
     private PluginPoint _arrowDisplayedOffset;
     private PluginPoint _toolbarDisplayedOffset;
 
-    public GoArrowHud(IPluginHost host, GoArrowDestination destination, GoArrowNavigator navigator, GoArrowSettings settings)
+    public GoArrowHud(
+        IPluginHost host,
+        GoArrowDestination destination,
+        GoArrowNavigator navigator,
+        GoArrowSettings settings
+    )
     {
         _host = host;
         _destination = destination;
@@ -38,7 +43,9 @@ internal sealed class GoArrowHud : IDisposable
                 Offset = new PluginPoint(_settings.ArrowOffsetX, _settings.ArrowOffsetY),
                 StartVisible = _settings.HudVisible,
                 AcceptsPointerInput = !_settings.HudClickThrough,
-            }, PaintArrow);
+            },
+            PaintArrow
+        );
         _toolbar = _host.Ui.RegisterCanvas(
             new PluginCanvasDescriptor("goarrow.toolbar", 260, 35)
             {
@@ -46,7 +53,9 @@ internal sealed class GoArrowHud : IDisposable
                 Offset = new PluginPoint(_settings.ToolbarOffsetX, _settings.ToolbarOffsetY),
                 StartVisible = _settings.ToolbarVisible,
                 AcceptsPointerInput = !_settings.HudClickThrough,
-            }, PaintToolbar);
+            },
+            PaintToolbar
+        );
         if (!_settings.HudClickThrough)
         {
             _arrow.PointerHandler = OnArrowInput;
@@ -68,11 +77,17 @@ internal sealed class GoArrowHud : IDisposable
 
     private void OnArrowInput(PluginPointerEvent input)
     {
-        HandleDrag(_arrow, input, ref _arrowDrag, ref _arrowDisplayedOffset, offset =>
-        {
-            _settings.ArrowOffsetX = offset.X;
-            _settings.ArrowOffsetY = offset.Y;
-        });
+        HandleDrag(
+            _arrow,
+            input,
+            ref _arrowDrag,
+            ref _arrowDisplayedOffset,
+            offset =>
+            {
+                _settings.ArrowOffsetX = offset.X;
+                _settings.ArrowOffsetY = offset.Y;
+            }
+        );
     }
 
     private void OnToolbarInput(PluginPointerEvent input)
@@ -104,10 +119,14 @@ internal sealed class GoArrowHud : IDisposable
         else if (input.Kind == PluginPointerEventKind.Up)
         {
             _toolbarDrag = null;
-            if (input.Button == PluginPointerButton.Left
-                && input.Position.X >= 0 && input.Position.X < 260
-                && input.Position.Y >= 0 && input.Position.Y < 35
-                && (origin.X < 130) == (input.Position.X < 130))
+            if (
+                input.Button == PluginPointerButton.Left
+                && input.Position.X >= 0
+                && input.Position.X < 260
+                && input.Position.Y >= 0
+                && input.Position.Y < 35
+                && (origin.X < 130) == (input.Position.X < 130)
+            )
             {
                 if (input.Position.X < 130)
                     _navigator.StopNavigation();
@@ -120,14 +139,25 @@ internal sealed class GoArrowHud : IDisposable
     }
 
     private void HandleToolbarDrag(PluginPointerEvent input) =>
-        HandleDrag(_toolbar, input, ref _toolbarDrag, ref _toolbarDisplayedOffset, offset =>
-        {
-            _settings.ToolbarOffsetX = offset.X;
-            _settings.ToolbarOffsetY = offset.Y;
-        });
+        HandleDrag(
+            _toolbar,
+            input,
+            ref _toolbarDrag,
+            ref _toolbarDisplayedOffset,
+            offset =>
+            {
+                _settings.ToolbarOffsetX = offset.X;
+                _settings.ToolbarOffsetY = offset.Y;
+            }
+        );
 
-    private void HandleDrag(IPluginCanvas? canvas, PluginPointerEvent input,
-        ref PluginPoint? start, ref PluginPoint displayedOffset, Action<PluginPoint> saveOffset)
+    private void HandleDrag(
+        IPluginCanvas? canvas,
+        PluginPointerEvent input,
+        ref PluginPoint? start,
+        ref PluginPoint displayedOffset,
+        Action<PluginPoint> saveOffset
+    )
     {
         if (canvas is null)
             return;
@@ -136,12 +166,15 @@ internal sealed class GoArrowHud : IDisposable
             start = input.Position;
             displayedOffset = canvas.Offset;
         }
-        else if (input.Kind is PluginPointerEventKind.Move or PluginPointerEventKind.Up
-            && start is { } origin)
+        else if (
+            input.Kind is PluginPointerEventKind.Move or PluginPointerEventKind.Up
+            && start is { } origin
+        )
         {
             var offset = new PluginPoint(
                 displayedOffset.X + input.Position.X - origin.X,
-                displayedOffset.Y + input.Position.Y - origin.Y);
+                displayedOffset.Y + input.Position.Y - origin.Y
+            );
             canvas.Offset = offset;
             if (input.Kind == PluginPointerEventKind.Up)
             {
@@ -161,9 +194,18 @@ internal sealed class GoArrowHud : IDisposable
     private void PaintArrow(IPluginPainter painter)
     {
         painter.Clear(PluginColor.Transparent);
-        painter.FillRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(12, 20, 29, 226));
-        painter.StrokeRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(111, 128, 138, 215));
-        painter.FillRect(new PluginRect(72, 10, 1, painter.Height - 20), new PluginColor(103, 120, 130, 130));
+        painter.FillRect(
+            new PluginRect(0, 0, painter.Width, painter.Height),
+            new PluginColor(12, 20, 29, 226)
+        );
+        painter.StrokeRect(
+            new PluginRect(0, 0, painter.Width, painter.Height),
+            new PluginColor(111, 128, 138, 215)
+        );
+        painter.FillRect(
+            new PluginRect(72, 10, 1, painter.Height - 20),
+            new PluginColor(103, 120, 130, 130)
+        );
 
         var center = new PluginPoint(37, 45);
         DrawCompassDial(painter, center);
@@ -173,13 +215,22 @@ internal sealed class GoArrowHud : IDisposable
         {
             bool indoorTarget = _navigator.HasIndoorTarget;
             bool findingPortal = _navigator.WaitingForIndoorPortal;
-            painter.DrawText(findingPortal ? "FINDING INDOOR PORTAL"
-                : indoorTarget ? "INDOOR TARGET" : "OUTDOOR ROUTE PAUSED", new PluginPoint(84, 25),
-                new PluginColor(255, 215, 113), outline: true);
-            painter.DrawText(findingPortal ? "Waiting for portal object"
-                : indoorTarget ? FitText(painter, _destination.TargetName, painter.Width - 94) : "Resumes outdoors",
-                new PluginPoint(84, 53), PluginColor.White,
-                outline: true);
+            painter.DrawText(
+                findingPortal ? "FINDING INDOOR PORTAL"
+                    : indoorTarget ? "INDOOR TARGET"
+                    : "OUTDOOR ROUTE PAUSED",
+                new PluginPoint(84, 25),
+                new PluginColor(255, 215, 113),
+                outline: true
+            );
+            painter.DrawText(
+                findingPortal ? "Waiting for portal object"
+                    : indoorTarget ? FitText(painter, _destination.TargetName, painter.Width - 94)
+                    : "Resumes outdoors",
+                new PluginPoint(84, 53),
+                PluginColor.White,
+                outline: true
+            );
             return;
         }
 
@@ -198,12 +249,25 @@ internal sealed class GoArrowHud : IDisposable
             (false, true) => distance,
             _ => string.Empty,
         };
-        painter.DrawText("NEXT WAYPOINT", new PluginPoint(84, 8), new PluginColor(156, 177, 186), outline: true);
-        painter.DrawText(FitText(painter, name, painter.Width - 94),
-            new PluginPoint(84, 31), PluginColor.White, outline: true);
+        painter.DrawText(
+            "NEXT WAYPOINT",
+            new PluginPoint(84, 8),
+            new PluginColor(156, 177, 186),
+            outline: true
+        );
+        painter.DrawText(
+            FitText(painter, name, painter.Width - 94),
+            new PluginPoint(84, 31),
+            PluginColor.White,
+            outline: true
+        );
         if (readout.Length > 0)
-            painter.DrawText(readout, new PluginPoint(84, 57),
-                new PluginColor(255, 215, 113), outline: true);
+            painter.DrawText(
+                readout,
+                new PluginPoint(84, 57),
+                new PluginColor(255, 215, 113),
+                outline: true
+            );
     }
 
     private static void DrawCompassDial(IPluginPainter painter, PluginPoint center)
@@ -216,7 +280,10 @@ internal sealed class GoArrowHud : IDisposable
             double b = (i + 1) * 2.0 * Math.PI / segments;
             painter.DrawLine(
                 new PluginPoint(center.X + Math.Sin(a) * 29, center.Y - Math.Cos(a) * 29),
-                new PluginPoint(center.X + Math.Sin(b) * 29, center.Y - Math.Cos(b) * 29), ring, 1.5f);
+                new PluginPoint(center.X + Math.Sin(b) * 29, center.Y - Math.Cos(b) * 29),
+                ring,
+                1.5f
+            );
         }
         for (int i = 0; i < 4; i++)
         {
@@ -224,10 +291,14 @@ internal sealed class GoArrowHud : IDisposable
             painter.DrawLine(
                 new PluginPoint(center.X + Math.Sin(a) * 31, center.Y - Math.Cos(a) * 31),
                 new PluginPoint(center.X + Math.Sin(a) * 34, center.Y - Math.Cos(a) * 34),
-                new PluginColor(190, 206, 211, 210), 2);
+                new PluginColor(190, 206, 211, 210),
+                2
+            );
         }
-        painter.FillRect(new PluginRect(center.X - 2, center.Y - 2, 4, 4),
-            new PluginColor(255, 224, 145));
+        painter.FillRect(
+            new PluginRect(center.X - 2, center.Y - 2, 4, 4),
+            new PluginColor(255, 224, 145)
+        );
     }
 
     private static void DrawPointer(IPluginPainter painter, PluginPoint center, double angle)
@@ -236,9 +307,8 @@ internal sealed class GoArrowHud : IDisposable
         double dy = -Math.Cos(angle);
         double px = -dy;
         double py = dx;
-        PluginPoint At(double forward, double sideways = 0) => new(
-            center.X + dx * forward + px * sideways,
-            center.Y + dy * forward + py * sideways);
+        PluginPoint At(double forward, double sideways = 0) =>
+            new(center.X + dx * forward + px * sideways, center.Y + dy * forward + py * sideways);
 
         PluginPoint tail = At(-16);
         PluginPoint tip = At(23);
@@ -268,9 +338,19 @@ internal sealed class GoArrowHud : IDisposable
     private static void PaintToolbar(IPluginPainter painter)
     {
         painter.Clear(PluginColor.Transparent);
-        painter.FillRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(0, 0, 0, 175));
-        painter.StrokeRect(new PluginRect(0, 0, painter.Width, painter.Height), new PluginColor(128, 128, 128));
-        painter.DrawLine(new PluginPoint(130, 0), new PluginPoint(130, 35), new PluginColor(128, 128, 128));
+        painter.FillRect(
+            new PluginRect(0, 0, painter.Width, painter.Height),
+            new PluginColor(0, 0, 0, 175)
+        );
+        painter.StrokeRect(
+            new PluginRect(0, 0, painter.Width, painter.Height),
+            new PluginColor(128, 128, 128)
+        );
+        painter.DrawLine(
+            new PluginPoint(130, 0),
+            new PluginPoint(130, 35),
+            new PluginColor(128, 128, 128)
+        );
         painter.DrawText("Stop", new PluginPoint(48, 9), PluginColor.White);
         painter.DrawText("Resume", new PluginPoint(166, 9), PluginColor.White);
     }

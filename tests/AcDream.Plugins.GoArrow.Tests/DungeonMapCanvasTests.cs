@@ -28,45 +28,91 @@ public sealed class DungeonMapCanvasTests
         Assert.Single(painter.Images);
         Assert.Contains(painter.Text, text => text.Contains("Remote Empyrean Vault"));
         PluginRect initialImage = Assert.Single(painter.ImageRects);
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Wheel, new PluginPoint(200, 200),
-            PluginPointerButton.None, PluginKeyModifiers.None, 1));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Wheel,
+                new PluginPoint(200, 200),
+                PluginPointerButton.None,
+                PluginKeyModifiers.None,
+                1
+            )
+        );
         painter.ImageRects.Clear();
         ui.Paint(painter);
         PluginRect zoomedImage = Assert.Single(painter.ImageRects);
         Assert.True(zoomedImage.Width > initialImage.Width);
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Down, new PluginPoint(200, 200),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Move, new PluginPoint(220, 210),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Up, new PluginPoint(220, 210),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(200, 200),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(220, 210),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(220, 210),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         painter.ImageRects.Clear();
         ui.Paint(painter);
         Assert.True(Assert.Single(painter.ImageRects).X > zoomedImage.X);
 
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Down, new PluginPoint(100, 15),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Move, new PluginPoint(135, 30),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(100, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(135, 30),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Move, new PluginPoint(135, 30),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(135, 30),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
         fake.PluginEvents.RaiseTick(0.1);
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Move, new PluginPoint(100, 15),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(100, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
-        ui.Canvas.PointerHandler!(new PluginPointerEvent(
-            PluginPointerEventKind.Up, new PluginPoint(100, 15),
-            PluginPointerButton.Left, PluginKeyModifiers.None));
+        ui.Canvas.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(100, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(60, 110), ui.Canvas.Offset);
         Assert.Equal(60, settings.DungeonOffsetX);
 
@@ -97,7 +143,10 @@ public sealed class DungeonMapCanvasTests
         var ui = new RecordingUi();
         ui.Images.IsAvailable = false;
         using var map = new GoArrowDungeonMap(
-            new CanvasHost(fake, ui), new GoArrowSettings(), DungeonMapTestData.CreateCatalog());
+            new CanvasHost(fake, ui),
+            new GoArrowSettings(),
+            DungeonMapTestData.CreateCatalog()
+        );
 
         map.Enable();
         Assert.False(ui.Canvas!.IsVisible);
@@ -110,8 +159,15 @@ public sealed class DungeonMapCanvasTests
         Assert.Equal("dungeon/0001", Assert.Single(ui.Images.Loaded));
     }
 
-    private static PluginNavigationSnapshot Snapshot(uint cellId, bool isOutdoor) => new(
-        true, false, 1, new PluginNavigationPosition(cellId, 0, 0, 0, 0, isOutdoor), false, false);
+    private static PluginNavigationSnapshot Snapshot(uint cellId, bool isOutdoor) =>
+        new(
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(cellId, 0, 0, 0, 0, isOutdoor),
+            false,
+            false
+        );
 
     private sealed class CanvasHost(FakePluginHost inner, IUiRegistry ui) : IPluginHost
     {
@@ -131,8 +187,13 @@ public sealed class DungeonMapCanvasTests
         public Action<IPluginPainter>? Paint { get; private set; }
         public RecordingImages Images { get; } = new();
         IPluginImages IUiRegistry.Images => Images;
+
         public void AddMarkupPanel(string markupPath, object binding) { }
-        public IPluginCanvas RegisterCanvas(PluginCanvasDescriptor descriptor, Action<IPluginPainter> paint)
+
+        public IPluginCanvas RegisterCanvas(
+            PluginCanvasDescriptor descriptor,
+            Action<IPluginPainter> paint
+        )
         {
             Canvas = new NoOpPluginCanvas(descriptor);
             Paint = paint;
@@ -168,20 +229,47 @@ public sealed class DungeonMapCanvasTests
         public List<PluginImage> Images { get; } = new();
         public List<PluginRect> ImageRects { get; } = new();
         public List<string> Text { get; } = new();
+
         public void Clear(PluginColor color) { }
+
         public void FillRect(PluginRect rect, PluginColor color) { }
+
         public void StrokeRect(PluginRect rect, PluginColor color, float thickness = 1) { }
-        public void DrawLine(PluginPoint from, PluginPoint to, PluginColor color, float thickness = 1) { }
-        public void DrawText(string text, PluginPoint position, PluginColor color, bool outline = false) => Text.Add(text);
+
+        public void DrawLine(
+            PluginPoint from,
+            PluginPoint to,
+            PluginColor color,
+            float thickness = 1
+        ) { }
+
+        public void DrawText(
+            string text,
+            PluginPoint position,
+            PluginColor color,
+            bool outline = false
+        ) => Text.Add(text);
+
         public PluginSize MeasureText(string text) => new(0, 0);
+
         public void DrawImage(PluginImage image, PluginRect destination, PluginColor tint)
         {
             Images.Add(image);
             ImageRects.Add(destination);
         }
-        public void DrawImageTransformed(PluginImage image, PluginRect destination,
-            PluginColor tint, double rotationRadians, PluginPoint pivot, double scaleX = 1, double scaleY = 1) { }
+
+        public void DrawImageTransformed(
+            PluginImage image,
+            PluginRect destination,
+            PluginColor tint,
+            double rotationRadians,
+            PluginPoint pivot,
+            double scaleX = 1,
+            double scaleY = 1
+        ) { }
+
         public void PushClip(PluginRect rect) { }
+
         public void PopClip() { }
     }
 }

@@ -19,32 +19,53 @@ internal sealed class DungeonMapDownloader
 
     public async Task<int> DownloadAsync(string url, CancellationToken cancellationToken = default)
     {
-        string directory = DungeonMapCatalog.UserMapDirectory(_storage)
+        string directory =
+            DungeonMapCatalog.UserMapDirectory(_storage)
             ?? throw new InvalidOperationException("Plugin storage is unavailable.");
-        using HttpResponseMessage response = await _httpClient.GetAsync(
-            url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient
+            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
         if (response.StatusCode != HttpStatusCode.OK)
-            throw new HttpRequestException($"Dungeon map download returned HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Dungeon map download returned HTTP {(int)response.StatusCode}."
+            );
         if (response.Content.Headers.ContentLength > MaximumDownloadBytes)
             throw new InvalidDataException("Dungeon map archive exceeds the 64 MiB limit.");
 
         string temporary = Path.Combine(directory, $"Dungeon_Map_Cache.{Guid.NewGuid():N}.tmp");
         try
         {
-            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
-                FileShare.None, 81920, useAsync: true))
-            await using (Stream input = await response.Content.ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false))
+            await using (
+                var output = new FileStream(
+                    temporary,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    81920,
+                    useAsync: true
+                )
+            )
+            await using (
+                Stream input = await response
+                    .Content.ReadAsStreamAsync(cancellationToken)
+                    .ConfigureAwait(false)
+            )
             {
                 var buffer = new byte[81920];
                 long total = 0;
                 int count;
-                while ((count = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                while (
+                    (count = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false))
+                    > 0
+                )
                 {
                     total += count;
                     if (total > MaximumDownloadBytes)
-                        throw new InvalidDataException("Dungeon map archive exceeds the 64 MiB limit.");
-                    await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken)
+                        throw new InvalidDataException(
+                            "Dungeon map archive exceeds the 64 MiB limit."
+                        );
+                    await output
+                        .WriteAsync(buffer.AsMemory(0, count), cancellationToken)
                         .ConfigureAwait(false);
                 }
             }

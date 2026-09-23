@@ -13,7 +13,8 @@ public class PortalDevice : IEquatable<PortalDevice>
 {
     private static readonly Regex LoadRegex = new(
         @"^\s*(?<dest>[^;]+)\s*;\s+(?<via>[^;]+)\s*;\s+(?<island>.*)$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     /// <summary>The destination location name.</summary>
     public string Destination { get; set; } = string.Empty;
@@ -40,7 +41,8 @@ public class PortalDevice : IEquatable<PortalDevice>
         string via,
         string landmass,
         string entranceLocation = "",
-        string exitLocation = "")
+        string exitLocation = ""
+    )
     {
         Destination = destination;
         Via = via;
@@ -67,14 +69,16 @@ public class PortalDevice : IEquatable<PortalDevice>
             fields[1].Trim(),
             fields[2].Trim(),
             fields.Length > 3 ? fields[3].Trim() : string.Empty,
-            fields.Length > 4 ? fields[4].Trim() : string.Empty);
+            fields.Length > 4 ? fields[4].Trim() : string.Empty
+        );
     }
 
     public override bool Equals(object? obj) => obj is PortalDevice other && Equals(other);
 
     public bool Equals(PortalDevice? other)
     {
-        if (other is null) return false;
+        if (other is null)
+            return false;
         return string.Equals(Destination, other.Destination, StringComparison.OrdinalIgnoreCase)
             && string.Equals(Via, other.Via, StringComparison.OrdinalIgnoreCase);
     }
@@ -82,12 +86,15 @@ public class PortalDevice : IEquatable<PortalDevice>
     public override int GetHashCode() =>
         HashCode.Combine(
             StringComparer.OrdinalIgnoreCase.GetHashCode(Destination),
-            StringComparer.OrdinalIgnoreCase.GetHashCode(Via));
+            StringComparer.OrdinalIgnoreCase.GetHashCode(Via)
+        );
 
     public static bool operator ==(PortalDevice? a, PortalDevice? b)
     {
-        if (a is null && b is null) return true;
-        if (a is null || b is null) return false;
+        if (a is null && b is null)
+            return true;
+        if (a is null || b is null)
+            return false;
         return a.Equals(b);
     }
 

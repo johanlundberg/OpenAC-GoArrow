@@ -10,7 +10,10 @@ public sealed class TravelDistanceTests
     [InlineData(0.13, "31 m")]
     [InlineData(1000.0 / 240.0, "1000 m")]
     [InlineData(5, "1.2 km")]
-    public void DisplaysCoordinateDistanceInMetersOrKilometers(double coordinateUnits, string expected)
+    public void DisplaysCoordinateDistanceInMetersOrKilometers(
+        double coordinateUnits,
+        string expected
+    )
     {
         Assert.Equal(expected, TravelDistance.Format(coordinateUnits));
     }
@@ -31,13 +34,16 @@ public sealed class TravelDistanceTests
         route.AddPortalStep(sawatoPortal, sawatoArrival, sawatoPortal.Name);
         route.AddTravelStep(sawatoArrival, sawato, "Walk");
 
-        Assert.Equal(new[]
-        {
-            "Walk: Town Network Portal(Shoushi) (31 m)",
-            "Portal: Town Network Portal(Shoushi)",
-            "Walk: Town Network (E R 5) to Sawato (0 m)",
-            "Portal: Town Network (E R 5) to Sawato",
-            "Walk: Sawato (137 m)",
-        }, route.Steps.Select(step => step.ToString()));
+        Assert.Equal(
+            new[]
+            {
+                "Walk: Town Network Portal(Shoushi) (31 m)",
+                "Portal: Town Network Portal(Shoushi)",
+                "Walk: Town Network (E R 5) to Sawato (0 m)",
+                "Portal: Town Network (E R 5) to Sawato",
+                "Walk: Sawato (137 m)",
+            },
+            route.Steps.Select(step => step.ToString())
+        );
     }
 }

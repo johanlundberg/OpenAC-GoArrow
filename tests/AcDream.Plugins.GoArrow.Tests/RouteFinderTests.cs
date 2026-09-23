@@ -7,22 +7,11 @@ public class RouteFinderTests
     private static (LocationDatabase, RouteFinder) CreateTestDb()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsCsv(new[]
-        {
-            "TownA;0;0",
-            "TownB;10;0",
-            "TownC;10;10",
-            "TownD;0;10",
-            "PortalDest;5;5",
-        });
-        db.LoadPortalDevicesCsv(new[]
-        {
-            "PortalDest;Magic Portal;Dereth",
-        });
-        db.LoadRouteStartsCsv(new[]
-        {
-            "TownB;TownA;Walk",
-        });
+        db.LoadLocationsCsv(
+            new[] { "TownA;0;0", "TownB;10;0", "TownC;10;10", "TownD;0;10", "PortalDest;5;5" }
+        );
+        db.LoadPortalDevicesCsv(new[] { "PortalDest;Magic Portal;Dereth" });
+        db.LoadRouteStartsCsv(new[] { "TownB;TownA;Walk" });
 
         var finder = new RouteFinder(db);
         return (db, finder);
@@ -134,13 +123,15 @@ public class RouteFinderTests
     public void RouteCanEnterGraphAwayFromNearestNamedLocation()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsXml("""
+        db.LoadLocationsXml(
+            """
             <atlas>
               <location><id>1</id><name>Nearest Town</name><type>Town</type><latitude>0</latitude><longitude>-1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Useful Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>5</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
               <location><id>3</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
         var current = new Location("Current Position", 0, 0);
 
         Route route = new RouteFinder(db).FindRoute(current, "End");
@@ -172,14 +163,16 @@ public class RouteFinderTests
     public void RouteFinder_UsesAtlasPortalEntranceAndArrivalCoordinates()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsXml("""
+        db.LoadLocationsXml(
+            """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Shared Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>20</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>50</arrival_longitude><retired>N</retired></location>
               <location><id>3</id><name>Shared Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
               <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
 
         var route = new RouteFinder(db).FindRoute(new Location("Here", 0, 1), "End");
 
@@ -198,14 +191,16 @@ public class RouteFinderTests
     public void RouteFinder_IgnoresRetiredAndUnmappedAtlasPortals()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsXml("""
+        db.LoadLocationsXml(
+            """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Retired Portal</name><type>Town Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>Y</retired></location>
               <location><id>3</id><name>Unknown Exit</name><type>Town Portal</type><latitude>0</latitude><longitude>3</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>0</arrival_longitude><retired>N</retired></location>
               <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
 
         var route = new RouteFinder(db).FindRoute(new Location("Here", 0, 1), "End");
 

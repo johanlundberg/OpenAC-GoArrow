@@ -11,7 +11,8 @@ public class RouteStart : IEquatable<RouteStart>
 {
     private static readonly Regex LoadRegex = new(
         @"^\s*(?<dest>[^;]+)\s*;\s*(?<from>[^;]+)\s*;\s*(?<via>.*)$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     /// <summary>The destination this route start goes to.</summary>
     public string Destination { get; set; } = string.Empty;
@@ -45,14 +46,16 @@ public class RouteStart : IEquatable<RouteStart>
         return new RouteStart(
             m.Groups["dest"].Value.Trim(),
             m.Groups["from"].Value.Trim(),
-            m.Groups["via"].Value.Trim());
+            m.Groups["via"].Value.Trim()
+        );
     }
 
     public override bool Equals(object? obj) => obj is RouteStart other && Equals(other);
 
     public bool Equals(RouteStart? other)
     {
-        if (other is null) return false;
+        if (other is null)
+            return false;
         return string.Equals(Destination, other.Destination, StringComparison.OrdinalIgnoreCase)
             && string.Equals(From, other.From, StringComparison.OrdinalIgnoreCase);
     }
@@ -60,12 +63,15 @@ public class RouteStart : IEquatable<RouteStart>
     public override int GetHashCode() =>
         HashCode.Combine(
             StringComparer.OrdinalIgnoreCase.GetHashCode(Destination),
-            StringComparer.OrdinalIgnoreCase.GetHashCode(From));
+            StringComparer.OrdinalIgnoreCase.GetHashCode(From)
+        );
 
     public static bool operator ==(RouteStart? a, RouteStart? b)
     {
-        if (a is null && b is null) return true;
-        if (a is null || b is null) return false;
+        if (a is null && b is null)
+            return true;
+        if (a is null || b is null)
+            return false;
         return a.Equals(b);
     }
 

@@ -16,7 +16,8 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
 {
     private static readonly Regex CsvRegex = new(
         @"^\s*(?<name>[^;]*);\s*(?<NS>.+?)\s*;\s*(?<EW>.+?)\s*$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     private static int _nextCustomId = 2_000_000_000;
     private static int _nextInternalId = -2;
@@ -29,14 +30,10 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
     }
 
     public Location(string name, double ns, double ew)
-        : this(0, name, LocationType.Unknown, new Coordinates(ns, ew), string.Empty)
-    {
-    }
+        : this(0, name, LocationType.Unknown, new Coordinates(ns, ew), string.Empty) { }
 
     public Location(string name, Coordinates coords)
-        : this(0, name, LocationType.Unknown, coords, string.Empty)
-    {
-    }
+        : this(0, name, LocationType.Unknown, coords, string.Empty) { }
 
     public Location(
         int id,
@@ -45,7 +42,8 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         Coordinates coords,
         string notes,
         int dungeonId = 0,
-        Coordinates? exitCoords = null)
+        Coordinates? exitCoords = null
+    )
     {
         Id = id;
         Name = name ?? string.Empty;
@@ -116,14 +114,15 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
     public bool IsInternalLocation => IsInternalId(Id);
 
     public double DistanceTo(Location other) => Coords.DistanceTo(other.Coords);
+
     public double AngleTo(Location other) => Coords.AngleTo(other.Coords);
 
-    public bool TypeMatches(LocationType type) =>
-        Type == type || (Type & type) != 0;
+    public bool TypeMatches(LocationType type) => Type == type || (Type & type) != 0;
 
     public static bool IsInternalId(int id) => id < 0;
 
     public static int GetNextCustomId() => checked(_nextCustomId++);
+
     public static int GetNextInternalId() => checked(_nextInternalId--);
 
     public static Location FromCsvLine(string line)
@@ -135,7 +134,8 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         return new Location(
             match.Groups["name"].Value.Trim(),
             double.Parse(match.Groups["NS"].Value, CultureInfo.InvariantCulture),
-            double.Parse(match.Groups["EW"].Value, CultureInfo.InvariantCulture));
+            double.Parse(match.Groups["EW"].Value, CultureInfo.InvariantCulture)
+        );
     }
 
     /// <summary>
@@ -145,14 +145,14 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
     /// </summary>
     public static Location FromXml(XmlElement element, bool useInternalId = false)
     {
-        bool compact = element.HasAttribute("NS") || element.Name.Equals("loc", StringComparison.OrdinalIgnoreCase);
-        int id = useInternalId
-            ? GetNextInternalId()
-            : ParseInt(GetAttribute(element, "id"), 0);
-        string name = GetAttribute(element, "name")
-            ?? ChildText(element, "Name")
-            ?? string.Empty;
-        LocationType type = ParseLocationType(GetAttribute(element, "type") ?? ChildText(element, "Type"));
+        bool compact =
+            element.HasAttribute("NS")
+            || element.Name.Equals("loc", StringComparison.OrdinalIgnoreCase);
+        int id = useInternalId ? GetNextInternalId() : ParseInt(GetAttribute(element, "id"), 0);
+        string name = GetAttribute(element, "name") ?? ChildText(element, "Name") ?? string.Empty;
+        LocationType type = ParseLocationType(
+            GetAttribute(element, "type") ?? ChildText(element, "Type")
+        );
 
         Coordinates coords;
         Coordinates exitCoords = Coordinates.NoCoordinates;
@@ -160,34 +160,44 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         {
             coords = new Coordinates(
                 ParseDouble(GetAttribute(element, "NS")),
-                ParseDouble(GetAttribute(element, "EW")));
+                ParseDouble(GetAttribute(element, "EW"))
+            );
             if (element.HasAttribute("exitNS") || element.HasAttribute("exitEW"))
             {
                 exitCoords = new Coordinates(
                     ParseDouble(GetAttribute(element, "exitNS")),
-                    ParseDouble(GetAttribute(element, "exitEW")));
+                    ParseDouble(GetAttribute(element, "exitEW"))
+                );
             }
         }
         else
         {
             XmlElement? coordsElement = element.SelectSingleNode("Coords") as XmlElement;
             coords = coordsElement is null
-                ? new Coordinates(ParseDouble(ChildText(element, "NS")), ParseDouble(ChildText(element, "EW")))
+                ? new Coordinates(
+                    ParseDouble(ChildText(element, "NS")),
+                    ParseDouble(ChildText(element, "EW"))
+                )
                 : new Coordinates(
                     ParseDouble(coordsElement.GetAttribute("NS")),
-                    ParseDouble(coordsElement.GetAttribute("EW")));
+                    ParseDouble(coordsElement.GetAttribute("EW"))
+                );
 
             XmlElement? exitElement = element.SelectSingleNode("ExitCoords") as XmlElement;
             if (exitElement is not null)
             {
                 exitCoords = new Coordinates(
                     ParseDouble(exitElement.GetAttribute("NS")),
-                    ParseDouble(exitElement.GetAttribute("EW")));
+                    ParseDouble(exitElement.GetAttribute("EW"))
+                );
             }
         }
 
         PluginNavigationPosition? indoorPosition = ParseIndoorPosition(element);
-        if (indoorPosition is { } indoor && (!double.IsFinite(coords.NS) || !double.IsFinite(coords.EW)))
+        if (
+            indoorPosition is { } indoor
+            && (!double.IsFinite(coords.NS) || !double.IsFinite(coords.EW))
+        )
             coords = new Coordinates(indoor.NorthSouth, indoor.EastWest);
 
         var location = new Location(
@@ -197,14 +207,17 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
             coords,
             element.InnerText.Trim(),
             ParseHexInt(GetAttribute(element, "dungeonId") ?? ChildText(element, "DungeonId"), 0),
-            exitCoords);
+            exitCoords
+        );
 
         location.Notes = GetAttribute(element, "notes") ?? element.InnerText.Trim();
         location.IsCustomized = ParseBool(GetAttribute(element, "customized"), false);
         location.IsFavorite = ParseBool(GetAttribute(element, "favorite"), false);
         location.IsRetired = ParseBool(GetAttribute(element, "retired"), false);
         location.UseInRouteFinding = ParseBool(
-            GetAttribute(element, "use") ?? GetAttribute(element, "useInRouteFinding"), true);
+            GetAttribute(element, "use") ?? GetAttribute(element, "useInRouteFinding"),
+            true
+        );
         location.SpecializedIcon = ParseHexInt(GetAttribute(element, "icon"), 0);
         location.IndoorPosition = indoorPosition;
         return location;
@@ -229,9 +242,11 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         Coordinates exit = Coordinates.NoCoordinates;
         double arrivalNS = ParseDouble(arrivalLatitude);
         double arrivalEW = ParseDouble(arrivalLongitude);
-        if (double.IsFinite(arrivalNS)
+        if (
+            double.IsFinite(arrivalNS)
             && double.IsFinite(arrivalEW)
-            && (arrivalNS != 0 || arrivalEW != 0))
+            && (arrivalNS != 0 || arrivalEW != 0)
+        )
         {
             exit = new Coordinates(-arrivalNS, arrivalEW);
         }
@@ -243,8 +258,13 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
             coords,
             ChildText(element, "description") ?? string.Empty,
             ParseHexInt(ChildText(element, "dungeon_id"), 0),
-            exit);
-        location.IsRetired = string.Equals(ChildText(element, "retired"), "Y", StringComparison.OrdinalIgnoreCase);
+            exit
+        );
+        location.IsRetired = string.Equals(
+            ChildText(element, "retired"),
+            "Y",
+            StringComparison.OrdinalIgnoreCase
+        );
         location.UseInRouteFinding = !location.IsRetired;
         return location;
     }
@@ -256,21 +276,51 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         if (string.IsNullOrWhiteSpace(cellText))
             return null;
         string hex = cellText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? cellText[2..] : cellText;
-        if (!uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint cellId)
+            ? cellText[2..]
+            : cellText;
+        if (
+            !uint.TryParse(
+                hex,
+                NumberStyles.HexNumber,
+                CultureInfo.InvariantCulture,
+                out uint cellId
+            )
             || (cellId & 0xFFFFu) <= 0x40u
-            || !double.TryParse(GetAttribute(source, "x"), NumberStyles.Float, CultureInfo.InvariantCulture, out double x)
-            || !double.TryParse(GetAttribute(source, "y"), NumberStyles.Float, CultureInfo.InvariantCulture, out double y)
-            || !double.TryParse(GetAttribute(source, "z"), NumberStyles.Float, CultureInfo.InvariantCulture, out double z)
-            || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z))
-            throw new FormatException($"Location '{GetAttribute(element, "name")}' has an invalid indoor position.");
+            || !double.TryParse(
+                GetAttribute(source, "x"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double x
+            )
+            || !double.TryParse(
+                GetAttribute(source, "y"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double y
+            )
+            || !double.TryParse(
+                GetAttribute(source, "z"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double z
+            )
+            || !double.IsFinite(x)
+            || !double.IsFinite(y)
+            || !double.IsFinite(z)
+        )
+            throw new FormatException(
+                $"Location '{GetAttribute(element, "name")}' has an invalid indoor position."
+            );
         uint blockX = (cellId >> 24) & 0xFFu;
         uint blockY = (cellId >> 16) & 0xFFu;
         return new PluginNavigationPosition(
             cellId,
             (((double)blockX - 127d) * 192d + x - 84d) / 240d,
             (((double)blockY - 127d) * 192d + y - 84d) / 240d,
-            z / 240d, 0f, false);
+            z / 240d,
+            0f,
+            false
+        );
     }
 
     /// <summary>Serializes the complete compact GoArrow location model.</summary>
@@ -307,15 +357,16 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         if (IsRetired)
             element.SetAttribute("retired", bool.TrueString);
         if (SpecializedIcon != 0)
-            element.SetAttribute("icon", SpecializedIcon.ToString("X8", CultureInfo.InvariantCulture));
+            element.SetAttribute(
+                "icon",
+                SpecializedIcon.ToString("X8", CultureInfo.InvariantCulture)
+            );
         element.InnerText = Notes;
         document.AppendChild(element);
         return document.OuterXml;
     }
 
-    public override string ToString() => HasCoordinates
-        ? $"{Name} [{Coords}]"
-        : Name;
+    public override string ToString() => HasCoordinates ? $"{Name} [{Coords}]" : Name;
 
     public bool Equals(Location? other)
     {
@@ -328,9 +379,9 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
     }
 
     public override bool Equals(object? obj) => obj is Location other && Equals(other);
-    public override int GetHashCode() => Id != 0
-        ? Id
-        : HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Name), Coords);
+
+    public override int GetHashCode() =>
+        Id != 0 ? Id : HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Name), Coords);
 
     public int CompareTo(Location? other)
     {
@@ -358,14 +409,24 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
 
     private static int ParseInt(string? value, int fallback)
     {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result)
+        return int.TryParse(
+            value,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out int result
+        )
             ? result
             : fallback;
     }
 
     private static int ParseHexInt(string? value, int fallback)
     {
-        return int.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int hexValue)
+        return int.TryParse(
+            value,
+            NumberStyles.HexNumber,
+            CultureInfo.InvariantCulture,
+            out int hexValue
+        )
             ? hexValue
             : fallback;
     }

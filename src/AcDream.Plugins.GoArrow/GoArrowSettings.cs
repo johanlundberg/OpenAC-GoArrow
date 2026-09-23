@@ -12,17 +12,44 @@ public class GoArrowSettings
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly string[] LegacyKeys =
     [
-        "destination", "autoNavigate", "recalculate", "panelVisible",
-        "showDistance", "showBearing", "hudVisible", "toolbarVisible",
-        "hudClickThrough", "hudScale", "arrowOffsetX", "arrowOffsetY",
-        "toolbarOffsetX", "toolbarOffsetY", "dungeonOffsetX", "dungeonOffsetY",
-        "overlayPositionVersion", "mapVisible", "dungeonMapVisible",
-        "mapCenterEW", "mapCenterNS", "mapWidth", "mapHeight",
-        "arrivalDistance", "useNavigation", "navigationLocked",
-        "routeCostProfile", "maxNavigationRetries", "interactionTimeoutSeconds",
-        "atlasCacheMaxAgeDays", "externalDataUrl", "dungeonMapUrl",
-        "lastPortalRecall", "lastSecondaryRecall", "lastAllegianceRecall",
-        "lastHouseRecall", "lastMansionRecall", "favorites",
+        "destination",
+        "autoNavigate",
+        "recalculate",
+        "panelVisible",
+        "showDistance",
+        "showBearing",
+        "hudVisible",
+        "toolbarVisible",
+        "hudClickThrough",
+        "hudScale",
+        "arrowOffsetX",
+        "arrowOffsetY",
+        "toolbarOffsetX",
+        "toolbarOffsetY",
+        "dungeonOffsetX",
+        "dungeonOffsetY",
+        "overlayPositionVersion",
+        "mapVisible",
+        "dungeonMapVisible",
+        "mapCenterEW",
+        "mapCenterNS",
+        "mapWidth",
+        "mapHeight",
+        "arrivalDistance",
+        "useNavigation",
+        "navigationLocked",
+        "routeCostProfile",
+        "maxNavigationRetries",
+        "interactionTimeoutSeconds",
+        "atlasCacheMaxAgeDays",
+        "externalDataUrl",
+        "dungeonMapUrl",
+        "lastPortalRecall",
+        "lastSecondaryRecall",
+        "lastAllegianceRecall",
+        "lastHouseRecall",
+        "lastMansionRecall",
+        "favorites",
     ];
 
     // ── Destination Tracking ───────────────────────────────────────
@@ -57,7 +84,8 @@ public class GoArrowSettings
     public double ArrivalDistance { get; set; } = 0.5;
     public bool UseNavigationAutomation { get; set; } = true;
     public bool NavigationLocked { get; set; }
-    public RouteFinding.RouteCostProfile RouteCostProfile { get; set; } = RouteFinding.RouteCostProfile.ShortestWalk;
+    public RouteFinding.RouteCostProfile RouteCostProfile { get; set; } =
+        RouteFinding.RouteCostProfile.ShortestWalk;
     public int MaxNavigationRetries { get; set; } = 2;
     public double InteractionTimeoutSeconds { get; set; } = 15;
     public int AtlasCacheMaxAgeDays { get; set; } = 30;
@@ -99,8 +127,13 @@ public class GoArrowSettings
     public void Load(IPluginStorage storage)
     {
         GoArrowSettings? structured = null;
-        try { structured = storage.ReadJson<GoArrowSettings>("settings.json"); }
-        catch (Exception) { /* malformed structured data falls back to legacy keys */ }
+        try
+        {
+            structured = storage.ReadJson<GoArrowSettings>("settings.json");
+        }
+        catch (Exception)
+        { /* malformed structured data falls back to legacy keys */
+        }
         if (structured is not null)
         {
             DestinationName = structured.DestinationName;
@@ -134,7 +167,10 @@ public class GoArrowSettings
             NavigationLocked = structured.NavigationLocked;
             RouteCostProfile = structured.RouteCostProfile;
             MaxNavigationRetries = Math.Max(0, structured.MaxNavigationRetries);
-            InteractionTimeoutSeconds = structured.InteractionTimeoutSeconds > 0 ? structured.InteractionTimeoutSeconds : 15;
+            InteractionTimeoutSeconds =
+                structured.InteractionTimeoutSeconds > 0
+                    ? structured.InteractionTimeoutSeconds
+                    : 15;
             AtlasCacheMaxAgeDays = Math.Max(0, structured.AtlasCacheMaxAgeDays);
             ExternalDataUrl = structured.ExternalDataUrl ?? string.Empty;
             DungeonMapUrl = structured.DungeonMapUrl ?? string.Empty;
@@ -162,8 +198,15 @@ public class GoArrowSettings
         HudVisible = ReadLegacyBoolean(storage, "hudVisible", HudVisible);
         ToolbarVisible = ReadLegacyBoolean(storage, "toolbarVisible", ToolbarVisible);
         HudClickThrough = ReadLegacyBoolean(storage, "hudClickThrough", HudClickThrough);
-        if (double.TryParse(storage.ReadText("hudScale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double hudScale)
-            && hudScale > 0)
+        if (
+            double.TryParse(
+                storage.ReadText("hudScale"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double hudScale
+            )
+            && hudScale > 0
+        )
             HudScale = hudScale;
         ArrowOffsetX = ReadLegacyDouble(storage, "arrowOffsetX", ArrowOffsetX);
         ArrowOffsetY = ReadLegacyDouble(storage, "arrowOffsetY", ArrowOffsetY);
@@ -171,28 +214,86 @@ public class GoArrowSettings
         ToolbarOffsetY = ReadLegacyDouble(storage, "toolbarOffsetY", ToolbarOffsetY);
         DungeonOffsetX = ReadLegacyDouble(storage, "dungeonOffsetX", DungeonOffsetX);
         DungeonOffsetY = ReadLegacyDouble(storage, "dungeonOffsetY", DungeonOffsetY);
-        if (int.TryParse(storage.ReadText("overlayPositionVersion"), out int overlayPositionVersion))
+        if (
+            int.TryParse(storage.ReadText("overlayPositionVersion"), out int overlayPositionVersion)
+        )
             OverlayPositionVersion = overlayPositionVersion;
         if (OverlayPositionVersion < 1)
             ResetOverlayPositions();
         MapVisible = ReadLegacyBoolean(storage, "mapVisible", MapVisible);
         DungeonMapVisible = ReadLegacyBoolean(storage, "dungeonMapVisible", DungeonMapVisible);
-        if (double.TryParse(storage.ReadText("mapCenterEW"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapEW)) MapCenterEastWest = mapEW;
-        if (double.TryParse(storage.ReadText("mapCenterNS"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapNS)) MapCenterNorthSouth = mapNS;
-        if (double.TryParse(storage.ReadText("mapWidth"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapWidth) && mapWidth > 0) MapWidth = mapWidth;
-        if (double.TryParse(storage.ReadText("mapHeight"), NumberStyles.Float, CultureInfo.InvariantCulture, out double mapHeight) && mapHeight > 0) MapHeight = mapHeight;
+        if (
+            double.TryParse(
+                storage.ReadText("mapCenterEW"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double mapEW
+            )
+        )
+            MapCenterEastWest = mapEW;
+        if (
+            double.TryParse(
+                storage.ReadText("mapCenterNS"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double mapNS
+            )
+        )
+            MapCenterNorthSouth = mapNS;
+        if (
+            double.TryParse(
+                storage.ReadText("mapWidth"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double mapWidth
+            )
+            && mapWidth > 0
+        )
+            MapWidth = mapWidth;
+        if (
+            double.TryParse(
+                storage.ReadText("mapHeight"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double mapHeight
+            )
+            && mapHeight > 0
+        )
+            MapHeight = mapHeight;
 
-        double.TryParse(storage.ReadText("arrivalDistance"), NumberStyles.Float, CultureInfo.InvariantCulture, out double arrDist);
+        double.TryParse(
+            storage.ReadText("arrivalDistance"),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out double arrDist
+        );
         ArrivalDistance = arrDist > 0 ? arrDist : 0.5;
 
-        UseNavigationAutomation = ReadLegacyBoolean(storage, "useNavigation", UseNavigationAutomation);
+        UseNavigationAutomation = ReadLegacyBoolean(
+            storage,
+            "useNavigation",
+            UseNavigationAutomation
+        );
         NavigationLocked = ReadLegacyBoolean(storage, "navigationLocked", NavigationLocked);
-        if (Enum.TryParse(storage.ReadText("routeCostProfile"), true, out RouteFinding.RouteCostProfile profile))
+        if (
+            Enum.TryParse(
+                storage.ReadText("routeCostProfile"),
+                true,
+                out RouteFinding.RouteCostProfile profile
+            )
+        )
             RouteCostProfile = profile;
         if (int.TryParse(storage.ReadText("maxNavigationRetries"), out int retries))
             MaxNavigationRetries = Math.Max(0, retries);
-        if (double.TryParse(storage.ReadText("interactionTimeoutSeconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out double timeout)
-            && timeout > 0)
+        if (
+            double.TryParse(
+                storage.ReadText("interactionTimeoutSeconds"),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double timeout
+            )
+            && timeout > 0
+        )
             InteractionTimeoutSeconds = timeout;
         if (int.TryParse(storage.ReadText("atlasCacheMaxAgeDays"), out int cacheDays))
             AtlasCacheMaxAgeDays = Math.Max(0, cacheDays);
@@ -207,7 +308,8 @@ public class GoArrowSettings
         LastMansionRecall = storage.ReadText("lastMansionRecall") ?? string.Empty;
 
         var favs = storage.ReadText("favorites") ?? string.Empty;
-        FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        FavoriteDestinations = favs.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
         RestoreUiHiddenByOldDefaults();
         if (storage.IsAvailable && LegacyKeys.Any(key => storage.ReadText(key) is not null))
             Save(storage);
@@ -216,9 +318,19 @@ public class GoArrowSettings
     private static bool ReadLegacyBoolean(IPluginStorage storage, string key, bool defaultValue) =>
         bool.TryParse(storage.ReadText(key), out bool value) ? value : defaultValue;
 
-    private static double ReadLegacyDouble(IPluginStorage storage, string key, double defaultValue) =>
-        double.TryParse(storage.ReadText(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-            && double.IsFinite(value) ? value : defaultValue;
+    private static double ReadLegacyDouble(
+        IPluginStorage storage,
+        string key,
+        double defaultValue
+    ) =>
+        double.TryParse(
+            storage.ReadText(key),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out double value
+        ) && double.IsFinite(value)
+            ? value
+            : defaultValue;
 
     public void ResetOverlayPositions()
     {

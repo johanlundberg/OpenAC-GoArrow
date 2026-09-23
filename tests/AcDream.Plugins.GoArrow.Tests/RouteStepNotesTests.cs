@@ -12,8 +12,13 @@ public sealed class RouteStepNotesTests
         var settings = new GoArrowSettings();
         var database = new LocationDatabase();
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
-        var target = new Location(1, "Library", LocationType.Unknown,
-            new Coordinates(0, 1), "Read the plaque by the entrance.");
+        var target = new Location(
+            1,
+            "Library",
+            LocationType.Unknown,
+            new Coordinates(0, 1),
+            "Read the plaque by the entrance."
+        );
         destination.SetDestination(target);
         destination.CalculateRoute(new Location("Start", 0, 0));
         using var navigator = new GoArrowNavigator(host, destination, settings);

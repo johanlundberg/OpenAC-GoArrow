@@ -1,5 +1,5 @@
-using System.Reflection;
 using System.Diagnostics;
+using System.Reflection;
 using System.Xml;
 using AcDream.Plugin.Abstractions;
 using AcDream.Plugins.GoArrow.RouteFinding;
@@ -17,9 +17,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         get
         {
-            string version = typeof(GoArrowPlugin).Assembly
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-                .InformationalVersion.Split('+')[0]
+            string version =
+                typeof(GoArrowPlugin)
+                    .Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                    ?.InformationalVersion.Split('+')[0]
                 ?? typeof(GoArrowPlugin).Assembly.GetName().Version?.ToString(3)
                 ?? "unknown";
             return $"GoArrow v{version}";
@@ -55,9 +56,17 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private PluginNavigationPosition? _lastPreviewPosition;
     private long _lastPreviewAt;
     private const string IndoorLocationsStorageKey = "GoArrow/indoor-locations.xml";
-    private enum PendingRouteWork { None, Go, Preview, Resume }
 
-    internal bool IsComputingRoute => _pendingRouteWork != PendingRouteWork.None || _routeWorkInProgress;
+    private enum PendingRouteWork
+    {
+        None,
+        Go,
+        Preview,
+        Resume,
+    }
+
+    internal bool IsComputingRoute =>
+        _pendingRouteWork != PendingRouteWork.None || _routeWorkInProgress;
 
     /// <summary>
     /// The name of the current destination, or empty.
@@ -151,17 +160,25 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 ShowInSidePanel = true,
             },
             Path.Combine(directory, "goarrow-panel.xml"),
-            _panel);
+            _panel
+        );
 
         // Register the "/go" chat command
         if (_commands is not null)
-            _commandRegistration = _host.Commands.Register(new GoArrowCommandDefinition(_commands, this));
+            _commandRegistration = _host.Commands.Register(
+                new GoArrowCommandDefinition(_commands, this)
+            );
 
         // Coordinate links are host-owned events; the router is disposed with the plugin.
         _coordinateLinkRouter = new PluginChatCoordinateLinkRouter(
             _host.Automation.Chat,
-            coordinate => SetCoordinateDestination(coordinate.NorthSouth, coordinate.EastWest,
-                $"{coordinate.NorthSouth:0.###}N {coordinate.EastWest:0.###}E"));
+            coordinate =>
+                SetCoordinateDestination(
+                    coordinate.NorthSouth,
+                    coordinate.EastWest,
+                    $"{coordinate.NorthSouth:0.###}N {coordinate.EastWest:0.###}E"
+                )
+        );
         _selectionChangedHandler = OnSelectionChanged;
         _host.Selection.Changed += _selectionChangedHandler;
         _portalTransitionHandler = OnPortalTransition;
@@ -183,7 +200,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _host.Log.Info(
             _host.Automation.IsAvailable
                 ? "GoArrow enabled"
-                : "GoArrow enabled (no live session yet; navigation unavailable)");
+                : "GoArrow enabled (no live session yet; navigation unavailable)"
+        );
     }
 
     public void Disable()
@@ -319,8 +337,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _pendingRouteWork = work;
         // Let at least one drawn frame show the status before a large graph
         // build blocks the UI thread.
-        _routeWorkReadyAt = Stopwatch.GetTimestamp()
-            + (long)(Stopwatch.Frequency * 0.05);
+        _routeWorkReadyAt = Stopwatch.GetTimestamp() + (long)(Stopwatch.Frequency * 0.05);
     }
 
     internal bool SetRouteFrom(string? name)
@@ -350,8 +367,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (!snapshot.IsAvailable)
             return false;
         _navigator?.StopNavigation();
-        _destination.SetCoordinate(snapshot.Position.NorthSouth,
-            snapshot.Position.EastWest, "Current Location");
+        _destination.SetCoordinate(
+            snapshot.Position.NorthSouth,
+            snapshot.Position.EastWest,
+            "Current Location"
+        );
         _settings?.Save(_host.Storage);
         return true;
     }
@@ -387,10 +407,12 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             return false;
 
         string relativePath = storageKey.Replace('\\', '/');
-        if (relativePath.StartsWith("/", StringComparison.Ordinal)
+        if (
+            relativePath.StartsWith("/", StringComparison.Ordinal)
             || relativePath.Contains("..", StringComparison.Ordinal)
             || relativePath.StartsWith("GoArrow/", StringComparison.OrdinalIgnoreCase)
-            || !relativePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            || !relativePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+        )
             return false;
 
         // IPluginStorage is already scoped to this plugin, but GoArrow keeps
@@ -409,12 +431,17 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             _database.LoadLocationsXml(xml);
             _routeFinder?.InvalidateGraph();
-            _host.Log.Info($"GoArrow: Loaded {_database.LocationCount} locations from storage key '{normalized}'.");
+            _host.Log.Info(
+                $"GoArrow: Loaded {_database.LocationCount} locations from storage key '{normalized}'."
+            );
             return true;
         }
         catch (Exception exception)
         {
-            _host.Log.Error($"GoArrow: Failed to load location data from '{normalized}'.", exception);
+            _host.Log.Error(
+                $"GoArrow: Failed to load location data from '{normalized}'.",
+                exception
+            );
             return false;
         }
     }
@@ -457,12 +484,16 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (string.IsNullOrWhiteSpace(_settings?.ExternalDataUrl))
         {
             LocationDownloadStatus = "Set a location data URL first.";
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Set a location data URL in Config before downloading.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Set a location data URL in Config before downloading."
+            );
             return;
         }
         if (Interlocked.Exchange(ref _atlasUpdateInProgress, 1) != 0)
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: A location-data update is already running.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: A location-data update is already running."
+            );
             return;
         }
 
@@ -474,7 +505,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _database.LoadLocationsXml(xml);
             _routeFinder?.InvalidateGraph();
             _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Loaded {_database.LocationCount} locations from the Atlas data source.");
+                $"GoArrow: Loaded {_database.LocationCount} locations from the Atlas data source."
+            );
             LocationDownloadStatus = $"Loaded {_database.LocationCount} locations.";
         }
         catch (Exception exception)
@@ -483,14 +515,17 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             string? cached = null;
             try
             {
-                TimeSpan? maxAge = _settings?.AtlasCacheMaxAgeDays > 0
-                    ? TimeSpan.FromDays(_settings.AtlasCacheMaxAgeDays)
-                    : null;
+                TimeSpan? maxAge =
+                    _settings?.AtlasCacheMaxAgeDays > 0
+                        ? TimeSpan.FromDays(_settings.AtlasCacheMaxAgeDays)
+                        : null;
                 cached = _atlasProvider.ReadCached(maxAge);
             }
             catch (Exception cacheException)
             {
-                _host.Log.Warn($"GoArrow: Cached location data is invalid: {cacheException.Message}");
+                _host.Log.Warn(
+                    $"GoArrow: Cached location data is invalid: {cacheException.Message}"
+                );
             }
 
             if (cached is not null)
@@ -498,13 +533,15 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 _database.LoadLocationsXml(cached);
                 _routeFinder?.InvalidateGraph();
                 _host.Automation.Chat.PostSystemMessage(
-                    $"GoArrow: Download failed; loaded {_database.LocationCount} cached locations.");
+                    $"GoArrow: Download failed; loaded {_database.LocationCount} cached locations."
+                );
                 LocationDownloadStatus = "Download failed; loaded cached data.";
             }
             else
             {
                 _host.Automation.Chat.PostSystemMessage(
-                    "GoArrow: Location-data update failed; keeping the existing database.");
+                    "GoArrow: Location-data update failed; keeping the existing database."
+                );
                 LocationDownloadStatus = "Download failed; existing data kept.";
             }
         }
@@ -532,13 +569,12 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     internal bool RemoveRouteStep(int index) => _destination?.RemoveRouteStep(index) == true;
 
-    internal bool MoveRouteStep(int fromIndex, int toIndex) => _destination?.MoveRouteStep(fromIndex, toIndex) == true;
+    internal bool MoveRouteStep(int fromIndex, int toIndex) =>
+        _destination?.MoveRouteStep(fromIndex, toIndex) == true;
 
     internal IReadOnlyList<string> GetCurrentRouteSteps()
     {
-        return _destination?.CurrentRoute?.Steps
-            .Select(step => step.ToString())
-            .ToArray()
+        return _destination?.CurrentRoute?.Steps.Select(step => step.ToString()).ToArray()
             ?? Array.Empty<string>();
     }
 
@@ -582,18 +618,24 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             return;
         if (!Enum.TryParse(value, true, out PluginRecallKind kind))
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Recall must be lifestone, marketplace, house, mansion, or allegiance.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Recall must be lifestone, marketplace, house, mansion, or allegiance."
+            );
             return;
         }
         if (!_host.Automation.Recalls.IsAvailable)
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Recall is unavailable outside a live session.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Recall is unavailable outside a live session."
+            );
             return;
         }
         PluginRecallResult result = _host.Automation.Recalls.Recall(kind);
         if (!result.Accepted)
         {
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Recall was not accepted ({result.Status}).");
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Recall was not accepted ({result.Status})."
+            );
             return;
         }
         _recallRequestRevision = _host.Automation.Recalls.LastRequest.Revision;
@@ -602,36 +644,68 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void OnPortalTransition(PluginPortalTransition transition)
     {
-        if (_host is null || !transition.IsCompleted || transition.RecallRequestRevision == 0
-            || transition.RecallRequestRevision != _recallRequestRevision)
+        if (
+            _host is null
+            || !transition.IsCompleted
+            || transition.RecallRequestRevision == 0
+            || transition.RecallRequestRevision != _recallRequestRevision
+        )
             return;
-        PluginRecallLocation known = _host.Automation.Recalls.CaptureLocations()
-            .FirstOrDefault(item => item.Kind == _host.Automation.Recalls.LastRequest.Kind && item.IsKnown);
+        PluginRecallLocation known = _host
+            .Automation.Recalls.CaptureLocations()
+            .FirstOrDefault(item =>
+                item.Kind == _host.Automation.Recalls.LastRequest.Kind && item.IsKnown
+            );
         if (!known.IsKnown)
             return;
-        string value = $"{known.Position.NorthSouth.ToString(System.Globalization.CultureInfo.InvariantCulture)},{known.Position.EastWest.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        string value =
+            $"{known.Position.NorthSouth.ToString(System.Globalization.CultureInfo.InvariantCulture)},{known.Position.EastWest.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
         switch (known.Kind)
         {
-            case PluginRecallKind.Lifestone: _settings!.LastPortalRecall = value; break;
-            case PluginRecallKind.Marketplace: _settings!.LastSecondaryRecall = value; break;
-            case PluginRecallKind.Allegiance: _settings!.LastAllegianceRecall = value; break;
-            case PluginRecallKind.House: _settings!.LastHouseRecall = value; break;
-            case PluginRecallKind.Mansion: _settings!.LastMansionRecall = value; break;
+            case PluginRecallKind.Lifestone:
+                _settings!.LastPortalRecall = value;
+                break;
+            case PluginRecallKind.Marketplace:
+                _settings!.LastSecondaryRecall = value;
+                break;
+            case PluginRecallKind.Allegiance:
+                _settings!.LastAllegianceRecall = value;
+                break;
+            case PluginRecallKind.House:
+                _settings!.LastHouseRecall = value;
+                break;
+            case PluginRecallKind.Mansion:
+                _settings!.LastMansionRecall = value;
+                break;
         }
-        if (_host.SessionSettings.TryGetValue("characterId", out string? characterId)
+        if (
+            _host.SessionSettings.TryGetValue("characterId", out string? characterId)
             && _host.SessionSettings.TryGetValue("worldId", out string? worldId)
-            && !string.IsNullOrWhiteSpace(characterId) && !string.IsNullOrWhiteSpace(worldId))
+            && !string.IsNullOrWhiteSpace(characterId)
+            && !string.IsNullOrWhiteSpace(worldId)
+        )
         {
             string key = $"{characterId}/{worldId}";
             if (!_settings!.RecallsByCharacter.TryGetValue(key, out var recalls))
-                _settings.RecallsByCharacter[key] = recalls = new GoArrowSettings.CharacterRecalls();
+                _settings.RecallsByCharacter[key] = recalls =
+                    new GoArrowSettings.CharacterRecalls();
             switch (known.Kind)
             {
-                case PluginRecallKind.Lifestone: recalls.Lifestone = value; break;
-                case PluginRecallKind.Marketplace: recalls.Marketplace = value; break;
-                case PluginRecallKind.Allegiance: recalls.Allegiance = value; break;
-                case PluginRecallKind.House: recalls.House = value; break;
-                case PluginRecallKind.Mansion: recalls.Mansion = value; break;
+                case PluginRecallKind.Lifestone:
+                    recalls.Lifestone = value;
+                    break;
+                case PluginRecallKind.Marketplace:
+                    recalls.Marketplace = value;
+                    break;
+                case PluginRecallKind.Allegiance:
+                    recalls.Allegiance = value;
+                    break;
+                case PluginRecallKind.House:
+                    recalls.House = value;
+                    break;
+                case PluginRecallKind.Mansion:
+                    recalls.Mansion = value;
+                    break;
             }
         }
         _settings?.Save(_host.Storage);
@@ -639,23 +713,32 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void LoadScopedRecallState(IPluginHost host)
     {
-        if (_settings is null || !host.SessionSettings.TryGetValue("characterId", out string? characterId)
+        if (
+            _settings is null
+            || !host.SessionSettings.TryGetValue("characterId", out string? characterId)
             || !host.SessionSettings.TryGetValue("worldId", out string? worldId)
-            || string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(worldId))
+            || string.IsNullOrWhiteSpace(characterId)
+            || string.IsNullOrWhiteSpace(worldId)
+        )
             return;
         string key = $"{characterId}/{worldId}";
         if (!_settings.RecallsByCharacter.TryGetValue(key, out var recalls))
         {
-            IPluginStorage scoped = host.Storage
-                .OpenScope(PluginStorageScope.Character(characterId))
+            IPluginStorage scoped = host
+                .Storage.OpenScope(PluginStorageScope.Character(characterId))
                 .OpenScope(PluginStorageScope.World(worldId));
             string? lifestone = scoped.ReadText("recall/lifestone");
             string? marketplace = scoped.ReadText("recall/marketplace");
             string? allegiance = scoped.ReadText("recall/allegiance");
             string? house = scoped.ReadText("recall/house");
             string? mansion = scoped.ReadText("recall/mansion");
-            if (lifestone is not null || marketplace is not null || allegiance is not null
-                || house is not null || mansion is not null)
+            if (
+                lifestone is not null
+                || marketplace is not null
+                || allegiance is not null
+                || house is not null
+                || mansion is not null
+            )
             {
                 recalls = new GoArrowSettings.CharacterRecalls
                 {
@@ -688,9 +771,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (_host is null || !_host.Automation.IsAvailable || _destination is null)
             return false;
         uint? selected = _host.Selection.SelectedObjectId;
-        if (selected is not { } objectId
+        if (
+            selected is not { } objectId
             || !_host.Automation.Objects.TryGet(objectId, out PluginWorldObject obj)
-            || !_destination.SetObject(obj))
+            || !_destination.SetObject(obj)
+        )
             return false;
         _navigator?.StopNavigation();
         _settings?.Save(_host.Storage);
@@ -700,13 +785,22 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// <summary>Save the current indoor point as a named, searchable location.</summary>
     internal bool MarkCurrentIndoorLocation(string name)
     {
-        if (_host is null || _database is null || _destination is null
-            || !_host.Storage.IsAvailable || string.IsNullOrWhiteSpace(name))
+        if (
+            _host is null
+            || _database is null
+            || _destination is null
+            || !_host.Storage.IsAvailable
+            || string.IsNullOrWhiteSpace(name)
+        )
             return false;
         var snapshot = _host.Automation.Navigation.Snapshot;
         var position = snapshot.Position;
-        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || position.IsOutdoor
-            || (position.CellId & 0xFFFFu) <= 0x40u)
+        if (
+            !snapshot.IsAvailable
+            || snapshot.IsPortalSpace
+            || position.IsOutdoor
+            || (position.CellId & 0xFFFFu) <= 0x40u
+        )
             return false;
 
         string trimmedName = name.Trim();
@@ -721,9 +815,13 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             var document = new XmlDocument();
             XmlElement root = document.CreateElement("locations");
             document.AppendChild(root);
-            foreach (Location item in _database.UserLocations
-                .Where(item => !item.Name.Equals(trimmedName, StringComparison.OrdinalIgnoreCase))
-                .Append(location))
+            foreach (
+                Location item in _database
+                    .UserLocations.Where(item =>
+                        !item.Name.Equals(trimmedName, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .Append(location)
+            )
             {
                 var entry = new XmlDocument();
                 entry.LoadXml(item.ToXml());
@@ -755,12 +853,18 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         {
             var saved = new LocationDatabase();
             saved.LoadLocationsXml(xml);
-            foreach (Location location in saved.AllLocations.Where(location => location.IndoorPosition is not null))
+            foreach (
+                Location location in saved.AllLocations.Where(location =>
+                    location.IndoorPosition is not null
+                )
+            )
                 _database.UpsertUserLocation(location);
         }
         catch (Exception exception)
         {
-            _host.Log.Warn($"GoArrow: Ignoring invalid saved indoor locations: {exception.Message}");
+            _host.Log.Warn(
+                $"GoArrow: Ignoring invalid saved indoor locations: {exception.Message}"
+            );
         }
     }
 
@@ -774,9 +878,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void OnSelectionChanged(SelectionChangedEvent change)
     {
-        if (_destination?.Kind == GoArrowDestinationKind.Object
+        if (
+            _destination?.Kind == GoArrowDestinationKind.Object
             && _destination.TargetObjectId is { } target
-            && change.SelectedObjectId != target)
+            && change.SelectedObjectId != target
+        )
             _destination.MarkObjectUnavailable();
     }
 
@@ -811,12 +917,16 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (string.IsNullOrWhiteSpace(_settings.DungeonMapUrl))
         {
             DungeonDownloadStatus = "Set a dungeon map URL first.";
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Set a dungeon map URL in Config before downloading.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Set a dungeon map URL in Config before downloading."
+            );
             return;
         }
         if (Interlocked.Exchange(ref _dungeonUpdateInProgress, 1) != 0)
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: A dungeon map download is already running.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: A dungeon map download is already running."
+            );
             return;
         }
         try
@@ -824,7 +934,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             DungeonDownloadStatus = "Downloading dungeon maps...";
             _host.Automation.Chat.PostSystemMessage("GoArrow: Downloading dungeon maps...");
             int count = await new DungeonMapDownloader(_host.Storage)
-                .DownloadAsync(_settings.DungeonMapUrl).ConfigureAwait(false);
+                .DownloadAsync(_settings.DungeonMapUrl)
+                .ConfigureAwait(false);
             _downloadedDungeonMapCount = count;
             DungeonDownloadStatus = $"Downloaded {count} maps; loading...";
             Interlocked.Exchange(ref _pendingDungeonMapReload, 1);
@@ -833,7 +944,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         {
             _host.Log.Error("GoArrow: Dungeon map download failed.", exception);
             DungeonDownloadStatus = "Download failed; existing maps kept.";
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Dungeon map download failed: {exception.Message}");
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Dungeon map download failed: {exception.Message}"
+            );
         }
         finally
         {
@@ -884,8 +997,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void OnTick(double elapsed)
     {
-        if (_pendingRouteWork != PendingRouteWork.None
-            && Stopwatch.GetTimestamp() >= _routeWorkReadyAt)
+        if (
+            _pendingRouteWork != PendingRouteWork.None
+            && Stopwatch.GetTimestamp() >= _routeWorkReadyAt
+        )
         {
             var work = _pendingRouteWork;
             _pendingRouteWork = PendingRouteWork.None;
@@ -896,13 +1011,19 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                     ExecuteGo();
                 else if (work == PendingRouteWork.Resume)
                     _navigator?.ResumeNavigation();
-                else if (_destination?.HasDestination == true && _host?.Automation.IsAvailable == true)
+                else if (
+                    _destination?.HasDestination == true
+                    && _host?.Automation.IsAvailable == true
+                )
                 {
                     var preview = _host.Automation.Navigation.Snapshot;
                     if (preview.IsAvailable && !preview.IsPortalSpace && preview.Position.IsOutdoor)
                     {
-                        var current = new Location("Current Position",
-                            preview.Position.NorthSouth, preview.Position.EastWest);
+                        var current = new Location(
+                            "Current Position",
+                            preview.Position.NorthSouth,
+                            preview.Position.EastWest
+                        );
                         _destination.CalculateRoute(_routeFromOverride ?? current);
                         _lastPreviewPosition = preview.Position;
                         _lastPreviewAt = Stopwatch.GetTimestamp();
@@ -929,8 +1050,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         if (_host.Automation.IsAvailable)
         {
             var snapshot = _host.Automation.Navigation.Snapshot;
-            if (_settings?.DestinationName == "Current Location" && !_destination.HasDestination
-                && snapshot.IsAvailable)
+            if (
+                _settings?.DestinationName == "Current Location"
+                && !_destination.HasDestination
+                && snapshot.IsAvailable
+            )
                 SetCurrentLocationDestination();
             var position = snapshot.Position;
             _navigator.UpdatePosition(position);
@@ -939,33 +1063,54 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             // Recalculate while idle. During navigation the navigator owns
             // the current route and advances it from navigation reports.
-            if (_pendingRouteWork == PendingRouteWork.None
-                && _destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
-                && position.IsOutdoor && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
+            if (
+                _pendingRouteWork == PendingRouteWork.None
+                && _destination.HasDestination
+                && snapshot.IsAvailable
+                && !snapshot.IsPortalSpace
+                && position.IsOutdoor
+                && !_navigator.IsNavigating
+                && !_navigator.WaitingForInteraction
+                && !_navigator.HasArrived
                 && _navigator.FailureReason.Length == 0
                 && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true)
-                && (_lastPreviewAt == 0 || Stopwatch.GetElapsedTime(_lastPreviewAt).TotalSeconds >= 1)
-                && (_destination.CurrentRoute is null || _lastPreviewPosition is not { } last
-                    || position.HorizontalDistanceMeters(last) >= 20))
+                && (
+                    _lastPreviewAt == 0
+                    || Stopwatch.GetElapsedTime(_lastPreviewAt).TotalSeconds >= 1
+                )
+                && (
+                    _destination.CurrentRoute is null
+                    || _lastPreviewPosition is not { } last
+                    || position.HorizontalDistanceMeters(last) >= 20
+                )
+            )
             {
                 if (_host.HasUi)
                     QueueRouteWork(PendingRouteWork.Preview);
                 else
                 {
                     var currentLoc = new RouteFinding.Location(
-                        "Current Position", position.NorthSouth, position.EastWest);
+                        "Current Position",
+                        position.NorthSouth,
+                        position.EastWest
+                    );
                     _destination.CalculateRoute(_routeFromOverride ?? currentLoc);
                     _lastPreviewPosition = position;
                     _lastPreviewAt = Stopwatch.GetTimestamp();
                 }
             }
-            else if (_destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
-                && position.IsOutdoor)
+            else if (
+                _destination.HasDestination
+                && snapshot.IsAvailable
+                && !snapshot.IsPortalSpace
+                && position.IsOutdoor
+            )
             {
                 var currentLoc = new RouteFinding.Location(
                     "Current Position",
                     position.NorthSouth,
-                    position.EastWest);
+                    position.EastWest
+                );
                 _destination.UpdateGuidance(_routeFromOverride ?? currentLoc);
             }
         }
@@ -1000,24 +1145,33 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             return;
         // The catalog returns the host's deterministic embedded/installed/user
         // precedence order; later layers override earlier records.
-        foreach (string resourceId in _host.Resources.ListDataFiles("data")
-            .Where(id => id.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
+        foreach (
+            string resourceId in _host
+                .Resources.ListDataFiles("data")
+                .Where(id => id.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+        )
         {
             try
             {
                 using Stream? stream = _host.Resources.OpenRead(resourceId);
-                if (stream is null) continue;
+                if (stream is null)
+                    continue;
                 using var reader = new StreamReader(stream);
                 string xml = reader.ReadToEnd();
                 var candidate = new LocationDatabase();
                 candidate.LoadLocationsXml(xml);
-                if (candidate.LocationCount == 0) continue;
+                if (candidate.LocationCount == 0)
+                    continue;
                 _database.LoadLocationsXml(xml);
-                _host.Log.Info($"GoArrow: Loaded layered data '{resourceId}' ({candidate.LocationCount} locations).");
+                _host.Log.Info(
+                    $"GoArrow: Loaded layered data '{resourceId}' ({candidate.LocationCount} locations)."
+                );
             }
             catch (Exception exception)
             {
-                _host.Log.Warn($"GoArrow: Ignoring invalid layered data '{resourceId}': {exception.Message}");
+                _host.Log.Warn(
+                    $"GoArrow: Ignoring invalid layered data '{resourceId}': {exception.Message}"
+                );
             }
         }
     }

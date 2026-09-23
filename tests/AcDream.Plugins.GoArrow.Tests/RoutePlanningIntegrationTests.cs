@@ -11,7 +11,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = false };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -27,7 +33,7 @@ public sealed class RoutePlanningIntegrationTests
         Assert.True(panel.CanResumeNavigation);
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0, 1, 1, 0, 0, true)
+            Position = new PluginNavigationPosition(0, 1, 1, 0, 0, true),
         };
         panel.ResumeNavigation();
 
@@ -43,7 +49,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = false };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -73,7 +85,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = false };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -94,7 +112,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = true };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -123,7 +147,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = true };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -150,7 +180,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = true };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -180,13 +216,17 @@ public sealed class RoutePlanningIntegrationTests
     public void AutoNavigateWaitsForGoAfterDestinationChanges()
     {
         var host = new FakePluginHost { HasUiValue = false };
-        new GoArrowSettings
-        {
-            AutoNavigate = true,
-            DestinationName = "Holtburg",
-        }.Save(host.PluginStorage);
+        new GoArrowSettings { AutoNavigate = true, DestinationName = "Holtburg" }.Save(
+            host.PluginStorage
+        );
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -230,8 +270,10 @@ public sealed class RoutePlanningIntegrationTests
 
         panel.SubmitDungeonMapUrlAction("file:///tmp/maps.zip");
         Assert.Contains("valid", panel.DungeonDownloadStatus);
-        Assert.Equal("https://example.test/maps.zip",
-            host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.DungeonMapUrl);
+        Assert.Equal(
+            "https://example.test/maps.zip",
+            host.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.DungeonMapUrl
+        );
         panel.ShowRouteTab();
         Assert.True(panel.RouteTabSelected);
     }
@@ -240,12 +282,21 @@ public sealed class RoutePlanningIntegrationTests
     public void SearchFieldsPlanFromNamedPlaceToCurrentLocationWithoutMoving()
     {
         var host = new FakePluginHost { HasUiValue = false };
-        host.PluginStorage.WriteText("GoArrow/test.xml", """
+        host.PluginStorage.WriteText(
+            "GoArrow/test.xml",
+            """
             <Locations><Location name="Test Start"><Coords NS="1" EW="1" /></Location>
             <Location name="Test End"><Coords NS="10" EW="10" /></Location></Locations>
-            """);
+            """
+        );
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 8, 8, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 8, 8, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -279,12 +330,15 @@ public sealed class RoutePlanningIntegrationTests
         Assert.True(panel.DestinationEditorVisible);
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0, 9, 9, 0, 0, true)
+            Position = new PluginNavigationPosition(0, 9, 9, 0, 0, true),
         };
         panel.StartNavigation();
 
         Assert.Equal("Current Location", plugin.CurrentDestinationName);
-        Assert.Contains(new RouteFinding.Coordinates(9, 9).ToString(), plugin.DestinationPositionText());
+        Assert.Contains(
+            new RouteFinding.Coordinates(9, 9).ToString(),
+            plugin.DestinationPositionText()
+        );
         Assert.NotEmpty(plugin.GetCurrentRouteSteps());
         Assert.Empty(host.PluginNavigation.GoToPositionCalls);
         plugin.Disable();
@@ -296,7 +350,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = false };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 40, 40, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 40, 40, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -328,7 +388,13 @@ public sealed class RoutePlanningIntegrationTests
         var host = new FakePluginHost { HasUiValue = false };
         new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 42, 33, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 42, 33, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -349,20 +415,24 @@ public sealed class RoutePlanningIntegrationTests
     public void StartupLoadsCachedAtlasPortalRoutes()
     {
         var host = new FakePluginHost { HasUiValue = false };
-        host.PluginStorage.WriteText("data/warcry-atlas.xml", """
+        host.PluginStorage.WriteText(
+            "data/warcry-atlas.xml",
+            """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><description>Take the portal near the town gate.</description><retired>N</retired></location>
               <location><id>3</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
             IsAvailable: true,
             IsPortalSpace: false,
             LocalObjectId: 1,
             Position: new PluginNavigationPosition(0, 1, 0, 0, 0, true),
             IsMoving: false,
-            IsAirborne: false);
+            IsAirborne: false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -374,8 +444,14 @@ public sealed class RoutePlanningIntegrationTests
         GoArrowPanel panel = plugin.Panel!;
         int portalIndex = panel.RouteSteps.ToList().IndexOf("Portal: Far Portal [notes]");
         Assert.True(portalIndex >= 0);
-        Assert.Contains(panel.RouteSteps, step => step.StartsWith("Walk: Far Portal") && step.EndsWith(" [notes]"));
-        Assert.DoesNotContain(panel.RouteSteps, step => step.StartsWith("Walk: End") && step.EndsWith(" [notes]"));
+        Assert.Contains(
+            panel.RouteSteps,
+            step => step.StartsWith("Walk: Far Portal") && step.EndsWith(" [notes]")
+        );
+        Assert.DoesNotContain(
+            panel.RouteSteps,
+            step => step.StartsWith("Walk: End") && step.EndsWith(" [notes]")
+        );
         panel.SelectRouteStepAction(portalIndex);
         Assert.True(panel.DetailsTabSelected);
         Assert.False(panel.RouteTabVisible);
@@ -396,16 +472,25 @@ public sealed class RoutePlanningIntegrationTests
     public void RecalculationKeepsOutdoorRouteWhileInsideDungeon()
     {
         var host = new FakePluginHost { HasUiValue = false };
-        host.PluginStorage.WriteText("data/warcry-atlas.xml", """
+        host.PluginStorage.WriteText(
+            "data/warcry-atlas.xml",
+            """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
               <location><id>3</id><name>Other Dungeon</name><type>Dungeon</type><latitude>0</latitude><longitude>95</longitude><dungeon_id>1234</dungeon_id><retired>N</retired></location>
               <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 1, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 1, 0, 0, 0, true),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -416,7 +501,7 @@ public sealed class RoutePlanningIntegrationTests
 
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false)
+            Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false),
         };
         host.PluginEvents.RaiseTick(0.1);
         host.PluginEvents.RaiseTick(0.1);
@@ -427,7 +512,7 @@ public sealed class RoutePlanningIntegrationTests
 
         host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
+            Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true),
         };
         host.PluginEvents.RaiseTick(0.1);
         Assert.DoesNotContain(plugin.GetCurrentRouteSteps(), step => step == "Portal: Far Portal");
@@ -439,7 +524,13 @@ public sealed class RoutePlanningIntegrationTests
     {
         var host = new FakePluginHost { HasUiValue = false };
         host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false),
+            false,
+            false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();
@@ -462,7 +553,8 @@ public sealed class RoutePlanningIntegrationTests
             LocalObjectId: 1,
             Position: new PluginNavigationPosition(0, 0, 0, 0, 0, true),
             IsMoving: false,
-            IsAirborne: false);
+            IsAirborne: false
+        );
         var plugin = new GoArrowPlugin();
         plugin.Initialize(host);
         plugin.Enable();

@@ -16,28 +16,54 @@ public sealed class PortalNavigationTests
     [InlineData(false, false, false, false, false, true, false)]
     [InlineData(false, false, false, false, false, false, true)]
     public void OutdoorRouteContinuesThroughTownNetworkIndoorPortal(
-        bool receivesTransitionEvent, bool exitsBeforeIndoorWalkArrives,
-        bool portalEventPrecedesIndoorPosition, bool portalInNextLandblock,
-        bool portalSpaceSeenOnTick, bool resumeDuringIndoorWalk,
-        bool resumeBeforeEntryStepCompletes)
+        bool receivesTransitionEvent,
+        bool exitsBeforeIndoorWalkArrives,
+        bool portalEventPrecedesIndoorPosition,
+        bool portalInNextLandblock,
+        bool portalSpaceSeenOnTick,
+        bool resumeDuringIndoorWalk,
+        bool resumeBeforeEntryStepCompletes
+    )
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
-        objects.Objects.Add(new PluginWorldObject(42, 0, "Town Network Portal(Shoushi)",
-            PluginObjectClass.Portal, 0, 0, 0)
-        {
-            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
-            HasPosition = true,
-            Position = new PluginNavigationPosition(0, 2, 0, 0, 0, true)
-        });
-        var sawatoPortal = new PluginWorldObject(43, 0, "Sawato Portal",
-            PluginObjectClass.Portal, 0, 0, 0)
+        objects.Objects.Add(
+            new PluginWorldObject(
+                42,
+                0,
+                "Town Network Portal(Shoushi)",
+                PluginObjectClass.Portal,
+                0,
+                0,
+                0
+            )
+            {
+                Capabilities =
+                    PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+                HasPosition = true,
+                Position = new PluginNavigationPosition(0, 2, 0, 0, 0, true),
+            }
+        );
+        var sawatoPortal = new PluginWorldObject(
+            43,
+            0,
+            "Sawato Portal",
+            PluginObjectClass.Portal,
+            0,
+            0,
+            0
+        )
         {
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
             HasPosition = true,
             Position = new PluginNavigationPosition(
                 portalInNextLandblock ? 0x12350122u : 0x12340122u,
-                40.02, 40, 0, 0, false)
+                40.02,
+                40,
+                0,
+                0,
+                false
+            ),
         };
         host.Inner.AutomationValue = new FakeAutomationSurface
         {
@@ -46,9 +72,16 @@ public sealed class PortalNavigationTests
             Objects = objects,
         };
         host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 1, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 1, 0, 0, 0, true),
+            false,
+            false
+        );
         var db = new LocationDatabase();
-        db.LoadLocationsXml("""
+        db.LoadLocationsXml(
+            """
             <locations>
               <loc name="Start" type="Town" NS="0" EW="1" />
               <loc name="Town Network Portal(Shoushi)" type="TownPortal"
@@ -57,7 +90,8 @@ public sealed class PortalNavigationTests
                 NS="40" EW="40.02" exitNS="80" exitEW="80" />
               <loc name="Sawato" type="Town" NS="80" EW="80.57" />
             </locations>
-            """);
+            """
+        );
         var settings = new GoArrowSettings { AutoNavigate = true };
         var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
         Assert.True(destination.SetDestination("Sawato"));
@@ -65,37 +99,48 @@ public sealed class PortalNavigationTests
         navigator.Enable();
         navigator.StartNavigation();
 
-        Assert.Equal(2, Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls).Position.EastWest);
-        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1, PluginGoToState.Arrived, 0, 0, 0, null)
-        {
-            Revision = 1
-        });
+        Assert.Equal(
+            2,
+            Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls).Position.EastWest
+        );
+        host.EventsValue.RaiseNavigationChanged(
+            new PluginGoToReport(1, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 }
+        );
         Assert.Equal(new uint[] { 42 }, objects.Activated);
         Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute!.Steps[0].Kind);
 
         if (portalEventPrecedesIndoorPosition)
         {
-            host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
-                0, 1, 0x12340100, true, true, true, false)
-            {
-                Kind = PluginPortalTransitionKind.Portal
-            });
+            host.EventsValue.RaisePortalTransition(
+                new PluginPortalTransition(0, 1, 0x12340100, true, true, true, false)
+                {
+                    Kind = PluginPortalTransitionKind.Portal,
+                }
+            );
             Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true)
+                Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true),
             };
             navigator.OnTick(0.1);
-            Assert.Equal(80.57, host.Inner.PluginNavigation.GoToPositionCalls[^1].Position.EastWest, 3);
+            Assert.Equal(
+                80.57,
+                host.Inner.PluginNavigation.GoToPositionCalls[^1].Position.EastWest,
+                3
+            );
             Assert.True(navigator.IsNavigating);
             return;
         }
 
         if (!receivesTransitionEvent)
         {
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                IsPortalSpace = true
+                IsPortalSpace = true,
             };
             navigator.OnTick(0.1);
             Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute.Steps[0].Kind);
@@ -104,7 +149,7 @@ public sealed class PortalNavigationTests
         host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
         {
             IsPortalSpace = false,
-            Position = new PluginNavigationPosition(0x12340100, 40, 40, 0, 0, false)
+            Position = new PluginNavigationPosition(0x12340100, 40, 40, 0, 0, false),
         };
         if (resumeBeforeEntryStepCompletes)
         {
@@ -113,11 +158,12 @@ public sealed class PortalNavigationTests
             navigator.ResumeNavigation();
         }
         else if (receivesTransitionEvent)
-            host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
-                0, 1, 0x12340100, true, true, true, false)
-            {
-                Kind = PluginPortalTransitionKind.Portal
-            });
+            host.EventsValue.RaisePortalTransition(
+                new PluginPortalTransition(0, 1, 0x12340100, true, true, true, false)
+                {
+                    Kind = PluginPortalTransitionKind.Portal,
+                }
+            );
         else
             navigator.OnTick(0.1);
 
@@ -138,9 +184,11 @@ public sealed class PortalNavigationTests
         }
         if (portalInNextLandblock)
         {
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                Position = new PluginNavigationPosition(0x12360100, 40.01, 40, 0, 0, false)
+                Position = new PluginNavigationPosition(0x12360100, 40.01, 40, 0, 0, false),
             };
             navigator.OnTick(0.1);
             Assert.True(navigator.IsNavigating);
@@ -148,46 +196,67 @@ public sealed class PortalNavigationTests
         }
         if (exitsBeforeIndoorWalkArrives)
         {
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                IsPortalSpace = true
+                IsPortalSpace = true,
             };
             if (portalSpaceSeenOnTick)
                 navigator.OnTick(0.1);
             else
-                host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
-                    2, PluginGoToState.Lost, 43, 0, 0, "Portal space") { Revision = 2 });
+                host.EventsValue.RaiseNavigationChanged(
+                    new PluginGoToReport(2, PluginGoToState.Lost, 43, 0, 0, "Portal space")
+                    {
+                        Revision = 2,
+                    }
+                );
             Assert.Equal("Waiting for portal transition.", navigator.FailureReason);
             Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
                 IsPortalSpace = false,
-                Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true)
+                Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true),
             };
             navigator.OnTick(0.1);
-            Assert.Equal(80.57, host.Inner.PluginNavigation.GoToPositionCalls[1].Position.EastWest, 3);
+            Assert.Equal(
+                80.57,
+                host.Inner.PluginNavigation.GoToPositionCalls[1].Position.EastWest,
+                3
+            );
             Assert.True(navigator.IsNavigating);
             Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
             return;
         }
-        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
-            host.Inner.PluginNavigation.GoToReport.Sequence, PluginGoToState.Arrived, 43, 0, 0, null)
-        {
-            Revision = 2
-        });
+        host.EventsValue.RaiseNavigationChanged(
+            new PluginGoToReport(
+                host.Inner.PluginNavigation.GoToReport.Sequence,
+                PluginGoToState.Arrived,
+                43,
+                0,
+                0,
+                null
+            )
+            {
+                Revision = 2,
+            }
+        );
         Assert.Equal(new uint[] { 42, 43 }, objects.Activated);
         Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute.Steps[0].Kind);
 
         host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true)
+            Position = new PluginNavigationPosition(0, 80, 80, 0, 0, true),
         };
         if (receivesTransitionEvent)
-            host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
-                0, 2, 0, true, true, true, false)
-            {
-                Kind = PluginPortalTransitionKind.Portal
-            });
+            host.EventsValue.RaisePortalTransition(
+                new PluginPortalTransition(0, 2, 0, true, true, true, false)
+                {
+                    Kind = PluginPortalTransitionKind.Portal,
+                }
+            );
         else
             navigator.OnTick(0.1);
 
@@ -197,12 +266,19 @@ public sealed class PortalNavigationTests
         navigator.OnTick(16);
         Assert.True(navigator.IsNavigating);
         Assert.Equal(2, host.Inner.PluginNavigation.GoToPositionCalls.Count);
-        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
-            host.Inner.PluginNavigation.GoToReport.Sequence,
-            PluginGoToState.ArrivedWithoutSight, 0, 400, 0, "No accessible route")
-        {
-            Revision = 3
-        });
+        host.EventsValue.RaiseNavigationChanged(
+            new PluginGoToReport(
+                host.Inner.PluginNavigation.GoToReport.Sequence,
+                PluginGoToState.ArrivedWithoutSight,
+                0,
+                400,
+                0,
+                "No accessible route"
+            )
+            {
+                Revision = 3,
+            }
+        );
         Assert.False(navigator.HasArrived);
         Assert.False(navigator.IsNavigating);
         Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
@@ -214,33 +290,46 @@ public sealed class PortalNavigationTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     public void PortalRouteWaitsForTransitionThenContinuesWalking(
-        bool arrivesIndoors, bool manualResumeWithAutoNavigateOff)
+        bool arrivesIndoors,
+        bool manualResumeWithAutoNavigateOff
+    )
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
-        objects.Objects.Add(new PluginWorldObject(42, 0, "Entrance to Somewhere", default, 0, 0, 0)
-        {
-            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
-            HasPosition = true,
-            Position = new PluginNavigationPosition(0, 2, 0, 0, 0, true)
-        });
+        objects.Objects.Add(
+            new PluginWorldObject(42, 0, "Entrance to Somewhere", default, 0, 0, 0)
+            {
+                Capabilities =
+                    PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+                HasPosition = true,
+                Position = new PluginNavigationPosition(0, 2, 0, 0, 0, true),
+            }
+        );
         host.Inner.AutomationValue = new FakeAutomationSurface
         {
             Navigation = host.Inner.PluginNavigation,
             Chat = host.Inner.PluginChat,
-            Objects = objects
+            Objects = objects,
         };
         host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 1, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 1, 0, 0, 0, true),
+            false,
+            false
+        );
 
         var db = new LocationDatabase();
-        db.LoadLocationsXml("""
+        db.LoadLocationsXml(
+            """
             <atlas>
               <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
               <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
               <location><id>3</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
             </atlas>
-            """);
+            """
+        );
         var settings = new GoArrowSettings { AutoNavigate = true };
         var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
         Assert.True(destination.SetDestination("End"));
@@ -249,10 +338,9 @@ public sealed class PortalNavigationTests
         navigator.StartNavigation();
 
         Assert.Equal(2, host.Inner.PluginNavigation.GoToPositionCalls[0].Position.EastWest);
-        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1, PluginGoToState.Arrived, 0, 0, 0, null)
-        {
-            Revision = 1
-        });
+        host.EventsValue.RaiseNavigationChanged(
+            new PluginGoToReport(1, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 }
+        );
 
         Assert.Equal(new uint[] { 42 }, objects.Activated);
         Assert.True(navigator.WaitingForInteraction);
@@ -260,20 +348,27 @@ public sealed class PortalNavigationTests
         Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls);
 
         host.EventsValue.RaiseActivationCompleted(
-            new PluginActivationCompletion(1, 42, PluginActivationOutcome.Completed, 0));
+            new PluginActivationCompletion(1, 42, PluginActivationOutcome.Completed, 0)
+        );
         Assert.True(navigator.WaitingForInteraction);
         Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute.Steps[0].Kind);
         Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls);
 
-        host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
-            1, 1, 0, true, true, true, false) { Kind = PluginPortalTransitionKind.Login });
+        host.EventsValue.RaisePortalTransition(
+            new PluginPortalTransition(1, 1, 0, true, true, true, false)
+            {
+                Kind = PluginPortalTransitionKind.Login,
+            }
+        );
         Assert.True(navigator.WaitingForInteraction);
         if (manualResumeWithAutoNavigateOff)
         {
             settings.AutoNavigate = false;
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
+                Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true),
             };
             navigator.ResumeNavigation();
             Assert.False(navigator.WaitingForInteraction);
@@ -283,20 +378,28 @@ public sealed class PortalNavigationTests
             return;
         }
         if (arrivesIndoors)
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false)
+                Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false),
             };
-        host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
-            0, 2, 0, true, true, true, false) { Kind = PluginPortalTransitionKind.Portal });
+        host.EventsValue.RaisePortalTransition(
+            new PluginPortalTransition(0, 2, 0, true, true, true, false)
+            {
+                Kind = PluginPortalTransitionKind.Portal,
+            }
+        );
 
         Assert.False(navigator.WaitingForInteraction);
         if (arrivesIndoors)
         {
             Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls);
-            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner
+                .PluginNavigation
+                .SnapshotValue with
             {
-                Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
+                Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true),
             };
             navigator.OnTick(0.1);
         }
@@ -308,7 +411,9 @@ public sealed class PortalNavigationTests
     {
         public List<PluginWorldObject> Objects { get; } = [];
         public List<uint> Activated { get; } = [];
+
         public IReadOnlyList<PluginWorldObject> CaptureObjects() => Objects;
+
         public PluginItemCommandResult Activate(uint objectId)
         {
             Activated.Add(objectId);
@@ -318,14 +423,28 @@ public sealed class PortalNavigationTests
 
     private sealed class NavigationEvents : IEvents
     {
-        public event Action<WorldEntitySnapshot>? EntitySpawned { add { } remove { } }
-        public event Action<double>? Tick { add { } remove { } }
+        public event Action<WorldEntitySnapshot>? EntitySpawned
+        {
+            add { }
+            remove { }
+        }
+        public event Action<double>? Tick
+        {
+            add { }
+            remove { }
+        }
         public event Action<PluginGoToReport>? NavigationChanged;
         public event Action<PluginActivationCompletion>? ActivationCompleted;
         public event Action<PluginPortalTransition>? PortalTransition;
-        public void RaiseNavigationChanged(PluginGoToReport report) => NavigationChanged?.Invoke(report);
-        public void RaiseActivationCompleted(PluginActivationCompletion completion) => ActivationCompleted?.Invoke(completion);
-        public void RaisePortalTransition(PluginPortalTransition transition) => PortalTransition?.Invoke(transition);
+
+        public void RaiseNavigationChanged(PluginGoToReport report) =>
+            NavigationChanged?.Invoke(report);
+
+        public void RaiseActivationCompleted(PluginActivationCompletion completion) =>
+            ActivationCompleted?.Invoke(completion);
+
+        public void RaisePortalTransition(PluginPortalTransition transition) =>
+            PortalTransition?.Invoke(transition);
     }
 
     private sealed class NavigationHost : IPluginHost

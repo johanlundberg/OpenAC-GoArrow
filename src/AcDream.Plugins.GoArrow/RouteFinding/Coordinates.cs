@@ -83,7 +83,14 @@ public readonly struct Coordinates : IEquatable<Coordinates>
 
     public static bool TryParse(string? parseString, bool allowNoCoords, out Coordinates coords)
     {
-        if (allowNoCoords && (parseString == "" || parseString == NoCoordinatesString || parseString == UnknownCoordinatesString))
+        if (
+            allowNoCoords
+            && (
+                parseString == ""
+                || parseString == NoCoordinatesString
+                || parseString == UnknownCoordinatesString
+            )
+        )
         {
             coords = NoCoordinates;
             return true;
@@ -112,9 +119,15 @@ public readonly struct Coordinates : IEquatable<Coordinates>
     private const string RegExDouble = @"(\d{1,3}(\.\d{1,4})?)|(\.\d{1,4})";
 
     private static readonly Regex CoordSearchRegex = new(
-        @"(?<NSval>" + RegExDouble + @")\s*(?<NSchr>[ns])" + @"[;/,\s]{0,4}\s*"
-        + @"(?<EWval>" + RegExDouble + @")\s*(?<EWchr>[ew])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        @"(?<NSval>"
+            + RegExDouble
+            + @")\s*(?<NSchr>[ns])"
+            + @"[;/,\s]{0,4}\s*"
+            + @"(?<EWval>"
+            + RegExDouble
+            + @")\s*(?<EWchr>[ew])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
 
     public static MatchCollection FindAllCoords(string parseString)
     {
@@ -151,14 +164,16 @@ public readonly struct Coordinates : IEquatable<Coordinates>
         if (double.IsNaN(NS) || double.IsNaN(EW))
             return useUnknownString ? UnknownCoordinatesString : NoCoordinatesString;
 
-        return Math.Abs(NS).ToString(numberFormat, CultureInfo.InvariantCulture) + (NS >= 0 ? "N" : "S") + ", "
-             + Math.Abs(EW).ToString(numberFormat, CultureInfo.InvariantCulture) + (EW >= 0 ? "E" : "W");
+        return Math.Abs(NS).ToString(numberFormat, CultureInfo.InvariantCulture)
+            + (NS >= 0 ? "N" : "S")
+            + ", "
+            + Math.Abs(EW).ToString(numberFormat, CultureInfo.InvariantCulture)
+            + (EW >= 0 ? "E" : "W");
     }
 
     public static bool operator ==(Coordinates a, Coordinates b)
     {
-        return (a.NS == b.NS && a.EW == b.EW)
-            || (double.IsNaN(a.NS) && double.IsNaN(b.NS));
+        return (a.NS == b.NS && a.EW == b.EW) || (double.IsNaN(a.NS) && double.IsNaN(b.NS));
     }
 
     public static bool operator !=(Coordinates a, Coordinates b)

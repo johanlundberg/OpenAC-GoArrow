@@ -9,9 +9,11 @@ public class LocationMetadataTests
     public void IndoorCellPositionRoundTripsInNamedLocationXml()
     {
         var document = new XmlDocument();
-        document.LoadXml("""
+        document.LoadXml(
+            """
             <loc name="Lower Chamber" type="Dungeon" cellId="0x12340122" x="35" y="50" z="-6">A note</loc>
-            """);
+            """
+        );
 
         var location = Location.FromXml(document.DocumentElement!);
         Assert.NotNull(location.IndoorPosition);
@@ -30,9 +32,10 @@ public class LocationMetadataTests
         var document = new XmlDocument();
         document.LoadXml(
             "<loc id='123' name='Dungeon Entrance' type='Dungeon' "
-            + "NS='10.5' EW='20.5' exitNS='11.5' exitEW='21.5' "
-            + "dungeonId='ABCD' use='false' retired='true' customized='true' icon='00FF00FF'>"
-            + "A useful description</loc>");
+                + "NS='10.5' EW='20.5' exitNS='11.5' exitEW='21.5' "
+                + "dungeonId='ABCD' use='false' retired='true' customized='true' icon='00FF00FF'>"
+                + "A useful description</loc>"
+        );
 
         var location = Location.FromXml(document.DocumentElement!);
 
@@ -57,11 +60,12 @@ public class LocationMetadataTests
         var document = new XmlDocument();
         document.LoadXml(
             "<location>"
-            + "<id>456</id><latitude>28.200</latitude><longitude>13.900</longitude>"
-            + "<name>North Outpost</name><type>Outpost</type>"
-            + "<arrival_latitude>28.100</arrival_latitude><arrival_longitude>13.800</arrival_longitude>"
-            + "<description>Atlas description</description><dungeon_id>1A</dungeon_id>"
-            + "<retired>Y</retired></location>");
+                + "<id>456</id><latitude>28.200</latitude><longitude>13.900</longitude>"
+                + "<name>North Outpost</name><type>Outpost</type>"
+                + "<arrival_latitude>28.100</arrival_latitude><arrival_longitude>13.800</arrival_longitude>"
+                + "<description>Atlas description</description><dungeon_id>1A</dungeon_id>"
+                + "<retired>Y</retired></location>"
+        );
 
         var location = Location.FromXmlWarcry(document.DocumentElement!);
 
@@ -82,7 +86,8 @@ public class LocationMetadataTests
         var db = new LocationDatabase();
         db.LoadLocationsXml(
             "<atlas><location><id>1</id><latitude>1</latitude><longitude>2</longitude>"
-            + "<name>Atlas Point</name><type>Landmark</type><retired>N</retired></location></atlas>");
+                + "<name>Atlas Point</name><type>Landmark</type><retired>N</retired></location></atlas>"
+        );
 
         var location = db.FindLocation("Atlas Point");
 
@@ -103,7 +108,8 @@ public class LocationMetadataTests
             new Coordinates(10, 20),
             "Notes",
             dungeonId: 7,
-            exitCoords: new Coordinates(11, 21))
+            exitCoords: new Coordinates(11, 21)
+        )
         {
             IsCustomized = true,
             IsFavorite = true,

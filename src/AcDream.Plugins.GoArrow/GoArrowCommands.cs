@@ -63,12 +63,16 @@ internal sealed class GoArrowCommands
 
             case "from":
             case "start":
-                _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText("GoArrow: Route origin"));
+                _host.Automation.Chat.PostSystemMessage(
+                    _plugin.CurrentPositionText("GoArrow: Route origin")
+                );
                 break;
 
             case "end":
                 _plugin.StopNavigation();
-                _host.Automation.Chat.PostSystemMessage("GoArrow: Current route leg ended; use /go resume to continue.");
+                _host.Automation.Chat.PostSystemMessage(
+                    "GoArrow: Current route leg ended; use /go resume to continue."
+                );
                 break;
 
             case "reset":
@@ -89,16 +93,22 @@ internal sealed class GoArrowCommands
             case "selected":
             case "attach":
                 if (_plugin.SetSelectedObjectDestination())
-                    _host.Automation.Chat.PostSystemMessage("GoArrow: Selected object attached as destination.");
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Selected object attached as destination."
+                    );
                 else
-                    _host.Automation.Chat.PostSystemMessage("GoArrow: Selected object is unavailable or has no position.");
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Selected object is unavailable or has no position."
+                    );
                 break;
 
             case "mark":
                 string markName = string.Join(" ", args.Skip(1)).Trim();
-                _host.Automation.Chat.PostSystemMessage(_plugin.MarkCurrentIndoorLocation(markName)
-                    ? $"GoArrow: Saved indoor location '{markName}'."
-                    : "GoArrow: Stand at an indoor point and use /go mark <name>.");
+                _host.Automation.Chat.PostSystemMessage(
+                    _plugin.MarkCurrentIndoorLocation(markName)
+                        ? $"GoArrow: Saved indoor location '{markName}'."
+                        : "GoArrow: Stand at an indoor point and use /go mark <name>."
+                );
                 break;
 
             case "loc":
@@ -113,11 +123,13 @@ internal sealed class GoArrowCommands
                 if (args.Length != 2 || !_plugin.LoadDataFile(args[1]))
                 {
                     _host.Automation.Chat.PostSystemMessage(
-                        "GoArrow: Usage: /go file filename.xml (file not found or invalid).");
+                        "GoArrow: Usage: /go file filename.xml (file not found or invalid)."
+                    );
                     break;
                 }
                 _host.Automation.Chat.PostSystemMessage(
-                    $"GoArrow: Loaded location data from '{args[1]}'.");
+                    $"GoArrow: Loaded location data from '{args[1]}'."
+                );
                 break;
 
             case "update":
@@ -125,7 +137,8 @@ internal sealed class GoArrowCommands
                 if (args.Length > 1 && !_plugin.SetExternalDataUrl(args[1]))
                 {
                     _host.Automation.Chat.PostSystemMessage(
-                        "GoArrow: URL must be an absolute http:// or https:// URL.");
+                        "GoArrow: URL must be an absolute http:// or https:// URL."
+                    );
                     break;
                 }
                 _ = _plugin.UpdateDataAsync();
@@ -135,11 +148,13 @@ internal sealed class GoArrowCommands
                 if (args.Length != 2 || !_plugin.SetExternalDataUrl(args[1]))
                 {
                     _host.Automation.Chat.PostSystemMessage(
-                        "GoArrow: Usage: /go url <http:// or https:// URL>");
+                        "GoArrow: Usage: /go url <http:// or https:// URL>"
+                    );
                     break;
                 }
                 _host.Automation.Chat.PostSystemMessage(
-                    $"GoArrow: Location-data URL set to '{args[1]}'.");
+                    $"GoArrow: Location-data URL set to '{args[1]}'."
+                );
                 break;
 
             case "stop":
@@ -163,30 +178,37 @@ internal sealed class GoArrowCommands
 
             case "dungeon":
                 string mode = args.Length > 1 ? args[1].ToLowerInvariant() : "toggle";
-                if (args.Length > 2 || mode is not ("on" or "off" or "toggle" or "path" or "reload"))
+                if (
+                    args.Length > 2
+                    || mode is not ("on" or "off" or "toggle" or "path" or "reload")
+                )
                 {
-                    _host.Automation.Chat.PostSystemMessage("GoArrow: Usage: /go dungeon [on|off|toggle|path|reload]");
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Usage: /go dungeon [on|off|toggle|path|reload]"
+                    );
                     break;
                 }
                 if (mode == "path")
                 {
                     _host.Automation.Chat.PostSystemMessage(
-                        $"GoArrow: Dungeon map folder: {_plugin.DungeonMapDirectory ?? "unavailable"}");
+                        $"GoArrow: Dungeon map folder: {_plugin.DungeonMapDirectory ?? "unavailable"}"
+                    );
                     break;
                 }
                 if (mode == "reload")
                 {
-                    _host.Automation.Chat.PostSystemMessage(_plugin.ReloadDungeonMaps()
-                        ? "GoArrow: Dungeon maps reloaded."
-                        : "GoArrow: No usable dungeon maps found. Use /go dungeon path for the folder.");
+                    _host.Automation.Chat.PostSystemMessage(
+                        _plugin.ReloadDungeonMaps()
+                            ? "GoArrow: Dungeon maps reloaded."
+                            : "GoArrow: No usable dungeon maps found. Use /go dungeon path for the folder."
+                    );
                     break;
                 }
-                bool visible = mode == "toggle"
-                    ? !_plugin.DungeonMapVisible
-                    : mode == "on";
+                bool visible = mode == "toggle" ? !_plugin.DungeonMapVisible : mode == "on";
                 _plugin.SetDungeonMapVisible(visible);
                 _host.Automation.Chat.PostSystemMessage(
-                    $"GoArrow: Dungeon map {(visible ? "enabled" : "disabled")}.");
+                    $"GoArrow: Dungeon map {(visible ? "enabled" : "disabled")}."
+                );
                 break;
 
             case "favorites":
@@ -223,9 +245,13 @@ internal sealed class GoArrowCommands
                 if (!string.IsNullOrEmpty(destName))
                 {
                     if (_plugin.SetDestination(destName))
-                        _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination set to '{destName}'.");
+                        _host.Automation.Chat.PostSystemMessage(
+                            $"GoArrow: Destination set to '{destName}'."
+                        );
                     else
-                        _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{destName}' not found in location database.");
+                        _host.Automation.Chat.PostSystemMessage(
+                            $"GoArrow: Destination '{destName}' not found in location database."
+                        );
                 }
                 break;
         }
@@ -236,12 +262,16 @@ internal sealed class GoArrowCommands
         string text = string.Join(" ", values).Trim();
         if (string.IsNullOrWhiteSpace(text))
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Usage: /go to <location|coordinates|here>");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Usage: /go to <location|coordinates|here>"
+            );
             return;
         }
         if (text.Equals("here", StringComparison.OrdinalIgnoreCase))
         {
-            _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText("GoArrow: Current position"));
+            _host.Automation.Chat.PostSystemMessage(
+                _plugin.CurrentPositionText("GoArrow: Current position")
+            );
             return;
         }
         if (_plugin.TrySetCoordinateDestination(text) || _plugin.SetDestination(text))
@@ -281,7 +311,9 @@ internal sealed class GoArrowCommands
         }
 
         _host.Automation.Chat.PostSystemMessage(
-            "GoArrow matches: " + string.Join(", ", matches.Take(20).Select(location => location.Name)));
+            "GoArrow matches: "
+                + string.Join(", ", matches.Take(20).Select(location => location.Name))
+        );
         if (matches.Count > 20)
             _host.Automation.Chat.PostSystemMessage($"... and {matches.Count - 20} more.");
     }
@@ -290,25 +322,35 @@ internal sealed class GoArrowCommands
     {
         var dest = _plugin.CurrentDestinationName;
         var snapshot = _host.Automation.Navigation.Snapshot;
-        string place = !snapshot.IsAvailable ? "position unavailable"
+        string place =
+            !snapshot.IsAvailable ? "position unavailable"
             : snapshot.IsPortalSpace ? "portal space"
-            : snapshot.Position.IsOutdoor ? "outdoors" : "indoors";
+            : snapshot.Position.IsOutdoor ? "outdoors"
+            : "indoors";
         string step = _plugin.GetCurrentRouteSteps().FirstOrDefault() ?? "no active step";
         _host.Automation.Chat.PostSystemMessage(
             $"{GoArrowPlugin.DisplayTitle}: {_plugin.Panel?.NavStatusText ?? "Idle"}; {place}; "
-            + $"client {_host.Automation.Navigation.GoToReport.State}; next {step}.");
+                + $"client {_host.Automation.Navigation.GoToReport.State}; next {step}."
+        );
         if (_plugin.NavigationFailureReason.Length > 0)
             _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Reason: {_plugin.NavigationFailureReason}");
+                $"GoArrow: Reason: {_plugin.NavigationFailureReason}"
+            );
         if (_host.Automation.Recalls.IsAvailable)
         {
-            int known = _host.Automation.Recalls.CaptureLocations().Count(location => location.IsKnown);
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Recall destinations known: {known}.");
+            int known = _host
+                .Automation.Recalls.CaptureLocations()
+                .Count(location => location.IsKnown);
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Recall destinations known: {known}."
+            );
         }
         if (string.IsNullOrEmpty(dest))
             _host.Automation.Chat.PostSystemMessage("GoArrow: No destination set. Use /go <name>");
         else
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{dest}'. Use /go stop to cancel.");
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Destination '{dest}'. Use /go stop to cancel."
+            );
     }
 
     private void ShowRoute()
@@ -330,7 +372,9 @@ internal sealed class GoArrowCommands
         var favs = _plugin.GetFavorites();
         if (favs.Count == 0)
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: No favorites saved. Use /go save <name>");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: No favorites saved. Use /go save <name>"
+            );
             return;
         }
         _host.Automation.Chat.PostSystemMessage("GoArrow Favorites: " + string.Join(", ", favs));
@@ -344,25 +388,25 @@ internal sealed class GoArrowCommands
 
     private static string HelpText()
     {
-        return "GoArrow Commands:\n" +
-               "  /go <destination> - Set route to a named location\n" +
-               "  /go list - List all known locations\n" +
-               "  /go search <term> - Search locations\n" +
-               "  /go loc - Show current coordinates\n" +
-               "  /go dest - Show destination coordinates\n" +
-               "  /go file filename.xml - Load XML from the GoArrow storage directory\n" +
-               "  /go update [url] - Download location data, optionally changing the URL\n" +
-               "  /go url <url> - Set and persist the location-data URL\n" +
-               "  /go search <term> - Search locations\n" +
-               "  /go status - Show current destination\n" +
-               "  /go route - Show the current route steps\n" +
-               "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n" +
-               "  /go mark <name> - Save this indoor point as a named location\n" +
-               "  /go stop - Stop navigation\n" +
-               "  /go resume - Resume after a portal or recall interaction\n" +
-               "  /go clear - Clear destination\n" +
-               "  /go save <name> - Save location as favorite\n" +
-               "  /go favorites - List favorites\n" +
-               "  /go help - Show this help";
+        return "GoArrow Commands:\n"
+            + "  /go <destination> - Set route to a named location\n"
+            + "  /go list - List all known locations\n"
+            + "  /go search <term> - Search locations\n"
+            + "  /go loc - Show current coordinates\n"
+            + "  /go dest - Show destination coordinates\n"
+            + "  /go file filename.xml - Load XML from the GoArrow storage directory\n"
+            + "  /go update [url] - Download location data, optionally changing the URL\n"
+            + "  /go url <url> - Set and persist the location-data URL\n"
+            + "  /go search <term> - Search locations\n"
+            + "  /go status - Show current destination\n"
+            + "  /go route - Show the current route steps\n"
+            + "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n"
+            + "  /go mark <name> - Save this indoor point as a named location\n"
+            + "  /go stop - Stop navigation\n"
+            + "  /go resume - Resume after a portal or recall interaction\n"
+            + "  /go clear - Clear destination\n"
+            + "  /go save <name> - Save location as favorite\n"
+            + "  /go favorites - List favorites\n"
+            + "  /go help - Show this help";
     }
 }

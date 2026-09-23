@@ -11,8 +11,12 @@ namespace AcDream.Plugins.GoArrow.RouteFinding;
 public class LocationDatabase
 {
     private readonly List<Location> _locations = new();
-    private readonly Dictionary<string, Location> _userLocations = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, List<Location>> _locationsByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Location> _userLocations = new(
+        StringComparer.OrdinalIgnoreCase
+    );
+    private readonly Dictionary<string, List<Location>> _locationsByName = new(
+        StringComparer.OrdinalIgnoreCase
+    );
     private readonly List<PortalDevice> _portalDevices = new();
     private readonly List<RouteStart> _routeStarts = new();
     private readonly object _lock = new();
@@ -22,12 +26,20 @@ public class LocationDatabase
     /// </summary>
     public IReadOnlyList<Location> AllLocations
     {
-        get { lock (_lock) return _locations.ToArray(); }
+        get
+        {
+            lock (_lock)
+                return _locations.ToArray();
+        }
     }
 
     public IReadOnlyList<Location> UserLocations
     {
-        get { lock (_lock) return _userLocations.Values.ToArray(); }
+        get
+        {
+            lock (_lock)
+                return _userLocations.Values.ToArray();
+        }
     }
 
     /// <summary>Adds a named user location that survives base-data reloads.</summary>
@@ -42,7 +54,9 @@ public class LocationDatabase
 
     private void AddOrReplaceLocation(Location location)
     {
-        _locations.RemoveAll(existing => existing.Name.Equals(location.Name, StringComparison.OrdinalIgnoreCase));
+        _locations.RemoveAll(existing =>
+            existing.Name.Equals(location.Name, StringComparison.OrdinalIgnoreCase)
+        );
         _locationsByName.Remove(location.Name);
         _locations.Add(location);
         _locationsByName[location.Name] = [location];
@@ -53,7 +67,11 @@ public class LocationDatabase
     /// </summary>
     public IReadOnlyList<PortalDevice> PortalDevices
     {
-        get { lock (_lock) return _portalDevices.ToArray(); }
+        get
+        {
+            lock (_lock)
+                return _portalDevices.ToArray();
+        }
     }
 
     /// <summary>
@@ -61,7 +79,11 @@ public class LocationDatabase
     /// </summary>
     public IReadOnlyList<RouteStart> RouteStarts
     {
-        get { lock (_lock) return _routeStarts.ToArray(); }
+        get
+        {
+            lock (_lock)
+                return _routeStarts.ToArray();
+        }
     }
 
     /// <summary>
@@ -69,7 +91,11 @@ public class LocationDatabase
     /// </summary>
     public int LocationCount
     {
-        get { lock (_lock) return _locations.Count; }
+        get
+        {
+            lock (_lock)
+                return _locations.Count;
+        }
     }
 
     /// <summary>
@@ -85,7 +111,8 @@ public class LocationDatabase
         bool isWarcryAtlas = string.Equals(
             doc.DocumentElement?.Name,
             "atlas",
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase
+        );
 
         string xpath = isWarcryAtlas ? "//location" : "//Location|//loc";
         var locationNodes = doc.SelectNodes(xpath);
@@ -153,10 +180,12 @@ public class LocationDatabase
                 var dest = node.Attributes?["Destination"]?.Value ?? string.Empty;
                 var via = node.Attributes?["Via"]?.Value ?? string.Empty;
                 var landmass = node.Attributes?["Landmass"]?.Value ?? string.Empty;
-                var entrance = node.Attributes?["Entrance"]?.Value
+                var entrance =
+                    node.Attributes?["Entrance"]?.Value
                     ?? node.Attributes?["From"]?.Value
                     ?? string.Empty;
-                var exit = node.Attributes?["Exit"]?.Value
+                var exit =
+                    node.Attributes?["Exit"]?.Value
                     ?? node.Attributes?["To"]?.Value
                     ?? string.Empty;
                 newDevices.Add(new PortalDevice(dest, via, landmass, entrance, exit));
@@ -318,7 +347,7 @@ public class LocationDatabase
         lock (_lock)
         {
             if (_locationsByName.TryGetValue(name, out var matches))
-               return matches.ToArray();
+                return matches.ToArray();
             return Array.Empty<Location>();
         }
     }
@@ -330,7 +359,9 @@ public class LocationDatabase
     {
         lock (_lock)
         {
-            return _locations.Where(l => l.Name.Contains(substring, StringComparison.OrdinalIgnoreCase)).ToList();
+            return _locations
+                .Where(l => l.Name.Contains(substring, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
     }
 
@@ -341,8 +372,11 @@ public class LocationDatabase
     {
         lock (_lock)
         {
-            return _portalDevices.Where(p =>
-                string.Equals(p.Destination, destination, StringComparison.OrdinalIgnoreCase)).ToList();
+            return _portalDevices
+                .Where(p =>
+                    string.Equals(p.Destination, destination, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
         }
     }
 
@@ -353,8 +387,9 @@ public class LocationDatabase
     {
         lock (_lock)
         {
-            return _routeStarts.Where(r =>
-                string.Equals(r.From, origin, StringComparison.OrdinalIgnoreCase)).ToList();
+            return _routeStarts
+                .Where(r => string.Equals(r.From, origin, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
     }
 
@@ -365,8 +400,11 @@ public class LocationDatabase
     {
         lock (_lock)
         {
-            return _routeStarts.Where(r =>
-                string.Equals(r.Destination, destination, StringComparison.OrdinalIgnoreCase)).ToList();
+            return _routeStarts
+                .Where(r =>
+                    string.Equals(r.Destination, destination, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
         }
     }
 

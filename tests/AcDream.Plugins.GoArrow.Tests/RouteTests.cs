@@ -74,7 +74,9 @@ public class RouteTests
             RouteStepKind.Travel,
             new Location("A", 0, 0),
             new Location("B", 1, 1),
-            1.414, "Walk");
+            1.414,
+            "Walk"
+        );
 
         var str = step.ToString();
         Assert.Equal("Walk: B (339 m)", str);
@@ -87,7 +89,9 @@ public class RouteTests
             RouteStepKind.Portal,
             new Location("A", 0, 0),
             new Location("Town", 10, 10),
-            0, "Portal Device");
+            0,
+            "Portal Device"
+        );
 
         var str = step.ToString();
         Assert.Equal("Portal: Portal Device", str);
@@ -100,7 +104,9 @@ public class RouteTests
             RouteStepKind.Recall,
             new Location("A", 0, 0),
             new Location("LS", 50, 50),
-            0, "Primary Portal Recall");
+            0,
+            "Primary Portal Recall"
+        );
 
         var str = step.ToString();
         Assert.Equal("Recall: Primary Portal Recall", str);

@@ -110,8 +110,8 @@ public sealed class RouteGraph
         _nameToIndex.Clear();
         _adjacency.Clear();
 
-        var eligible = db.AllLocations
-            .Where(l => l.UseInRouteFinding && !l.IsRetired && l.HasCoordinates)
+        var eligible = db
+            .AllLocations.Where(l => l.UseInRouteFinding && !l.IsRetired && l.HasCoordinates)
             .Distinct(LocationNameComparer.Instance)
             .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(l => l.Id)
@@ -161,8 +161,16 @@ public sealed class RouteGraph
         }
 
         foreach (var (entrance, arrival) in atlasPortals)
-            _adjacency[entrance].Add(new RouteGraphEdge(
-                entrance, arrival, RouteEdgeKind.Portal, 0.1, _locations[entrance].Name));
+            _adjacency[entrance]
+                .Add(
+                    new RouteGraphEdge(
+                        entrance,
+                        arrival,
+                        RouteEdgeKind.Portal,
+                        0.1,
+                        _locations[entrance].Name
+                    )
+                );
 
         // ── Portal edges ────────────────────────────────────────
         // Older PortalDevice records only identify the destination and device.
@@ -181,8 +189,8 @@ public sealed class RouteGraph
             if (fromIdx < 0 || toIdx < 0 || fromIdx == toIdx)
                 continue;
 
-            _adjacency[fromIdx].Add(
-                new RouteGraphEdge(fromIdx, toIdx, RouteEdgeKind.Portal, 0.1, pd.Via));
+            _adjacency[fromIdx]
+                .Add(new RouteGraphEdge(fromIdx, toIdx, RouteEdgeKind.Portal, 0.1, pd.Via));
         }
 
         // ── Route-start edges (recall / lifestone / allegiance) ──
@@ -216,8 +224,11 @@ public sealed class RouteGraph
     /// Returns the sequence of edges, or null if
     /// the destination is unreachable.
     /// </summary>
-    public List<RouteGraphEdge>? FindShortestPath(int fromIndex, int toIndex,
-        Func<RouteGraphEdge, double>? costSelector = null)
+    public List<RouteGraphEdge>? FindShortestPath(
+        int fromIndex,
+        int toIndex,
+        Func<RouteGraphEdge, double>? costSelector = null
+    )
     {
         EnsureBuilt();
         if (fromIndex < 0 || fromIndex >= _locations.Count)
@@ -230,8 +241,12 @@ public sealed class RouteGraph
     /// The first returned edge has source index -1 and represents the walk
     /// from that position; the graph itself remains unchanged.
     /// </summary>
-    public List<RouteGraphEdge>? FindShortestPathFromPosition(Location position, int toIndex,
-        double maxConnectionDistance, Func<RouteGraphEdge, double>? costSelector = null)
+    public List<RouteGraphEdge>? FindShortestPathFromPosition(
+        Location position,
+        int toIndex,
+        double maxConnectionDistance,
+        Func<RouteGraphEdge, double>? costSelector = null
+    )
     {
         EnsureBuilt();
         var seeds = new List<RouteSeed>();
@@ -240,7 +255,13 @@ public sealed class RouteGraph
             double distance = position.DistanceTo(_locations[i]);
             if (!double.IsFinite(distance) || distance > maxConnectionDistance)
                 continue;
-            var connection = new RouteGraphEdge(-1, i, RouteEdgeKind.Walk, distance, "Walk to start");
+            var connection = new RouteGraphEdge(
+                -1,
+                i,
+                RouteEdgeKind.Walk,
+                distance,
+                "Walk to start"
+            );
             double cost = distance == 0 ? 0 : costSelector?.Invoke(connection) ?? distance;
             if (double.IsFinite(cost) && cost >= 0)
                 seeds.Add(new RouteSeed(i, connection, cost));
@@ -250,8 +271,11 @@ public sealed class RouteGraph
 
     private readonly record struct RouteSeed(int Index, RouteGraphEdge? Connection, double Cost);
 
-    private List<RouteGraphEdge>? FindShortestPathCore(IReadOnlyList<RouteSeed> seeds, int toIndex,
-        Func<RouteGraphEdge, double>? costSelector)
+    private List<RouteGraphEdge>? FindShortestPathCore(
+        IReadOnlyList<RouteSeed> seeds,
+        int toIndex,
+        Func<RouteGraphEdge, double>? costSelector
+    )
     {
         if (toIndex < 0 || toIndex >= _locations.Count || seeds.Count == 0)
             return null;
@@ -378,7 +402,11 @@ public sealed class RouteGraph
 
     // ── Private helpers ─────────────────────────────────────────────
 
-    private List<RouteGraphEdge> ReconstructPath(int[] cameFrom, RouteGraphEdge?[] cameFromEdge, int current)
+    private List<RouteGraphEdge> ReconstructPath(
+        int[] cameFrom,
+        RouteGraphEdge?[] cameFromEdge,
+        int current
+    )
     {
         var edges = new List<RouteGraphEdge>();
         while (cameFrom[current] >= 0)
@@ -395,7 +423,9 @@ public sealed class RouteGraph
     private void EnsureBuilt()
     {
         if (!_built)
-            throw new InvalidOperationException("RouteGraph has not been built. Call Build() first.");
+            throw new InvalidOperationException(
+                "RouteGraph has not been built. Call Build() first."
+            );
     }
 
     private static RouteEdgeKind InferEdgeKind(string via)
@@ -421,7 +451,8 @@ public sealed class RouteGraph
 
         public bool Equals(Location? x, Location? y)
         {
-            if (x is null || y is null) return x == y;
+            if (x is null || y is null)
+                return x == y;
             if (IsAtlasPortal(x) || IsAtlasPortal(y))
                 return ReferenceEquals(x, y);
             return string.Equals(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);

@@ -45,7 +45,10 @@ public sealed class DungeonMapCatalogTests
         try
         {
             DungeonMapTestData.WriteExtracted(directory);
-            File.WriteAllBytes(Path.Combine(directory, "Dungeon_Map_Cache.zip"), DungeonMapTestData.CreateArchive());
+            File.WriteAllBytes(
+                Path.Combine(directory, "Dungeon_Map_Cache.zip"),
+                DungeonMapTestData.CreateArchive()
+            );
             var catalog = DungeonMapCatalog.OpenUserMaps(new DirectoryStorage(root));
 
             Assert.NotNull(catalog);
@@ -69,7 +72,10 @@ public sealed class DungeonMapCatalogTests
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllBytes(Path.Combine(directory, "Dungeon_Map_Cache.zip"), DungeonMapTestData.CreateArchive());
+            File.WriteAllBytes(
+                Path.Combine(directory, "Dungeon_Map_Cache.zip"),
+                DungeonMapTestData.CreateArchive()
+            );
             var catalog = DungeonMapCatalog.OpenUserMaps(new DirectoryStorage(root));
 
             Assert.NotNull(catalog);
@@ -86,6 +92,7 @@ public sealed class DungeonMapCatalogTests
     {
         public bool IsAvailable => true;
         public string? RootPath => root;
+
         public bool EnsureDirectory(string prefix)
         {
             Directory.CreateDirectory(Path.Combine(root, prefix));

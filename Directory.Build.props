@@ -17,10 +17,16 @@
     <OpenAcDir Condition="'$(OpenAcDir)' == ''">$(MSBuildThisFileDirectory)../OpenAC</OpenAcDir>
   </PropertyGroup>
 
-  <Target Name="ExcludeOwnDocumentationFilesFromPublish" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(PublishOwnDocumentationFiles)' != 'true'">
+  <Target
+    Name="ExcludeOwnDocumentationFilesFromPublish"
+    AfterTargets="ComputeResolvedFilesToPublishList"
+    Condition="'$(PublishOwnDocumentationFiles)' != 'true'"
+  >
     <ItemGroup>
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
-                             Condition="'%(Extension)' == '.xml' and $([System.String]::new('%(Filename)').StartsWith('AcDream.'))" />
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="'%(Extension)' == '.xml' and $([System.String]::new('%(Filename)').StartsWith('AcDream.'))"
+      />
     </ItemGroup>
   </Target>
 </Project>

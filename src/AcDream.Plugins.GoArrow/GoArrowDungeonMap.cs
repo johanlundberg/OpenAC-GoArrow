@@ -48,7 +48,9 @@ internal sealed class GoArrowDungeonMap : IDisposable
                 Offset = new PluginPoint(_settings.DungeonOffsetX, _settings.DungeonOffsetY),
                 StartVisible = false,
                 AcceptsPointerInput = true,
-            }, Paint);
+            },
+            Paint
+        );
         _canvas.PointerHandler = OnInput;
         _tick = _ =>
         {
@@ -86,10 +88,13 @@ internal sealed class GoArrowDungeonMap : IDisposable
 
         var snapshot = _host.Automation.Navigation.Snapshot;
         var position = snapshot.Position;
-        int id = _host.Automation.IsAvailable && snapshot.IsAvailable
-            && !snapshot.IsPortalSpace && !position.IsOutdoor
-            ? (int)(position.CellId >> 16)
-            : 0;
+        int id =
+            _host.Automation.IsAvailable
+            && snapshot.IsAvailable
+            && !snapshot.IsPortalSpace
+            && !position.IsOutdoor
+                ? (int)(position.CellId >> 16)
+                : 0;
         if (id != _selectedId)
             SelectDungeon(id);
         if (_image.IsValid && !_host.Ui.Images.IsAvailable)
@@ -140,8 +145,7 @@ internal sealed class GoArrowDungeonMap : IDisposable
     private void LoadImage(DungeonMapEntry map)
     {
         _pendingImage = false;
-        _image = _host.Ui.Images.FromStream(
-            $"dungeon/{map.Id:X4}", () => _catalog.OpenImage(map));
+        _image = _host.Ui.Images.FromStream($"dungeon/{map.Id:X4}", () => _catalog.OpenImage(map));
         if (!_image.IsValid)
             _host.Log.Warn($"GoArrow: Dungeon map {map.Id:X4} could not be loaded.");
         _canvas?.Invalidate();
@@ -150,9 +154,19 @@ internal sealed class GoArrowDungeonMap : IDisposable
     private void Paint(IPluginPainter painter)
     {
         painter.Clear(PluginColor.Transparent);
-        painter.FillRect(new PluginRect(0, 0, CanvasWidth, CanvasHeight), new PluginColor(18, 18, 18, 235));
-        painter.StrokeRect(new PluginRect(0, 0, CanvasWidth, CanvasHeight), new PluginColor(130, 130, 130));
-        painter.DrawText($"{CurrentMapName} ({CurrentDungeonId:X4})  ·  Drag title to move", new PluginPoint(12, 10), PluginColor.White);
+        painter.FillRect(
+            new PluginRect(0, 0, CanvasWidth, CanvasHeight),
+            new PluginColor(18, 18, 18, 235)
+        );
+        painter.StrokeRect(
+            new PluginRect(0, 0, CanvasWidth, CanvasHeight),
+            new PluginColor(130, 130, 130)
+        );
+        painter.DrawText(
+            $"{CurrentMapName} ({CurrentDungeonId:X4})  ·  Drag title to move",
+            new PluginPoint(12, 10),
+            PluginColor.White
+        );
         painter.DrawText("×", new PluginPoint(CanvasWidth - 24, 10), PluginColor.White);
         if (!_image.IsValid)
             return;
@@ -168,8 +182,12 @@ internal sealed class GoArrowDungeonMap : IDisposable
         painter.PushClip(new PluginRect(margin, HeaderHeight, areaWidth, areaHeight));
         painter.DrawImage(_image, new PluginRect(x, y, width, height), PluginColor.White);
         painter.PopClip();
-        painter.DrawText($"Elevation: {_elevation * 240:0} m   Wheel: zoom   Drag: pan",
-            new PluginPoint(12, CanvasHeight - 20), new PluginColor(245, 225, 130), outline: true);
+        painter.DrawText(
+            $"Elevation: {_elevation * 240:0} m   Wheel: zoom   Drag: pan",
+            new PluginPoint(12, CanvasHeight - 20),
+            new PluginColor(245, 225, 130),
+            outline: true
+        );
     }
 
     private void OnInput(PluginPointerEvent input)
@@ -195,7 +213,8 @@ internal sealed class GoArrowDungeonMap : IDisposable
         {
             _canvas.Offset = new PluginPoint(
                 _displayedOffset.X + input.Position.X - origin.X,
-                _displayedOffset.Y + input.Position.Y - origin.Y);
+                _displayedOffset.Y + input.Position.Y - origin.Y
+            );
         }
         else if (input.Kind == PluginPointerEventKind.Move && _lastDrag is { } last)
         {
@@ -208,11 +227,13 @@ internal sealed class GoArrowDungeonMap : IDisposable
         {
             if (_windowDrag is { } dragStart)
             {
-                var offset = input.Kind == PluginPointerEventKind.Up
-                    ? new PluginPoint(
-                        _displayedOffset.X + input.Position.X - dragStart.X,
-                        _displayedOffset.Y + input.Position.Y - dragStart.Y)
-                    : _canvas.Offset;
+                var offset =
+                    input.Kind == PluginPointerEventKind.Up
+                        ? new PluginPoint(
+                            _displayedOffset.X + input.Position.X - dragStart.X,
+                            _displayedOffset.Y + input.Position.Y - dragStart.Y
+                        )
+                        : _canvas.Offset;
                 _canvas.Offset = offset;
                 _settings.DungeonOffsetX = offset.X;
                 _settings.DungeonOffsetY = offset.Y;

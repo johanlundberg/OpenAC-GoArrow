@@ -26,7 +26,9 @@ internal sealed class GoArrowMap : IDisposable
             return;
         var bounds = new PluginMapViewport(
             new PluginMapPoint(_settings.MapCenterEastWest, _settings.MapCenterNorthSouth),
-            _settings.MapWidth, _settings.MapHeight);
+            _settings.MapWidth,
+            _settings.MapHeight
+        );
         _map = _host.Maps.AddMap("goarrow.dereth", bounds);
         _map.Input += OnInput;
         _loadCancellation = new CancellationTokenSource();
@@ -38,17 +40,28 @@ internal sealed class GoArrowMap : IDisposable
 
     private async Task LoadBackgroundAsync(CancellationToken cancellationToken)
     {
-        if (_map is null) return;
+        if (_map is null)
+            return;
         try
         {
-            await using IPluginTiledMapResource? resource = await _host.MapResources
-                .OpenMapAsync("maps/dereth", cancellationToken).ConfigureAwait(false);
-            if (resource is null || _map is null) return;
-            PluginMapTile? tile = await resource.LoadTileAsync(
-                new PluginMapTileKey(resource.MinZoom, 0, 0), cancellationToken).ConfigureAwait(false);
-            if (tile is null || _map is null) return;
-            _map.SetBackground(new PluginMapImage(resource.Id, tile.PixelWidth, tile.PixelHeight,
-                new LinearPluginMapCoordinateConverter(resource.WorldBounds)));
+            await using IPluginTiledMapResource? resource = await _host
+                .MapResources.OpenMapAsync("maps/dereth", cancellationToken)
+                .ConfigureAwait(false);
+            if (resource is null || _map is null)
+                return;
+            PluginMapTile? tile = await resource
+                .LoadTileAsync(new PluginMapTileKey(resource.MinZoom, 0, 0), cancellationToken)
+                .ConfigureAwait(false);
+            if (tile is null || _map is null)
+                return;
+            _map.SetBackground(
+                new PluginMapImage(
+                    resource.Id,
+                    tile.PixelWidth,
+                    tile.PixelHeight,
+                    new LinearPluginMapCoordinateConverter(resource.WorldBounds)
+                )
+            );
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -65,22 +78,33 @@ internal sealed class GoArrowMap : IDisposable
         {
             double factor = input.WheelDelta > 0 ? 0.9 : 1.1;
             var view = _map.Viewport;
-            _map.Viewport = new PluginMapViewport(view.Center, view.Width * factor, view.Height * factor);
+            _map.Viewport = new PluginMapViewport(
+                view.Center,
+                view.Width * factor,
+                view.Height * factor
+            );
             PersistViewport();
             return;
         }
         if (input.Kind != PluginMapInputKind.Click || _map.Background is null)
             return;
         PluginMapPoint point = _map.Background.Coordinates.PixelToWorld(
-            input.Position, _map.Background.PixelWidth, _map.Background.PixelHeight);
-        _destination.SetCoordinate(point.NorthSouth, point.EastWest,
-            $"{point.NorthSouth:0.###}N {point.EastWest:0.###}E");
+            input.Position,
+            _map.Background.PixelWidth,
+            _map.Background.PixelHeight
+        );
+        _destination.SetCoordinate(
+            point.NorthSouth,
+            point.EastWest,
+            $"{point.NorthSouth:0.###}N {point.EastWest:0.###}E"
+        );
         PersistViewport();
     }
 
     private void PersistViewport()
     {
-        if (_map is null) return;
+        if (_map is null)
+            return;
         var view = _map.Viewport;
         _settings.MapCenterEastWest = view.Center.EastWest;
         _settings.MapCenterNorthSouth = view.Center.NorthSouth;
@@ -97,30 +121,49 @@ internal sealed class GoArrowMap : IDisposable
         if (_host.Automation.IsAvailable)
         {
             var position = _host.Automation.Navigation.Snapshot.Position;
-            markers.Add(new PluginMapMarker("current",
-                new PluginMapPoint(position.EastWest, position.NorthSouth), "Current position", IsSelected: true));
+            markers.Add(
+                new PluginMapMarker(
+                    "current",
+                    new PluginMapPoint(position.EastWest, position.NorthSouth),
+                    "Current position",
+                    IsSelected: true
+                )
+            );
         }
         if (_destination.TargetLocation is { } target)
-            markers.Add(new PluginMapMarker("destination",
-                new PluginMapPoint(target.Coords.EW, target.Coords.NS), target.Name, IsSelected: true));
+            markers.Add(
+                new PluginMapMarker(
+                    "destination",
+                    new PluginMapPoint(target.Coords.EW, target.Coords.NS),
+                    target.Name,
+                    IsSelected: true
+                )
+            );
         _map.SetMarkers(markers);
-        var points = _destination.CurrentRoute?.Steps
-            .SelectMany(step => new[]
-            {
-                new PluginMapPoint(step.From.Coords.EW, step.From.Coords.NS),
-                new PluginMapPoint(step.To.Coords.EW, step.To.Coords.NS)
-            }).ToArray() ?? Array.Empty<PluginMapPoint>();
+        var points =
+            _destination
+                .CurrentRoute?.Steps.SelectMany(step =>
+                    new[]
+                    {
+                        new PluginMapPoint(step.From.Coords.EW, step.From.Coords.NS),
+                        new PluginMapPoint(step.To.Coords.EW, step.To.Coords.NS),
+                    }
+                )
+                .ToArray()
+            ?? Array.Empty<PluginMapPoint>();
         _map.SetRoute(points);
     }
 
     public void Dispose()
     {
-        if (_tick is not null) _host.Events.Tick -= _tick;
+        if (_tick is not null)
+            _host.Events.Tick -= _tick;
         _tick = null;
         _loadCancellation?.Cancel();
         _loadCancellation?.Dispose();
         _loadCancellation = null;
-        if (_map is not null) _map.Input -= OnInput;
+        if (_map is not null)
+            _map.Input -= OnInput;
         _map?.Dispose();
         _map = null;
     }

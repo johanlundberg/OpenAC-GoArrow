@@ -18,15 +18,13 @@ public sealed class UiStartupTests
         {
             DestinationName = "New destination",
             ShowDistance = false,
-            RecallsByCharacter = new()
-            {
-                ["character/world"] = new() { Lifestone = "1,2" },
-            },
+            RecallsByCharacter = new() { ["character/world"] = new() { Lifestone = "1,2" } },
         }.Save(storage);
 
         Assert.Equal(
             new[] { "data/warcry-atlas.xml", "settings.json" },
-            storage.Store.Keys.OrderBy(key => key));
+            storage.Store.Keys.OrderBy(key => key)
+        );
         var reloaded = new GoArrowSettings();
         reloaded.Load(storage);
         Assert.Equal("New destination", reloaded.DestinationName);
@@ -79,27 +77,33 @@ public sealed class UiStartupTests
     {
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
-        XElement title = markup.Root!.Elements("label")
+        XElement title = markup
+            .Root!.Elements("label")
             .Single(element => (string?)element.Attribute("text") == "{TitleText}");
 
         Assert.Equal("8", (string?)title.Attribute("x"));
         Assert.Equal(typeof(string), typeof(GoArrowPanel).GetProperty("TitleText")!.PropertyType);
         Assert.StartsWith("GoArrow v", GoArrowPlugin.DisplayTitle);
-        Assert.Contains(typeof(GoArrowPlugin).Assembly.GetName().Version!.ToString(3),
-            GoArrowPlugin.DisplayTitle);
+        Assert.Contains(
+            typeof(GoArrowPlugin).Assembly.GetName().Version!.ToString(3),
+            GoArrowPlugin.DisplayTitle
+        );
     }
 
     [Fact]
     public void PositionsSavedByOldDragHandlerReturnToVisibleDefaults()
     {
         var storage = new FakePluginStorage();
-        storage.WriteJson("settings.json", new GoArrowSettings
-        {
-            ArrowOffsetX = 5000,
-            ToolbarOffsetY = 5000,
-            DungeonOffsetX = 5000,
-            OverlayPositionVersion = 0,
-        });
+        storage.WriteJson(
+            "settings.json",
+            new GoArrowSettings
+            {
+                ArrowOffsetX = 5000,
+                ToolbarOffsetY = 5000,
+                DungeonOffsetX = 5000,
+                OverlayPositionVersion = 0,
+            }
+        );
 
         var settings = new GoArrowSettings();
         settings.Load(storage);
@@ -175,7 +179,7 @@ public sealed class UiStartupTests
             ShowDistance = false,
             ShowBearing = false,
             RecalculateRoute = false,
-            UseNavigationAutomation = false
+            UseNavigationAutomation = false,
         };
         storage.WriteJson("settings.json", oldSettings);
 
@@ -202,7 +206,7 @@ public sealed class UiStartupTests
             ToolbarVisible = false,
             MapVisible = false,
             ShowDistance = true,
-            ShowBearing = true
+            ShowBearing = true,
         };
         storage.WriteJson("settings.json", oldSettings);
 
@@ -221,14 +225,26 @@ public sealed class UiStartupTests
         Assert.Equal(4, markup.Descendants("field").Count());
         foreach (XElement field in markup.Descendants("field"))
         {
-            Assert.Equal(typeof(Action<string>), typeof(GoArrowPanel)
-                .GetProperty(BindingName(field.Attribute("onsubmit")!.Value))!.PropertyType);
-            Assert.Equal(typeof(Action<string>), typeof(GoArrowPanel)
-                .GetProperty(BindingName(field.Attribute("onchange")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(Action<string>),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(field.Attribute("onsubmit")!.Value))!
+                    .PropertyType
+            );
+            Assert.Equal(
+                typeof(Action<string>),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(field.Attribute("onchange")!.Value))!
+                    .PropertyType
+            );
         }
         foreach (XElement button in markup.Descendants("button").Take(2))
-            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
-                .GetProperty(BindingName(button.Attribute("onclick")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(Action),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(button.Attribute("onclick")!.Value))!
+                    .PropertyType
+            );
     }
 
     [Fact]
@@ -237,18 +253,32 @@ public sealed class UiStartupTests
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
         XElement[] tabs = markup.Descendants("tab").ToArray();
-        Assert.Equal(new[] { "Route", "Config", "Details" },
-            tabs.Select(tab => (string?)tab.Attribute("text")));
+        Assert.Equal(
+            new[] { "Route", "Config", "Details" },
+            tabs.Select(tab => (string?)tab.Attribute("text"))
+        );
         foreach (XElement tab in tabs)
         {
-            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
-                .GetProperty(BindingName(tab.Attribute("selected")!.Value))!.PropertyType);
-            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
-                .GetProperty(BindingName(tab.Attribute("onclick")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(bool),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(tab.Attribute("selected")!.Value))!
+                    .PropertyType
+            );
+            Assert.Equal(
+                typeof(Action),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(tab.Attribute("onclick")!.Value))!
+                    .PropertyType
+            );
         }
         foreach (XElement group in markup.Descendants("group"))
-            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
-                .GetProperty(BindingName(group.Attribute("visible")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(bool),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(group.Attribute("visible")!.Value))!
+                    .PropertyType
+            );
     }
 
     [Fact]
@@ -256,15 +286,28 @@ public sealed class UiStartupTests
     {
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
-        XElement list = markup.Descendants("list")
+        XElement list = markup
+            .Descendants("list")
             .Single(element => (string?)element.Attribute("items") == "{RouteSteps}");
 
-        Assert.Equal(typeof(IReadOnlyList<string>),
-            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("items")!.Value))!.PropertyType);
-        Assert.Equal(typeof(int),
-            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("selected")!.Value))!.PropertyType);
-        Assert.Equal(typeof(Action<int>),
-            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("onchange")!.Value))!.PropertyType);
+        Assert.Equal(
+            typeof(IReadOnlyList<string>),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(list.Attribute("items")!.Value))!
+                .PropertyType
+        );
+        Assert.Equal(
+            typeof(int),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(list.Attribute("selected")!.Value))!
+                .PropertyType
+        );
+        Assert.Equal(
+            typeof(Action<int>),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(list.Attribute("onchange")!.Value))!
+                .PropertyType
+        );
     }
 
     [Fact]
@@ -272,30 +315,55 @@ public sealed class UiStartupTests
     {
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
-        XElement list = markup.Descendants("list")
+        XElement list = markup
+            .Descendants("list")
             .Single(element => (string?)element.Attribute("items") == "{SearchResults}");
 
-        Assert.Equal(typeof(IReadOnlyList<string>),
-            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("items")!.Value))!.PropertyType);
-        Assert.Equal(typeof(Action<int>),
-            typeof(GoArrowPanel).GetProperty(BindingName(list.Attribute("onchange")!.Value))!.PropertyType);
+        Assert.Equal(
+            typeof(IReadOnlyList<string>),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(list.Attribute("items")!.Value))!
+                .PropertyType
+        );
+        Assert.Equal(
+            typeof(Action<int>),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(list.Attribute("onchange")!.Value))!
+                .PropertyType
+        );
 
-        foreach ((string input, string editor) in new[]
-                 {
-                     ("FromInput", "FromEditorInput"),
-                     ("DestinationInput", "DestinationInput")
-                 })
+        foreach (
+            (string input, string editor) in new[]
+            {
+                ("FromInput", "FromEditorInput"),
+                ("DestinationInput", "DestinationInput"),
+            }
+        )
         {
-            XElement field = markup.Descendants("field")
+            XElement field = markup
+                .Descendants("field")
                 .Single(element => (string?)element.Attribute("text") == $"{{{editor}}}");
-            XElement selected = markup.Descendants("button")
+            XElement selected = markup
+                .Descendants("button")
                 .Single(element => (string?)element.Attribute("text") == $"{{{input}}}");
-            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
-                .GetProperty(BindingName(field.Attribute("visible")!.Value))!.PropertyType);
-            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
-                .GetProperty(BindingName(selected.Attribute("visible")!.Value))!.PropertyType);
-            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
-                .GetProperty(BindingName(selected.Attribute("onclick")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(bool),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(field.Attribute("visible")!.Value))!
+                    .PropertyType
+            );
+            Assert.Equal(
+                typeof(bool),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(selected.Attribute("visible")!.Value))!
+                    .PropertyType
+            );
+            Assert.Equal(
+                typeof(Action),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(selected.Attribute("onclick")!.Value))!
+                    .PropertyType
+            );
         }
     }
 
@@ -304,13 +372,22 @@ public sealed class UiStartupTests
     {
         string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
         var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
-        XElement toggle = markup.Descendants("toggle")
+        XElement toggle = markup
+            .Descendants("toggle")
             .Single(element => (string?)element.Attribute("text") == "Dungeon Map");
 
-        Assert.Equal(typeof(bool),
-            typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("checked")!.Value))!.PropertyType);
-        Assert.Equal(typeof(Action),
-            typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!.PropertyType);
+        Assert.Equal(
+            typeof(bool),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(toggle.Attribute("checked")!.Value))!
+                .PropertyType
+        );
+        Assert.Equal(
+            typeof(Action),
+            typeof(GoArrowPanel)
+                .GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!
+                .PropertyType
+        );
     }
 
     [Fact]
@@ -325,12 +402,21 @@ public sealed class UiStartupTests
 
         foreach (string label in new[] { "Show Arrow", "Show Toolbar" })
         {
-            XElement toggle = markup.Descendants("toggle")
+            XElement toggle = markup
+                .Descendants("toggle")
                 .Single(element => (string?)element.Attribute("text") == label);
-            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
-                .GetProperty(BindingName(toggle.Attribute("checked")!.Value))!.PropertyType);
-            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
-                .GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!.PropertyType);
+            Assert.Equal(
+                typeof(bool),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(toggle.Attribute("checked")!.Value))!
+                    .PropertyType
+            );
+            Assert.Equal(
+                typeof(Action),
+                typeof(GoArrowPanel)
+                    .GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!
+                    .PropertyType
+            );
         }
 
         panel.ToggleArrowVisible();

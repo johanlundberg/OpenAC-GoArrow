@@ -1,76 +1,364 @@
 <?xml version="1.0" encoding="utf-8"?>
 <panel x="0" y="0" w="560" h="650" resizable="true" minw="360" minh="650">
   <label x="8" y="6" text="{TitleText}" />
-  <tab x="8" y="32" w="84" h="26" text="Route" selected="{RouteTabSelected}" onclick="{ShowRouteTab}" />
-  <tab x="96" y="32" w="84" h="26" text="Config" selected="{ConfigTabSelected}" onclick="{ShowConfigTab}" />
-  <tab x="184" y="32" w="84" h="26" text="Details" selected="{DetailsTabSelected}" onclick="{ShowDetailsTab}" />
+  <tab
+    x="8"
+    y="32"
+    w="84"
+    h="26"
+    text="Route"
+    selected="{RouteTabSelected}"
+    onclick="{ShowRouteTab}"
+  />
+  <tab
+    x="96"
+    y="32"
+    w="84"
+    h="26"
+    text="Config"
+    selected="{ConfigTabSelected}"
+    onclick="{ShowConfigTab}"
+  />
+  <tab
+    x="184"
+    y="32"
+    w="84"
+    h="26"
+    text="Details"
+    selected="{DetailsTabSelected}"
+    onclick="{ShowDetailsTab}"
+  />
 
-  <group x="8" y="66" w="544" h="196" anchor="left right top" border="#FF4A3A14" visible="{RouteTabVisible}">
+  <group
+    x="8"
+    y="66"
+    w="544"
+    h="196"
+    anchor="left right top"
+    border="#FF4A3A14"
+    visible="{RouteTabVisible}"
+  >
     <label x="8" y="8" text="From" />
-    <field x="8" y="26" w="450" h="20" anchor="left right top" text="{FromEditorInput}" onchange="{UpdateFromInputAction}" onsubmit="{SubmitFromTextAction}" visible="{FromEditorVisible}" />
-    <button x="8" y="26" w="450" h="20" anchor="left right top" text="{FromInput}" onclick="{EditFromAction}" visible="{FromSelectionVisible}" />
-    <button x="466" y="26" w="70" h="20" anchor="right top" text="Set" onclick="{SubmitFromAction}" />
+    <field
+      x="8"
+      y="26"
+      w="450"
+      h="20"
+      anchor="left right top"
+      text="{FromEditorInput}"
+      onchange="{UpdateFromInputAction}"
+      onsubmit="{SubmitFromTextAction}"
+      visible="{FromEditorVisible}"
+    />
+    <button
+      x="8"
+      y="26"
+      w="450"
+      h="20"
+      anchor="left right top"
+      text="{FromInput}"
+      onclick="{EditFromAction}"
+      visible="{FromSelectionVisible}"
+    />
+    <button
+      x="466"
+      y="26"
+      w="70"
+      h="20"
+      anchor="right top"
+      text="Set"
+      onclick="{SubmitFromAction}"
+    />
     <label x="8" y="52" text="Destination" />
-    <field x="8" y="70" w="450" h="20" anchor="left right top" text="{DestinationInput}" onchange="{UpdateDestinationInputAction}" onsubmit="{SubmitDestinationTextAction}" visible="{DestinationEditorVisible}" />
-    <button x="8" y="70" w="450" h="20" anchor="left right top" text="{DestinationInput}" onclick="{EditDestinationAction}" visible="{DestinationSelectionVisible}" />
-    <button x="466" y="70" w="70" h="20" anchor="right top" text="Set" onclick="{SubmitDestinationAction}" />
+    <field
+      x="8"
+      y="70"
+      w="450"
+      h="20"
+      anchor="left right top"
+      text="{DestinationInput}"
+      onchange="{UpdateDestinationInputAction}"
+      onsubmit="{SubmitDestinationTextAction}"
+      visible="{DestinationEditorVisible}"
+    />
+    <button
+      x="8"
+      y="70"
+      w="450"
+      h="20"
+      anchor="left right top"
+      text="{DestinationInput}"
+      onclick="{EditDestinationAction}"
+      visible="{DestinationSelectionVisible}"
+    />
+    <button
+      x="466"
+      y="70"
+      w="70"
+      h="20"
+      anchor="right top"
+      text="Set"
+      onclick="{SubmitDestinationAction}"
+    />
     <label x="8" y="96" text="{SearchResultsLabel}" visible="{SearchResultsVisible}" />
-    <list x="8" y="112" w="528" h="72" anchor="left right top" rowheight="18" items="{SearchResults}" selected="{SelectedSearchResult}" onchange="{SelectSearchResultAction}" visible="{SearchResultsVisible}" selectionband="true" />
+    <list
+      x="8"
+      y="112"
+      w="528"
+      h="72"
+      anchor="left right top"
+      rowheight="18"
+      items="{SearchResults}"
+      selected="{SelectedSearchResult}"
+      onchange="{SelectSearchResultAction}"
+      visible="{SearchResultsVisible}"
+      selectionband="true"
+    />
   </group>
 
-  <group x="8" y="270" w="544" h="100" anchor="left right top" border="#FF4A3A14" visible="{RouteTabVisible}">
-    <button x="8" y="8" w="72" h="22" text="Go" enabled="{HasDestination}" onclick="{StartNavigation}" />
-    <button x="88" y="8" w="72" h="22" text="Stop" enabled="{IsNavigating}" onclick="{StopNavigation}" />
-    <button x="168" y="8" w="80" h="22" text="Resume" enabled="{CanResumeNavigation}" onclick="{ResumeNavigation}" />
-    <button x="256" y="8" w="80" h="22" text="Clear" enabled="{HasDestination}" onclick="{ClearDestination}" />
+  <group
+    x="8"
+    y="270"
+    w="544"
+    h="100"
+    anchor="left right top"
+    border="#FF4A3A14"
+    visible="{RouteTabVisible}"
+  >
+    <button
+      x="8"
+      y="8"
+      w="72"
+      h="22"
+      text="Go"
+      enabled="{HasDestination}"
+      onclick="{StartNavigation}"
+    />
+    <button
+      x="88"
+      y="8"
+      w="72"
+      h="22"
+      text="Stop"
+      enabled="{IsNavigating}"
+      onclick="{StopNavigation}"
+    />
+    <button
+      x="168"
+      y="8"
+      w="80"
+      h="22"
+      text="Resume"
+      enabled="{CanResumeNavigation}"
+      onclick="{ResumeNavigation}"
+    />
+    <button
+      x="256"
+      y="8"
+      w="80"
+      h="22"
+      text="Clear"
+      enabled="{HasDestination}"
+      onclick="{ClearDestination}"
+    />
     <label x="344" y="12" text="{NavStatusText}" />
     <label x="8" y="40" text="Route:" />
     <label x="52" y="40" text="{RouteStepsText}" />
     <label x="120" y="40" text="{FromText}" />
-    <toggle x="8" y="72" w="150" h="20" text="Auto-Navigate" checked="{AutoNavigate}" onclick="{ToggleAutoNavigate}" />
-    <toggle x="170" y="72" w="150" h="20" text="Recalculate" checked="{RecalculateRoute}" onclick="{ToggleRecalculateRoute}" />
+    <toggle
+      x="8"
+      y="72"
+      w="150"
+      h="20"
+      text="Auto-Navigate"
+      checked="{AutoNavigate}"
+      onclick="{ToggleAutoNavigate}"
+    />
+    <toggle
+      x="170"
+      y="72"
+      w="150"
+      h="20"
+      text="Recalculate"
+      checked="{RecalculateRoute}"
+      onclick="{ToggleRecalculateRoute}"
+    />
   </group>
 
-  <group x="8" y="378" w="544" h="252" anchor="left right top bottom" border="#FF4A3A14" visible="{RouteTabVisible}">
+  <group
+    x="8"
+    y="378"
+    w="544"
+    h="252"
+    anchor="left right top bottom"
+    border="#FF4A3A14"
+    visible="{RouteTabVisible}"
+  >
     <label x="8" y="8" text="Route steps" />
     <label x="88" y="8" text="{NextTargetText}" />
-    <list x="8" y="32" w="528" h="212" anchor="left right top bottom" rowheight="18" items="{RouteSteps}" selected="{SelectedRouteStep}" onchange="{SelectRouteStepAction}" selectionband="true" />
+    <list
+      x="8"
+      y="32"
+      w="528"
+      h="212"
+      anchor="left right top bottom"
+      rowheight="18"
+      items="{RouteSteps}"
+      selected="{SelectedRouteStep}"
+      onchange="{SelectRouteStepAction}"
+      selectionband="true"
+    />
   </group>
 
-  <group x="8" y="66" w="544" h="146" anchor="left right top" border="#FF4A3A14" visible="{ConfigTabVisible}">
+  <group
+    x="8"
+    y="66"
+    w="544"
+    h="146"
+    anchor="left right top"
+    border="#FF4A3A14"
+    visible="{ConfigTabVisible}"
+  >
     <label x="8" y="8" text="Location data URL" />
-    <field x="8" y="30" w="528" h="22" anchor="left right top" maxlength="1024" text="{LocationDataUrlInput}" onchange="{UpdateLocationDataUrlAction}" onsubmit="{SubmitLocationDataUrlAction}" />
+    <field
+      x="8"
+      y="30"
+      w="528"
+      h="22"
+      anchor="left right top"
+      maxlength="1024"
+      text="{LocationDataUrlInput}"
+      onchange="{UpdateLocationDataUrlAction}"
+      onsubmit="{SubmitLocationDataUrlAction}"
+    />
     <button x="8" y="62" w="90" h="24" text="Save URL" onclick="{SaveLocationDataUrlAction}" />
     <button x="106" y="62" w="100" h="24" text="Download" onclick="{DownloadLocationDataAction}" />
     <label x="8" y="96" text="{LocationDownloadStatus}" />
   </group>
 
-  <group x="8" y="220" w="544" h="170" anchor="left right top" border="#FF4A3A14" visible="{ConfigTabVisible}">
+  <group
+    x="8"
+    y="220"
+    w="544"
+    h="170"
+    anchor="left right top"
+    border="#FF4A3A14"
+    visible="{ConfigTabVisible}"
+  >
     <label x="8" y="8" text="Dungeon map ZIP URL" />
-    <field x="8" y="30" w="528" h="22" anchor="left right top" maxlength="1024" text="{DungeonMapUrlInput}" onchange="{UpdateDungeonMapUrlAction}" onsubmit="{SubmitDungeonMapUrlAction}" />
+    <field
+      x="8"
+      y="30"
+      w="528"
+      h="22"
+      anchor="left right top"
+      maxlength="1024"
+      text="{DungeonMapUrlInput}"
+      onchange="{UpdateDungeonMapUrlAction}"
+      onsubmit="{SubmitDungeonMapUrlAction}"
+    />
     <button x="8" y="62" w="90" h="24" text="Save URL" onclick="{SaveDungeonMapUrlAction}" />
     <button x="106" y="62" w="100" h="24" text="Download" onclick="{DownloadDungeonMapsAction}" />
     <label x="8" y="96" text="{DungeonDownloadStatus}" />
     <label x="8" y="128" text="Extracted maps take precedence over the ZIP." />
   </group>
 
-  <group x="8" y="398" w="544" h="88" anchor="left right top" border="#FF4A3A14" visible="{ConfigTabVisible}">
+  <group
+    x="8"
+    y="398"
+    w="544"
+    h="88"
+    anchor="left right top"
+    border="#FF4A3A14"
+    visible="{ConfigTabVisible}"
+  >
     <label x="8" y="8" text="Display" />
-    <toggle x="8" y="30" w="150" h="20" text="Show Distance" checked="{ShowDistance}" onclick="{ToggleShowDistance}" />
-    <toggle x="170" y="30" w="150" h="20" text="Show Bearing" checked="{ShowBearing}" onclick="{ToggleShowBearing}" />
-    <toggle x="8" y="56" w="160" h="20" text="Dungeon Map" checked="{DungeonMapVisible}" onclick="{ToggleDungeonMap}" />
+    <toggle
+      x="8"
+      y="30"
+      w="150"
+      h="20"
+      text="Show Distance"
+      checked="{ShowDistance}"
+      onclick="{ToggleShowDistance}"
+    />
+    <toggle
+      x="170"
+      y="30"
+      w="150"
+      h="20"
+      text="Show Bearing"
+      checked="{ShowBearing}"
+      onclick="{ToggleShowBearing}"
+    />
+    <toggle
+      x="8"
+      y="56"
+      w="160"
+      h="20"
+      text="Dungeon Map"
+      checked="{DungeonMapVisible}"
+      onclick="{ToggleDungeonMap}"
+    />
   </group>
 
-  <group x="8" y="494" w="544" h="112" anchor="left right bottom" border="#FF4A3A14" visible="{ConfigTabVisible}">
+  <group
+    x="8"
+    y="494"
+    w="544"
+    h="112"
+    anchor="left right bottom"
+    border="#FF4A3A14"
+    visible="{ConfigTabVisible}"
+  >
     <label x="8" y="8" text="Overlays" />
-    <toggle x="8" y="32" w="150" h="20" text="Show Arrow" checked="{ArrowVisible}" onclick="{ToggleArrowVisible}" />
-    <toggle x="170" y="32" w="150" h="20" text="Show Toolbar" checked="{ToolbarVisible}" onclick="{ToggleToolbarVisible}" />
-    <button x="8" y="64" w="180" h="24" text="Reset overlay positions" onclick="{ResetOverlayPositionsAction}" />
+    <toggle
+      x="8"
+      y="32"
+      w="150"
+      h="20"
+      text="Show Arrow"
+      checked="{ArrowVisible}"
+      onclick="{ToggleArrowVisible}"
+    />
+    <toggle
+      x="170"
+      y="32"
+      w="150"
+      h="20"
+      text="Show Toolbar"
+      checked="{ToolbarVisible}"
+      onclick="{ToggleToolbarVisible}"
+    />
+    <button
+      x="8"
+      y="64"
+      w="180"
+      h="24"
+      text="Reset overlay positions"
+      onclick="{ResetOverlayPositionsAction}"
+    />
   </group>
 
-  <group x="8" y="66" w="544" h="565" anchor="left right top bottom" border="#FF4A3A14" visible="{DetailsTabVisible}">
+  <group
+    x="8"
+    y="66"
+    w="544"
+    h="565"
+    anchor="left right top bottom"
+    border="#FF4A3A14"
+    visible="{DetailsTabVisible}"
+  >
     <label x="8" y="8" text="{DetailsStepNumberText}" />
-    <button x="420" y="6" w="116" h="24" anchor="right top" text="Back to route" onclick="{ShowRouteTab}" />
+    <button
+      x="420"
+      y="6"
+      w="116"
+      h="24"
+      anchor="right top"
+      text="Back to route"
+      onclick="{ShowRouteTab}"
+    />
     <label x="8" y="38" text="{DetailsInstructionText}" />
     <label x="8" y="72" text="Location" />
     <label x="100" y="72" text="{DetailsLocationName}" />
@@ -83,6 +371,15 @@
     <label x="8" y="168" text="Walk distance" visible="{DetailsDistanceVisible}" />
     <label x="100" y="168" text="{DetailsDistance}" visible="{DetailsDistanceVisible}" />
     <label x="8" y="200" text="Notes" />
-    <list x="8" y="224" w="528" h="329" anchor="left right top bottom" rowheight="18" items="{DetailsNotesLines}" selected="{SelectedNotesLine}" />
+    <list
+      x="8"
+      y="224"
+      w="528"
+      h="329"
+      anchor="left right top bottom"
+      rowheight="18"
+      items="{DetailsNotesLines}"
+      selected="{SelectedNotesLine}"
+    />
   </group>
 </panel>

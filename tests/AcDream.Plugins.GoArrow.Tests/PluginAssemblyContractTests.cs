@@ -38,7 +38,9 @@ public sealed class PluginAssemblyContractTests
         // OpenAC must supply the contract; no extra AcDream.AcDream runtime copy may ride along.
         var acDreamReferences = assembly
             .GetReferencedAssemblies()
-            .Where(static name => name.Name is not null && name.Name.StartsWith("AcDream.", StringComparison.Ordinal))
+            .Where(static name =>
+                name.Name is not null && name.Name.StartsWith("AcDream.", StringComparison.Ordinal)
+            )
             .Select(static name => name.Name!)
             .ToArray();
 

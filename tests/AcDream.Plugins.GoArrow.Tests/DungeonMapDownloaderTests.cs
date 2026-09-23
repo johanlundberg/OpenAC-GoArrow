@@ -13,8 +13,9 @@ public sealed class DungeonMapDownloaderTests
         {
             using var client = new HttpClient(new StubHandler(DungeonMapTestData.CreateArchive()));
             var storage = new DirectoryStorage(root);
-            int count = await new DungeonMapDownloader(storage, client)
-                .DownloadAsync("https://example.test/maps.zip");
+            int count = await new DungeonMapDownloader(storage, client).DownloadAsync(
+                "https://example.test/maps.zip"
+            );
 
             Assert.Equal(3, count);
             Assert.Equal(3, DungeonMapCatalog.OpenUserMaps(storage)!.Count);
@@ -22,7 +23,8 @@ public sealed class DungeonMapDownloaderTests
         }
         finally
         {
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
         }
     }
 
@@ -39,31 +41,43 @@ public sealed class DungeonMapDownloaderTests
             using var client = new HttpClient(new StubHandler("not a ZIP"u8.ToArray()));
 
             await Assert.ThrowsAnyAsync<Exception>(() =>
-                new DungeonMapDownloader(storage, client).DownloadAsync("https://example.test/maps.zip"));
+                new DungeonMapDownloader(storage, client).DownloadAsync(
+                    "https://example.test/maps.zip"
+                )
+            );
 
-            Assert.Equal(previous, File.ReadAllBytes(Path.Combine(directory, "Dungeon_Map_Cache.zip")));
+            Assert.Equal(
+                previous,
+                File.ReadAllBytes(Path.Combine(directory, "Dungeon_Map_Cache.zip"))
+            );
             Assert.Single(Directory.GetFiles(directory));
         }
         finally
         {
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
         }
     }
 
     private sealed class StubHandler(byte[] payload) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent(payload),
-            });
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        ) =>
+            Task.FromResult(
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(payload),
+                }
+            );
     }
 
     private sealed class DirectoryStorage(string root) : IPluginStorage
     {
         public bool IsAvailable => true;
         public string? RootPath => root;
+
         public bool EnsureDirectory(string prefix)
         {
             Directory.CreateDirectory(Path.Combine(root, prefix));

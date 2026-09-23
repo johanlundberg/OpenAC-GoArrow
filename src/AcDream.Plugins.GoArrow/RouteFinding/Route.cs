@@ -91,7 +91,8 @@ public class Route
     /// <summary>Removes one route step and rebuilds aggregate counters.</summary>
     public bool RemoveStep(int index)
     {
-        if (index < 0 || index >= _steps.Count) return false;
+        if (index < 0 || index >= _steps.Count)
+            return false;
         _steps.RemoveAt(index);
         RecalculateTotals();
         return true;
@@ -100,7 +101,8 @@ public class Route
     /// <summary>Moves a route step while preserving deterministic ordering.</summary>
     public bool MoveStep(int fromIndex, int toIndex)
     {
-        if (fromIndex < 0 || fromIndex >= _steps.Count || toIndex < 0 || toIndex >= _steps.Count) return false;
+        if (fromIndex < 0 || fromIndex >= _steps.Count || toIndex < 0 || toIndex >= _steps.Count)
+            return false;
         RouteStep step = _steps[fromIndex];
         _steps.RemoveAt(fromIndex);
         _steps.Insert(toIndex, step);
@@ -109,7 +111,9 @@ public class Route
 
     private void RecalculateTotals()
     {
-        TotalDistance = _steps.Where(step => step.Kind == RouteStepKind.Travel).Sum(step => step.Distance);
+        TotalDistance = _steps
+            .Where(step => step.Kind == RouteStepKind.Travel)
+            .Sum(step => step.Distance);
         PortalCount = _steps.Count(step => step.Kind == RouteStepKind.Portal);
     }
 
@@ -133,7 +137,7 @@ public enum RouteStepKind
 {
     Travel,
     Portal,
-    Recall
+    Recall,
 }
 
 public class RouteStep
@@ -163,12 +167,12 @@ public class RouteStep
     {
         return Kind switch
         {
-            RouteStepKind.Travel when Via.Equals("Arrived", StringComparison.OrdinalIgnoreCase)
-                => $"Arrived: {To.Name}",
+            RouteStepKind.Travel when Via.Equals("Arrived", StringComparison.OrdinalIgnoreCase) =>
+                $"Arrived: {To.Name}",
             RouteStepKind.Travel => $"Walk: {To.Name} ({TravelDistance.Format(Distance)})",
             RouteStepKind.Portal => $"Portal: {(string.IsNullOrWhiteSpace(Via) ? To.Name : Via)}",
             RouteStepKind.Recall => $"Recall: {(string.IsNullOrWhiteSpace(Via) ? To.Name : Via)}",
-            _ => To.Name
+            _ => To.Name,
         };
     }
 }

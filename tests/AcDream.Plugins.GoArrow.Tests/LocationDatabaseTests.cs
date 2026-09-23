@@ -8,7 +8,8 @@ public class LocationDatabaseTests
     public void LocationDatabase_LoadLocationsXml_ParsesLocations()
     {
         var db = new LocationDatabase();
-        var xml = @"<?xml version='1.0' encoding='utf-8'?>
+        var xml =
+            @"<?xml version='1.0' encoding='utf-8'?>
 <Locations>
   <Location name='Holtburg'>
     <Coords NS='42.1' EW='33.6' />
@@ -43,13 +44,7 @@ public class LocationDatabaseTests
     public void LocationDatabase_LoadLocationsCsv_ParsesLines()
     {
         var db = new LocationDatabase();
-        var lines = new[]
-        {
-            "Holtburg;42.1;33.6",
-            "Shoushi;33.4;72.0",
-            "# This is a comment",
-            "",
-        };
+        var lines = new[] { "Holtburg;42.1;33.6", "Shoushi;33.4;72.0", "# This is a comment", "" };
 
         db.LoadLocationsCsv(lines);
 
@@ -60,11 +55,7 @@ public class LocationDatabaseTests
     public void LocationDatabase_SearchLocations_FindsBySubstring()
     {
         var db = new LocationDatabase();
-        var lines = new[]
-        {
-            "Holtburg;42.1;33.6",
-            "Shoushi;33.4;72.0",
-        };
+        var lines = new[] { "Holtburg;42.1;33.6", "Shoushi;33.4;72.0" };
 
         db.LoadLocationsCsv(lines);
 
@@ -84,7 +75,8 @@ public class LocationDatabaseTests
     public void LocationDatabase_LoadPortalDevicesXml_ParsesDevices()
     {
         var db = new LocationDatabase();
-        var xml = @"<?xml version='1.0' encoding='utf-8'?>
+        var xml =
+            @"<?xml version='1.0' encoding='utf-8'?>
 <PortalDevices>
   <Device Destination='Holtburg' Via='Holtburg Portal Device' Landmass='Dereth' Entrance='Holtburg Plaza' Exit='Holtburg' />
 </PortalDevices>";
@@ -103,7 +95,8 @@ public class LocationDatabaseTests
     public void LocationDatabase_LoadRouteStartsXml_ParsesStarts()
     {
         var db = new LocationDatabase();
-        var xml = @"<?xml version='1.0' encoding='utf-8'?>
+        var xml =
+            @"<?xml version='1.0' encoding='utf-8'?>
 <RouteStarts>
   <Start Destination='Holtburg' From='APortal' Via='APortal' />
 </RouteStarts>";

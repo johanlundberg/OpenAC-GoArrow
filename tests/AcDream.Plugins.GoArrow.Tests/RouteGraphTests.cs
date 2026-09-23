@@ -18,22 +18,11 @@ public class RouteGraphTests
     private static (LocationDatabase, RouteGraph) CreateGraphWithPortalAndStarts()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsCsv(new[]
-        {
-            "TownA;0;0",
-            "TownB;10;0",
-            "TownC;10;10",
-            "TownD;0;10",
-            "PortalDest;5;5",
-        });
-        db.LoadPortalDevicesCsv(new[]
-        {
-            "PortalDest;Magic Portal;Dereth",
-        });
-        db.LoadRouteStartsCsv(new[]
-        {
-            "TownB;TownA;Walk",
-        });
+        db.LoadLocationsCsv(
+            new[] { "TownA;0;0", "TownB;10;0", "TownC;10;10", "TownD;0;10", "PortalDest;5;5" }
+        );
+        db.LoadPortalDevicesCsv(new[] { "PortalDest;Magic Portal;Dereth" });
+        db.LoadRouteStartsCsv(new[] { "TownB;TownA;Walk" });
         var graph = new RouteGraph();
         graph.Build(db, maxWalkDistance: 10.0);
         return (db, graph);
@@ -44,10 +33,7 @@ public class RouteGraphTests
     [Fact]
     public void Build_CreatesNodesForEligibleLocations()
     {
-        var (_, graph) = CreateGraph(
-            "Alpha;0;0",
-            "Beta;10;5",
-            "Gamma;20;10");
+        var (_, graph) = CreateGraph("Alpha;0;0", "Beta;10;5", "Gamma;20;10");
 
         Assert.Equal(3, graph.NodeCount);
         Assert.True(graph.GetNodeIndex("Alpha") >= 0);
@@ -95,8 +81,9 @@ public class RouteGraphTests
     {
         var (_, graph) = CreateGraph(
             "Alpha;0;0",
-            "Beta;5;0",     // 5 mu from Alpha
-            "Gamma;15;0");  // 15 mu from Alpha (beyond maxWalkDistance)
+            "Beta;5;0", // 5 mu from Alpha
+            "Gamma;15;0"
+        ); // 15 mu from Alpha (beyond maxWalkDistance)
 
         var alphaIdx = graph.GetNodeIndex("Alpha");
         var betaIdx = graph.GetNodeIndex("Beta");
@@ -161,12 +148,14 @@ public class RouteGraphTests
     public void Build_DeduplicatesByName()
     {
         var db = new LocationDatabase();
-        db.LoadLocationsCsv(new[]
-        {
-            "Town;0;0",
-            "Town;1;1",  // same name, different coords
-            "Town;2;2",  // same name again
-        });
+        db.LoadLocationsCsv(
+            new[]
+            {
+                "Town;0;0",
+                "Town;1;1", // same name, different coords
+                "Town;2;2", // same name again
+            }
+        );
 
         var graph = new RouteGraph();
         graph.Build(db);
@@ -281,10 +270,15 @@ public class RouteGraphTests
         var graph = new RouteGraph();
         graph.Build(db, maxWalkDistance: 10.0);
 
-        var path = graph.FindShortestPath(graph.GetNodeIndex("A"), graph.GetNodeIndex("D"), edge =>
-            edge.Kind == RouteEdgeKind.Walk && edge.Via.Contains("Walk", StringComparison.OrdinalIgnoreCase)
-                ? edge.Cost
-                : edge.Cost * 100);
+        var path = graph.FindShortestPath(
+            graph.GetNodeIndex("A"),
+            graph.GetNodeIndex("D"),
+            edge =>
+                edge.Kind == RouteEdgeKind.Walk
+                && edge.Via.Contains("Walk", StringComparison.OrdinalIgnoreCase)
+                    ? edge.Cost
+                    : edge.Cost * 100
+        );
 
         Assert.NotNull(path);
         Assert.Equal(graph.GetNodeIndex("D"), path![^1].ToIndex);

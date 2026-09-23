@@ -33,7 +33,8 @@ internal sealed class GoArrowPanel
         GoArrowPlugin plugin,
         GoArrowSettings settings,
         GoArrowDestination destination,
-        GoArrowNavigator navigator)
+        GoArrowNavigator navigator
+    )
     {
         _host = host;
         _plugin = plugin;
@@ -52,9 +53,7 @@ internal sealed class GoArrowPanel
 
     /// <summary>The current destination name.</summary>
     public string DestinationText =>
-        string.IsNullOrEmpty(_destination.TargetName)
-            ? "[None]"
-            : _destination.TargetName;
+        string.IsNullOrEmpty(_destination.TargetName) ? "[None]" : _destination.TargetName;
 
     /// <summary>Distance to destination (formatted).</summary>
     public string DistanceText =>
@@ -159,70 +158,79 @@ internal sealed class GoArrowPanel
     public bool RouteTabVisible => !_showConfig && !_showDetails;
     public bool ConfigTabVisible => _showConfig;
     public bool DetailsTabVisible => _showDetails;
-    public Action ShowRouteTab => () =>
-    {
-        _showConfig = false;
-        _showDetails = false;
-    };
-    public Action ShowConfigTab => () =>
-    {
-        _showSearchResults = false;
-        _showConfig = true;
-        _showDetails = false;
-    };
-    public Action ShowDetailsTab => () =>
-    {
-        _showSearchResults = false;
-        _showConfig = false;
-        _showDetails = true;
-    };
+    public Action ShowRouteTab =>
+        () =>
+        {
+            _showConfig = false;
+            _showDetails = false;
+        };
+    public Action ShowConfigTab =>
+        () =>
+        {
+            _showSearchResults = false;
+            _showConfig = true;
+            _showDetails = false;
+        };
+    public Action ShowDetailsTab =>
+        () =>
+        {
+            _showSearchResults = false;
+            _showConfig = false;
+            _showDetails = true;
+        };
 
     public string LocationDataUrlInput { get; set; }
     public string DungeonMapUrlInput { get; set; }
-    public string LocationDownloadStatus => _locationUrlStatus.Length > 0
-        ? _locationUrlStatus : _plugin.LocationDownloadStatus;
-    public string DungeonDownloadStatus => _dungeonUrlStatus.Length > 0
-        ? _dungeonUrlStatus : _plugin.DungeonDownloadStatus;
+    public string LocationDownloadStatus =>
+        _locationUrlStatus.Length > 0 ? _locationUrlStatus : _plugin.LocationDownloadStatus;
+    public string DungeonDownloadStatus =>
+        _dungeonUrlStatus.Length > 0 ? _dungeonUrlStatus : _plugin.DungeonDownloadStatus;
 
-    public Action<string> UpdateLocationDataUrlAction => value =>
-    {
-        LocationDataUrlInput = value;
-        _locationUrlStatus = string.Empty;
-    };
-    public Action<string> SubmitLocationDataUrlAction => value =>
-    {
-        LocationDataUrlInput = value;
-        SaveLocationDataUrl();
-    };
-    public Action SaveLocationDataUrlAction => () => SaveLocationDataUrl();
-    public Action DownloadLocationDataAction => () =>
-    {
-        if (SaveLocationDataUrl())
+    public Action<string> UpdateLocationDataUrlAction =>
+        value =>
         {
+            LocationDataUrlInput = value;
             _locationUrlStatus = string.Empty;
-            _ = _plugin.UpdateDataAsync();
-        }
-    };
-
-    public Action<string> UpdateDungeonMapUrlAction => value =>
-    {
-        DungeonMapUrlInput = value;
-        _dungeonUrlStatus = string.Empty;
-    };
-    public Action<string> SubmitDungeonMapUrlAction => value =>
-    {
-        DungeonMapUrlInput = value;
-        SaveDungeonMapUrl();
-    };
-    public Action SaveDungeonMapUrlAction => () => SaveDungeonMapUrl();
-    public Action DownloadDungeonMapsAction => () =>
-    {
-        if (SaveDungeonMapUrl())
+        };
+    public Action<string> SubmitLocationDataUrlAction =>
+        value =>
         {
+            LocationDataUrlInput = value;
+            SaveLocationDataUrl();
+        };
+    public Action SaveLocationDataUrlAction => () => SaveLocationDataUrl();
+    public Action DownloadLocationDataAction =>
+        () =>
+        {
+            if (SaveLocationDataUrl())
+            {
+                _locationUrlStatus = string.Empty;
+                _ = _plugin.UpdateDataAsync();
+            }
+        };
+
+    public Action<string> UpdateDungeonMapUrlAction =>
+        value =>
+        {
+            DungeonMapUrlInput = value;
             _dungeonUrlStatus = string.Empty;
-            _ = _plugin.UpdateDungeonMapsAsync();
-        }
-    };
+        };
+    public Action<string> SubmitDungeonMapUrlAction =>
+        value =>
+        {
+            DungeonMapUrlInput = value;
+            SaveDungeonMapUrl();
+        };
+    public Action SaveDungeonMapUrlAction => () => SaveDungeonMapUrl();
+    public Action DownloadDungeonMapsAction =>
+        () =>
+        {
+            if (SaveDungeonMapUrl())
+            {
+                _dungeonUrlStatus = string.Empty;
+                _ = _plugin.UpdateDungeonMapsAsync();
+            }
+        };
 
     private bool SaveLocationDataUrl()
     {
@@ -257,11 +265,16 @@ internal sealed class GoArrowPanel
             string query = (_searchingFrom ? FromInput : DestinationInput).Trim();
             if (query.Length == 0)
                 return [CurrentLocation];
-            var matches = _plugin.SearchLocations(query)
+            var matches = _plugin
+                .SearchLocations(query)
                 .Where(location => location.HasCoordinates)
-                .OrderBy(location => location.Name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .OrderBy(location =>
+                    location.Name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1
+                )
                 .ThenBy(location => location.Name, StringComparer.OrdinalIgnoreCase)
-                .Take(6).Select(location => location.Name).ToList();
+                .Take(6)
+                .Select(location => location.Name)
+                .ToList();
             if (CurrentLocation.Contains(query, StringComparison.OrdinalIgnoreCase))
                 matches.Insert(0, CurrentLocation);
             return matches;
@@ -274,11 +287,15 @@ internal sealed class GoArrowPanel
 
     public string SearchResultsLabel => _searchingFrom ? "From matches" : "Destination matches";
 
-    public IReadOnlyList<string> RouteSteps => _destination.CurrentRoute?.Steps
-        .Select(step => string.IsNullOrWhiteSpace(StepDetailsLocation(step).Notes)
-            ? step.ToString()
-            : $"{step} [notes]")
-        .ToArray() ?? [];
+    public IReadOnlyList<string> RouteSteps =>
+        _destination
+            .CurrentRoute?.Steps.Select(step =>
+                string.IsNullOrWhiteSpace(StepDetailsLocation(step).Notes)
+                    ? step.ToString()
+                    : $"{step} [notes]"
+            )
+            .ToArray()
+        ?? [];
 
     private RouteStep? SelectedStep
     {
@@ -303,40 +320,49 @@ internal sealed class GoArrowPanel
 
     public int SelectedRouteStep => SelectedStep is null ? -1 : _selectedRouteStep;
 
-    public Action<int> SelectRouteStepAction => index =>
-    {
-        Route? route = _destination.CurrentRoute;
-        if (route is null || index < 0 || index >= route.StepCount)
-            return;
-        _selectedRoute = route;
-        _selectedRouteStep = index;
-        ShowDetailsTab();
-    };
+    public Action<int> SelectRouteStepAction =>
+        index =>
+        {
+            Route? route = _destination.CurrentRoute;
+            if (route is null || index < 0 || index >= route.StepCount)
+                return;
+            _selectedRoute = route;
+            _selectedRouteStep = index;
+            ShowDetailsTab();
+        };
 
     private static Location StepDetailsLocation(RouteStep step) =>
         step.Kind == RouteStepKind.Portal ? step.From : step.To;
 
-    private Location? DetailsLocation => SelectedStep is { } step
-        ? StepDetailsLocation(step) : null;
+    private Location? DetailsLocation =>
+        SelectedStep is { } step ? StepDetailsLocation(step) : null;
 
-    public string DetailsStepNumberText => SelectedStep is null
-        ? "Select a route step to see details."
-        : $"Step {_selectedRouteStep + 1} of {_selectedRoute!.StepCount}";
+    public string DetailsStepNumberText =>
+        SelectedStep is null
+            ? "Select a route step to see details."
+            : $"Step {_selectedRouteStep + 1} of {_selectedRoute!.StepCount}";
 
     public string DetailsInstructionText => SelectedStep?.ToString() ?? string.Empty;
     public string DetailsLocationName => DetailsLocation?.Name ?? string.Empty;
-    public string DetailsLocationType => DetailsLocation is { Type: not LocationType.Unknown } location
-        ? location.Type.ToString() : "Unknown";
-    public string DetailsCoordinates => DetailsLocation is { HasCoordinates: true } location
-        ? location.Coords.ToString() : "Unknown";
-    public bool DetailsArrivalVisible => SelectedStep is { Kind: RouteStepKind.Portal }
-        || DetailsLocation?.HasExitCoords == true;
-    public string DetailsArrivalCoordinates => SelectedStep is { Kind: RouteStepKind.Portal } step
-        ? (step.From.HasExitCoords ? step.From.ExitCoords : step.To.Coords).ToString()
-        : DetailsLocation?.ExitCoords.ToString() ?? string.Empty;
+    public string DetailsLocationType =>
+        DetailsLocation is { Type: not LocationType.Unknown } location
+            ? location.Type.ToString()
+            : "Unknown";
+    public string DetailsCoordinates =>
+        DetailsLocation is { HasCoordinates: true } location
+            ? location.Coords.ToString()
+            : "Unknown";
+    public bool DetailsArrivalVisible =>
+        SelectedStep is { Kind: RouteStepKind.Portal } || DetailsLocation?.HasExitCoords == true;
+    public string DetailsArrivalCoordinates =>
+        SelectedStep is { Kind: RouteStepKind.Portal } step
+            ? (step.From.HasExitCoords ? step.From.ExitCoords : step.To.Coords).ToString()
+            : DetailsLocation?.ExitCoords.ToString() ?? string.Empty;
     public bool DetailsDistanceVisible => SelectedStep is { Kind: RouteStepKind.Travel };
-    public string DetailsDistance => SelectedStep is { Kind: RouteStepKind.Travel } step
-        ? TravelDistance.Format(step.Distance) : string.Empty;
+    public string DetailsDistance =>
+        SelectedStep is { Kind: RouteStepKind.Travel } step
+            ? TravelDistance.Format(step.Distance)
+            : string.Empty;
     public int SelectedNotesLine => -1;
     public IReadOnlyList<string> DetailsNotesLines
     {
@@ -380,17 +406,20 @@ internal sealed class GoArrowPanel
         return lines;
     }
 
-    public string NextTargetText => _destination.CurrentRoute is { StepCount: > 0 }
-        ? $"Next: {_destination.GetImmediateTarget()?.Name}"
-        : "No route calculated";
+    public string NextTargetText =>
+        _destination.CurrentRoute is { StepCount: > 0 }
+            ? $"Next: {_destination.GetImmediateTarget()?.Name}"
+            : "No route calculated";
 
-    public string FailureDiagnostics => string.IsNullOrEmpty(_navigator.FailureReason)
-        ? _navigator.LastReport
-        : _navigator.FailureReason;
+    public string FailureDiagnostics =>
+        string.IsNullOrEmpty(_navigator.FailureReason)
+            ? _navigator.LastReport
+            : _navigator.FailureReason;
 
-    public string ProgressText => _destination.CurrentRoute is { } route
-        ? $"Leg {_navigator.LegIndex + 1}/{Math.Max(1, route.StepCount)}"
-        : "No route";
+    public string ProgressText =>
+        _destination.CurrentRoute is { } route
+            ? $"Leg {_navigator.LegIndex + 1}/{Math.Max(1, route.StepCount)}"
+            : "No route";
 
     public void SubmitDestination()
     {
@@ -401,7 +430,9 @@ internal sealed class GoArrowPanel
         {
             if (!_plugin.SetCurrentLocationDestination())
             {
-                _host.Automation.Chat.PostSystemMessage("GoArrow: Current location is unavailable.");
+                _host.Automation.Chat.PostSystemMessage(
+                    "GoArrow: Current location is unavailable."
+                );
                 return;
             }
             DestinationInput = CurrentLocation;
@@ -412,7 +443,9 @@ internal sealed class GoArrowPanel
         }
         else
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Select a destination from the search results.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Select a destination from the search results."
+            );
             return;
         }
         _showSearchResults = false;
@@ -431,7 +464,9 @@ internal sealed class GoArrowPanel
             FromInput = FromText = value;
         else
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Select a From location from the search results.");
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Select a From location from the search results."
+            );
             return;
         }
         _showSearchResults = false;
@@ -440,65 +475,71 @@ internal sealed class GoArrowPanel
 
     public Action SubmitFromAction => SubmitFrom;
 
-    public Action EditFromAction => () =>
-    {
-        FromEditorInput = string.Empty;
-        _editingFrom = true;
-    };
+    public Action EditFromAction =>
+        () =>
+        {
+            FromEditorInput = string.Empty;
+            _editingFrom = true;
+        };
 
     public Action EditDestinationAction => () => _editingDestination = true;
 
-    public Action<string> UpdateFromInputAction => text =>
-    {
-        FromInput = text;
-        FromEditorInput = text;
-        _editingFrom = true;
-        _searchingFrom = true;
-        _showSearchResults = true;
-    };
+    public Action<string> UpdateFromInputAction =>
+        text =>
+        {
+            FromInput = text;
+            FromEditorInput = text;
+            _editingFrom = true;
+            _searchingFrom = true;
+            _showSearchResults = true;
+        };
 
-    public Action<string> SubmitFromTextAction => text =>
-    {
-        FromInput = text;
-        FromEditorInput = text;
-        SubmitFrom();
-    };
+    public Action<string> SubmitFromTextAction =>
+        text =>
+        {
+            FromInput = text;
+            FromEditorInput = text;
+            SubmitFrom();
+        };
 
     /// <summary>Submit the destination field as a markup-compatible action.</summary>
     public Action SubmitDestinationAction => SubmitDestination;
 
     /// <summary>Keep the input value current when the field changes.</summary>
-    public Action<string> UpdateDestinationInputAction => text =>
-    {
-        DestinationInput = text;
-        _editingDestination = true;
-        _searchingFrom = false;
-        _showSearchResults = true;
-    };
+    public Action<string> UpdateDestinationInputAction =>
+        text =>
+        {
+            DestinationInput = text;
+            _editingDestination = true;
+            _searchingFrom = false;
+            _showSearchResults = true;
+        };
 
     /// <summary>Submit the text supplied by OpenAC's field callback.</summary>
-    public Action<string> SubmitDestinationTextAction => text =>
-    {
-        DestinationInput = text;
-        SubmitDestination();
-    };
-
-    public Action<int> SelectSearchResultAction => index =>
-    {
-        var results = SearchResults;
-        if (index < 0 || index >= results.Count)
-            return;
-        if (_searchingFrom)
+    public Action<string> SubmitDestinationTextAction =>
+        text =>
         {
-            FromInput = results[index];
-            SubmitFrom();
-        }
-        else
-        {
-            DestinationInput = results[index];
+            DestinationInput = text;
             SubmitDestination();
-        }
-    };
+        };
+
+    public Action<int> SelectSearchResultAction =>
+        index =>
+        {
+            var results = SearchResults;
+            if (index < 0 || index >= results.Count)
+                return;
+            if (_searchingFrom)
+            {
+                FromInput = results[index];
+                SubmitFrom();
+            }
+            else
+            {
+                DestinationInput = results[index];
+                SubmitDestination();
+            }
+        };
 
     // ── Toggle settings ─────────────────────────────────────────────
 
@@ -549,11 +590,12 @@ internal sealed class GoArrowPanel
     // ── Actions bound to the panel ──────────────────────────────────
 
     /// <summary>Toggle auto-navigate on/off.</summary>
-    public Action ToggleAutoNavigate => () =>
-    {
-        AutoNavigate = !AutoNavigate;
-        _host.Log.Info($"GoArrow: Auto-navigate = {AutoNavigate}");
-    };
+    public Action ToggleAutoNavigate =>
+        () =>
+        {
+            AutoNavigate = !AutoNavigate;
+            _host.Log.Info($"GoArrow: Auto-navigate = {AutoNavigate}");
+        };
 
     /// <summary>Toggle distance display.</summary>
     public Action ToggleShowDistance => () => ShowDistance = !ShowDistance;
@@ -569,15 +611,21 @@ internal sealed class GoArrowPanel
     public Action ToggleToolbarVisible => () => _plugin.SetToolbarVisible(!ToolbarVisible);
 
     /// <summary>Compute and display the route; optionally start navigation.</summary>
-    public Action StartNavigation => () =>
-    {
-        if (_destination.TargetName == CurrentLocation && !_plugin.SetCurrentLocationDestination())
+    public Action StartNavigation =>
+        () =>
         {
-            _host.Automation.Chat.PostSystemMessage("GoArrow: Current location is unavailable.");
-            return;
-        }
-        _plugin.Go();
-    };
+            if (
+                _destination.TargetName == CurrentLocation
+                && !_plugin.SetCurrentLocationDestination()
+            )
+            {
+                _host.Automation.Chat.PostSystemMessage(
+                    "GoArrow: Current location is unavailable."
+                );
+                return;
+            }
+            _plugin.Go();
+        };
 
     /// <summary>Stop navigation.</summary>
     public Action StopNavigation => () => _plugin.StopNavigation();
@@ -586,27 +634,34 @@ internal sealed class GoArrowPanel
     public Action ResumeNavigation => () => _plugin.ResumeNavigation();
 
     /// <summary>Clear destination.</summary>
-    public Action ClearDestination => () =>
-    {
-        _plugin.ClearDestination();
-        DestinationInput = string.Empty;
-        _editingDestination = true;
-        _showSearchResults = false;
-    };
+    public Action ClearDestination =>
+        () =>
+        {
+            _plugin.ClearDestination();
+            DestinationInput = string.Empty;
+            _editingDestination = true;
+            _showSearchResults = false;
+        };
 
     public Action<int> RemoveRouteStep => index => _plugin.RemoveRouteStep(index);
     public Action<int, int> MoveRouteStep => (from, to) => _plugin.MoveRouteStep(from, to);
 
     /// <summary>Show destination input hint.</summary>
-    public Action ShowDestinationInput => () =>
-        _host.Automation.Chat.PostSystemMessage("GoArrow: Use /go <destination> in chat to set a destination.");
+    public Action ShowDestinationInput =>
+        () =>
+            _host.Automation.Chat.PostSystemMessage(
+                "GoArrow: Use /go <destination> in chat to set a destination."
+            );
 
     // ── Tick update ─────────────────────────────────────────────────
 
     public void OnTick(double elapsed)
     {
-        if (!_showSearchResults && DestinationInput != _destination.TargetName
-            && (_destination.HasDestination || _settings.DestinationName != CurrentLocation))
+        if (
+            !_showSearchResults
+            && DestinationInput != _destination.TargetName
+            && (_destination.HasDestination || _settings.DestinationName != CurrentLocation)
+        )
             DestinationInput = _destination.TargetName;
     }
 }

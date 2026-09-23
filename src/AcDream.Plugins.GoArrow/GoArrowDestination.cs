@@ -10,7 +10,7 @@ internal enum GoArrowDestinationKind
     Coordinates,
     Object,
     Route,
-    Recall
+    Recall,
 }
 
 /// <summary>
@@ -62,7 +62,11 @@ internal sealed class GoArrowDestination
     /// <summary>Distance to the next route waypoint, or NaN.</summary>
     public double GuidanceDistance { get; private set; } = double.NaN;
 
-    public GoArrowDestination(GoArrowSettings settings, LocationDatabase database, RouteFinder routeFinder)
+    public GoArrowDestination(
+        GoArrowSettings settings,
+        LocationDatabase database,
+        RouteFinder routeFinder
+    )
     {
         _settings = settings;
         _database = database;
@@ -131,7 +135,8 @@ internal sealed class GoArrowDestination
         TargetLocation = new RouteFinding.Location(
             string.IsNullOrWhiteSpace(obj.Name) ? $"Object 0x{obj.ObjectId:X8}" : obj.Name,
             obj.Position.NorthSouth,
-            obj.Position.EastWest);
+            obj.Position.EastWest
+        );
         Kind = GoArrowDestinationKind.Object;
         TargetObjectId = obj.ObjectId;
         TargetObjectPosition = obj.Position;
@@ -163,7 +168,8 @@ internal sealed class GoArrowDestination
         TargetLocation = new RouteFinding.Location(
             string.IsNullOrWhiteSpace(obj.Name) ? TargetLocation?.Name ?? "Object" : obj.Name,
             obj.Position.NorthSouth,
-            obj.Position.EastWest);
+            obj.Position.EastWest
+        );
         TargetObjectPosition = obj.Position;
         TargetUnavailable = false;
         CurrentRoute = null;
@@ -201,7 +207,11 @@ internal sealed class GoArrowDestination
             return;
         }
 
-        CurrentRoute = _routeFinder.FindRoute(currentPosition, TargetLocation, _settings.RouteCostProfile);
+        CurrentRoute = _routeFinder.FindRoute(
+            currentPosition,
+            TargetLocation,
+            _settings.RouteCostProfile
+        );
 
         UpdateGuidance(currentPosition);
     }
@@ -261,7 +271,8 @@ internal sealed class GoArrowDestination
 
     public bool RemoveRouteStep(int index) => CurrentRoute?.RemoveStep(index) == true;
 
-    public bool MoveRouteStep(int fromIndex, int toIndex) => CurrentRoute?.MoveStep(fromIndex, toIndex) == true;
+    public bool MoveRouteStep(int fromIndex, int toIndex) =>
+        CurrentRoute?.MoveStep(fromIndex, toIndex) == true;
 
     /// <summary>
     /// Get all known destination names.

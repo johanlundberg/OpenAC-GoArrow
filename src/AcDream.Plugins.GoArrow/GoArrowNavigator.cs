@@ -42,16 +42,21 @@ internal sealed class GoArrowNavigator : IDisposable
     /// <summary>Whether navigation is currently active.</summary>
     public bool IsNavigating => _isNavigating;
 
-    public bool CanResumeNavigation => _destination.HasDestination && !_isNavigating
-        && !HasArrived && (WaitingForInteraction
-            || (_settings.AutoNavigate && !_pausedForOutdoorRoute));
+    public bool CanResumeNavigation =>
+        _destination.HasDestination
+        && !_isNavigating
+        && !HasArrived
+        && (WaitingForInteraction || (_settings.AutoNavigate && !_pausedForOutdoorRoute));
 
-    public bool IsPlanningPath => _isNavigating
+    public bool IsPlanningPath =>
+        _isNavigating
         && _host.Automation.Navigation.GoToReport is { State: PluginGoToState.Planning } report
         && report.Sequence == _activeSequence;
 
-    public bool WaitingForIndoorPortal => _pausedForOutdoorRoute
-        && _host.Automation.Navigation.Snapshot is { IsAvailable: true, IsPortalSpace: false, Position.IsOutdoor: false }
+    public bool WaitingForIndoorPortal =>
+        _pausedForOutdoorRoute
+        && _host.Automation.Navigation.Snapshot
+            is { IsAvailable: true, IsPortalSpace: false, Position.IsOutdoor: false }
         && _destination.CurrentRoute is { StepCount: > 0 };
 
     /// <summary>Whether the current destination can be reached through the host's indoor pathfinder.</summary>
@@ -76,7 +81,11 @@ internal sealed class GoArrowNavigator : IDisposable
     public int LegIndex => _legIndex;
     public long TransitionGeneration => _transitionGeneration;
 
-    public GoArrowNavigator(IPluginHost host, GoArrowDestination destination, GoArrowSettings settings)
+    public GoArrowNavigator(
+        IPluginHost host,
+        GoArrowDestination destination,
+        GoArrowSettings settings
+    )
     {
         _host = host;
         _destination = destination;
@@ -140,8 +149,10 @@ internal sealed class GoArrowNavigator : IDisposable
             _destination.ClearRoute();
             return true;
         }
-        if (_destination.TargetIndoorPosition is not null
-            || _destination.TargetObjectPosition is { IsOutdoor: false })
+        if (
+            _destination.TargetIndoorPosition is not null
+            || _destination.TargetObjectPosition is { IsOutdoor: false }
+        )
         {
             _host.Log.Warn("GoArrow: Indoor destination is outside the current dungeon.");
             return false;
@@ -151,7 +162,9 @@ internal sealed class GoArrowNavigator : IDisposable
         // whichever outdoor entrance happens to be closest on the map.
         if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor))
         {
-            _host.Log.Warn("GoArrow: Outdoor route planning is paused while indoors or in portal space.");
+            _host.Log.Warn(
+                "GoArrow: Outdoor route planning is paused while indoors or in portal space."
+            );
             return false;
         }
         if (snapshot.IsAvailable)
@@ -165,7 +178,8 @@ internal sealed class GoArrowNavigator : IDisposable
         var currentLoc = new RouteFinding.Location(
             "Current Position",
             _currentNavPosition.Value.NorthSouth,
-            _currentNavPosition.Value.EastWest);
+            _currentNavPosition.Value.EastWest
+        );
         _destination.CalculateRoute(currentLoc);
         if (_destination.CurrentRoute is not { StepCount: > 0 })
         {
@@ -274,9 +288,14 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             if (!live.Position.IsOutdoor && IsIndoorPortalStep())
                 _observedIndoorRoute = true;
-            else if (live.Position.IsOutdoor
-                && (_indoorRouteLeg || _observedIndoorRoute
-                    || (_routeId != Guid.Empty && IsNearTownNetworkExit(live.Position))))
+            else if (
+                live.Position.IsOutdoor
+                && (
+                    _indoorRouteLeg
+                    || _observedIndoorRoute
+                    || (_routeId != Guid.Empty && IsNearTownNetworkExit(live.Position))
+                )
+            )
             {
                 _observedIndoorRoute = false;
                 if (IsIndoorPortalStep())
@@ -342,7 +361,8 @@ internal sealed class GoArrowNavigator : IDisposable
         var currentLoc = new RouteFinding.Location(
             "Current Position",
             _currentNavPosition.Value.NorthSouth,
-            _currentNavPosition.Value.EastWest);
+            _currentNavPosition.Value.EastWest
+        );
 
         _destination.UpdateGuidance(currentLoc);
 
@@ -365,14 +385,23 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         var snapshot = _host.Automation.Navigation.Snapshot;
-        if (snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
-            && IsIndoorPortalStep())
+        if (
+            snapshot.IsAvailable
+            && !snapshot.IsPortalSpace
+            && !snapshot.Position.IsOutdoor
+            && IsIndoorPortalStep()
+        )
         {
             var route = _destination.CurrentRoute!;
-            if (route.Steps[0].Kind == RouteStepKind.Portal
+            if (
+                route.Steps[0].Kind == RouteStepKind.Portal
                 && route.Steps[0].To.HasCoordinates
-                && new Coordinates(snapshot.Position.NorthSouth, snapshot.Position.EastWest)
-                    .DistanceTo(route.Steps[0].To.Coords) * 240 <= 250)
+                && new Coordinates(
+                    snapshot.Position.NorthSouth,
+                    snapshot.Position.EastWest
+                ).DistanceTo(route.Steps[0].To.Coords) * 240
+                    <= 250
+            )
             {
                 // Stop can clear a pending transition before the entry portal
                 // is marked complete. The live indoor position is its arrival.
@@ -380,7 +409,9 @@ internal sealed class GoArrowNavigator : IDisposable
                 if (_destination.CurrentRoute?.StepCount == 0)
                 {
                     HasArrived = true;
-                    _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+                    _host.Automation.Chat.PostSystemMessage(
+                        $"GoArrow: Arrived at '{_destination.TargetName}'."
+                    );
                     return;
                 }
             }
@@ -401,8 +432,11 @@ internal sealed class GoArrowNavigator : IDisposable
 
     public void ResumeAfterInteraction(bool startNextLeg = true)
     {
-        if (!WaitingForInteraction || _destination.CurrentRoute is not { StepCount: > 0 } route
-            || route.Steps[0].Kind == RouteStepKind.Travel)
+        if (
+            !WaitingForInteraction
+            || _destination.CurrentRoute is not { StepCount: > 0 } route
+            || route.Steps[0].Kind == RouteStepKind.Travel
+        )
             return;
 
         _destination.AdvanceStep();
@@ -416,7 +450,9 @@ internal sealed class GoArrowNavigator : IDisposable
         if (_destination.CurrentRoute.StepCount == 0)
         {
             HasArrived = true;
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Arrived at '{_destination.TargetName}'."
+            );
             return;
         }
 
@@ -443,10 +479,12 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             if (IsIndoorPortalStep())
                 _observedIndoorRoute = true;
-            if (step.Kind == RouteStepKind.Travel
+            if (
+                step.Kind == RouteStepKind.Travel
                 && _destination.CurrentRoute is { Steps.Count: > 1 } route
                 && route.Steps[1].Kind == RouteStepKind.Portal
-                && TryResolveIndoorPortal(snapshot, step.To.Name))
+                && TryResolveIndoorPortal(snapshot, step.To.Name)
+            )
             {
                 _indoorRouteLeg = true;
                 _pausedForOutdoorRoute = false;
@@ -458,8 +496,12 @@ internal sealed class GoArrowNavigator : IDisposable
                 }
                 return;
             }
-            if (step.Kind == RouteStepKind.Portal
-                && (TryResolveIndoorPortal(snapshot, step.Via) || _resolvedIndoorPortalObjectId != 0))
+            if (
+                step.Kind == RouteStepKind.Portal
+                && (
+                    TryResolveIndoorPortal(snapshot, step.Via) || _resolvedIndoorPortalObjectId != 0
+                )
+            )
             {
                 _pausedForOutdoorRoute = false;
                 _transitionGeneration++;
@@ -487,7 +529,8 @@ internal sealed class GoArrowNavigator : IDisposable
             NorthSouth: immediateTarget.Coords.NS,
             Elevation: double.NaN,
             HeadingDegrees: 0f,
-            IsOutdoor: true);
+            IsOutdoor: true
+        );
 
         var status = _host.Automation.Navigation.GoTo(navPos, (float)_settings.ArrivalDistance);
         if (status != PluginNavigationCommandStatus.Accepted)
@@ -500,7 +543,9 @@ internal sealed class GoArrowNavigator : IDisposable
         _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
         _lastHandledReportRevision = 0;
         _failureReason = string.Empty;
-        _host.Log.Info($"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})");
+        _host.Log.Info(
+            $"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})"
+        );
     }
 
     private bool IsIndoorPortalStep()
@@ -508,18 +553,24 @@ internal sealed class GoArrowNavigator : IDisposable
         if (_destination.CurrentRoute is not { StepCount: > 0 } route)
             return false;
         return route.Steps[0].Kind == RouteStepKind.Portal
-            || (route.Steps[0].Kind == RouteStepKind.Travel
+            || (
+                route.Steps[0].Kind == RouteStepKind.Travel
                 && route.StepCount > 1
-                && route.Steps[1].Kind == RouteStepKind.Portal);
+                && route.Steps[1].Kind == RouteStepKind.Portal
+            );
     }
 
     private bool IsNearTownNetworkExit(PluginNavigationPosition position)
     {
-        if (_destination.CurrentRoute is not { StepCount: > 1 } route
+        if (
+            _destination.CurrentRoute is not { StepCount: > 1 } route
             || route.Steps[0].Kind != RouteStepKind.Travel
             || route.Steps[1].Kind != RouteStepKind.Portal
-            || !route.Steps[0].To.Name.StartsWith("Town Network ", StringComparison.OrdinalIgnoreCase)
-            || !route.Steps[1].To.HasCoordinates)
+            || !route
+                .Steps[0]
+                .To.Name.StartsWith("Town Network ", StringComparison.OrdinalIgnoreCase)
+            || !route.Steps[1].To.HasCoordinates
+        )
             return false;
 
         var here = new Coordinates(position.NorthSouth, position.EastWest);
@@ -528,27 +579,44 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private bool CanNavigateIndoorTarget(PluginNavigationSnapshot snapshot)
     {
-        PluginNavigationPosition? targetPosition = _destination.TargetIndoorPosition
-            ?? _resolvedIndoorPortalPosition;
-        if (_destination.Kind == GoArrowDestinationKind.Object && !_destination.TargetUnavailable
-            && _destination.TargetObjectId is > 0)
+        PluginNavigationPosition? targetPosition =
+            _destination.TargetIndoorPosition ?? _resolvedIndoorPortalPosition;
+        if (
+            _destination.Kind == GoArrowDestinationKind.Object
+            && !_destination.TargetUnavailable
+            && _destination.TargetObjectId is > 0
+        )
             targetPosition = _destination.TargetObjectPosition;
-        bool liveObjectTarget = _resolvedIndoorPortalObjectId != 0
-            || (_destination.Kind == GoArrowDestinationKind.Object
-                && !_destination.TargetUnavailable && _destination.TargetObjectId is > 0);
-        return snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+        bool liveObjectTarget =
+            _resolvedIndoorPortalObjectId != 0
+            || (
+                _destination.Kind == GoArrowDestinationKind.Object
+                && !_destination.TargetUnavailable
+                && _destination.TargetObjectId is > 0
+            );
+        return snapshot.IsAvailable
+            && !snapshot.IsPortalSpace
+            && !snapshot.Position.IsOutdoor
             && targetPosition is { IsOutdoor: false } target
-            && snapshot.Position.CellId != 0 && target.CellId != 0
-            && (liveObjectTarget
-                ? AreNearbyIndoorLandblocks(snapshot.Position.CellId, target.CellId)
-                : (snapshot.Position.CellId & 0xFFFF0000u) == (target.CellId & 0xFFFF0000u));
+            && snapshot.Position.CellId != 0
+            && target.CellId != 0
+            && (
+                liveObjectTarget
+                    ? AreNearbyIndoorLandblocks(snapshot.Position.CellId, target.CellId)
+                    : (snapshot.Position.CellId & 0xFFFF0000u) == (target.CellId & 0xFFFF0000u)
+            );
     }
 
     private bool TryResolveIndoorPortal(PluginNavigationSnapshot snapshot)
     {
-        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor
-            || snapshot.Position.CellId == 0 || _destination.Kind != GoArrowDestinationKind.Location
-            || _destination.TargetIndoorPosition is not null)
+        if (
+            !snapshot.IsAvailable
+            || snapshot.IsPortalSpace
+            || snapshot.Position.IsOutdoor
+            || snapshot.Position.CellId == 0
+            || _destination.Kind != GoArrowDestinationKind.Location
+            || _destination.TargetIndoorPosition is not null
+        )
             return false;
 
         return TryResolveIndoorPortal(snapshot, _destination.TargetName);
@@ -556,19 +624,30 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private bool TryResolveIndoorPortal(PluginNavigationSnapshot snapshot, string name)
     {
-        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor
-            || snapshot.Position.CellId == 0)
+        if (
+            !snapshot.IsAvailable
+            || snapshot.IsPortalSpace
+            || snapshot.Position.IsOutdoor
+            || snapshot.Position.CellId == 0
+        )
             return false;
 
         string destinationName = PortalDestinationName(name);
         if (destinationName.Length == 0)
             return false;
-        PluginWorldObject portal = _host.Automation.Objects.CaptureObjects()
-            .Where(obj => obj.ObjectId != 0 && obj.HasPosition && obj.CanActivate
+        PluginWorldObject portal = _host
+            .Automation.Objects.CaptureObjects()
+            .Where(obj =>
+                obj.ObjectId != 0
+                && obj.HasPosition
+                && obj.CanActivate
                 && (obj.Capabilities & PluginObjectCapabilities.Portal) != 0
-                && !obj.Position.IsOutdoor && obj.Position.CellId != 0
+                && !obj.Position.IsOutdoor
+                && obj.Position.CellId != 0
                 && AreNearbyIndoorLandblocks(snapshot.Position.CellId, obj.Position.CellId)
-                && PortalDestinationName(obj.Name).Equals(destinationName, StringComparison.OrdinalIgnoreCase))
+                && PortalDestinationName(obj.Name)
+                    .Equals(destinationName, StringComparison.OrdinalIgnoreCase)
+            )
             .OrderBy(obj => snapshot.Position.HorizontalDistanceMeters(obj.Position))
             .FirstOrDefault();
         if (portal.ObjectId == 0)
@@ -596,8 +675,10 @@ internal sealed class GoArrowNavigator : IDisposable
             value = value["Portal to ".Length..];
         else if (value.StartsWith("Portal for ", StringComparison.OrdinalIgnoreCase))
             value = value["Portal for ".Length..];
-        else if (value.StartsWith("Town Network ", StringComparison.OrdinalIgnoreCase)
-            && value.LastIndexOf(" to ", StringComparison.OrdinalIgnoreCase) is var toIndex and >= 0)
+        else if (
+            value.StartsWith("Town Network ", StringComparison.OrdinalIgnoreCase)
+            && value.LastIndexOf(" to ", StringComparison.OrdinalIgnoreCase) is var toIndex and >= 0
+        )
             value = value[(toIndex + 4)..];
         if (value.EndsWith(" Town Network Portal", StringComparison.OrdinalIgnoreCase))
             value = value[..^" Town Network Portal".Length];
@@ -609,11 +690,16 @@ internal sealed class GoArrowNavigator : IDisposable
     private void StartIndoorWalk()
     {
         PluginNavigationCommandStatus status;
-        if (_destination.Kind == GoArrowDestinationKind.Object
-            && _destination.TargetObjectId is { } objectId)
+        if (
+            _destination.Kind == GoArrowDestinationKind.Object
+            && _destination.TargetObjectId is { } objectId
+        )
             status = _host.Automation.Navigation.GoTo(objectId, (float)_settings.ArrivalDistance);
         else if (_resolvedIndoorPortalObjectId != 0)
-            status = _host.Automation.Navigation.GoTo(_resolvedIndoorPortalObjectId, (float)_settings.ArrivalDistance);
+            status = _host.Automation.Navigation.GoTo(
+                _resolvedIndoorPortalObjectId,
+                (float)_settings.ArrivalDistance
+            );
         else if (_destination.TargetIndoorPosition is { } position)
             status = _host.Automation.Navigation.GoTo(position, (float)_settings.ArrivalDistance);
         else
@@ -641,7 +727,10 @@ internal sealed class GoArrowNavigator : IDisposable
     private void HandleNavigationReport(PluginGoToReport report)
     {
         // Reports from another owner or an earlier GoTo must not advance this route.
-        if (report.Owner is not null && !report.Owner.Equals(PluginOwner, StringComparison.OrdinalIgnoreCase))
+        if (
+            report.Owner is not null
+            && !report.Owner.Equals(PluginOwner, StringComparison.OrdinalIgnoreCase)
+        )
             return;
         if (_activeSequence != 0 && report.Sequence != 0 && report.Sequence != _activeSequence)
             return;
@@ -663,12 +752,15 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             _lastHandledReportRevision = report.Revision;
             _isNavigating = false;
-            string target = _destination.CurrentRoute?.Steps.FirstOrDefault()?.To.Name
+            string target =
+                _destination.CurrentRoute?.Steps.FirstOrDefault()?.To.Name
                 ?? _destination.TargetName;
-            string distance = float.IsFinite(report.RemainingMeters) && report.RemainingMeters > 0
-                ? $" ({report.RemainingMeters:0} m remaining)"
-                : string.Empty;
-            _failureReason = $"Stopped short of '{target}'{distance}."
+            string distance =
+                float.IsFinite(report.RemainingMeters) && report.RemainingMeters > 0
+                    ? $" ({report.RemainingMeters:0} m remaining)"
+                    : string.Empty;
+            _failureReason =
+                $"Stopped short of '{target}'{distance}."
                 + (string.IsNullOrWhiteSpace(report.Reason) ? string.Empty : $" {report.Reason}");
             _host.Log.Warn($"GoArrow: {_failureReason}");
             _host.Automation.Chat.PostSystemMessage($"GoArrow: {_failureReason}");
@@ -690,29 +782,48 @@ internal sealed class GoArrowNavigator : IDisposable
                 }
                 HasArrived = true;
                 _activeSequence = 0;
-                _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+                _host.Automation.Chat.PostSystemMessage(
+                    $"GoArrow: Arrived at '{_destination.TargetName}'."
+                );
                 return;
             }
             HandleWaypointReached();
             return;
         }
 
-        if (report.State is PluginGoToState.NoRoute
-            or PluginGoToState.Blocked
-            or PluginGoToState.Interrupted
-            or PluginGoToState.Lost)
+        if (
+            report.State
+            is PluginGoToState.NoRoute
+                or PluginGoToState.Blocked
+                or PluginGoToState.Interrupted
+                or PluginGoToState.Lost
+        )
         {
             _lastHandledReportRevision = report.Revision;
-            if (report.State == PluginGoToState.Lost && _indoorRouteLeg
-                && _host.Automation.Navigation.Snapshot.IsPortalSpace)
+            if (
+                report.State == PluginGoToState.Lost
+                && _indoorRouteLeg
+                && _host.Automation.Navigation.Snapshot.IsPortalSpace
+            )
             {
                 PauseForPortalExit();
                 return;
             }
-            if (!_indoorWalk && report.State == PluginGoToState.Blocked && report.BlockedByObjectId != 0)
+            if (
+                !_indoorWalk
+                && report.State == PluginGoToState.Blocked
+                && report.BlockedByObjectId != 0
+            )
             {
-                if (_host.Automation.Objects.TryGet(report.BlockedByObjectId, out PluginWorldObject blocked)
-                    && blocked.ObjectClass == PluginObjectClass.Door && !blocked.IsDoorOpen && blocked.CanActivate)
+                if (
+                    _host.Automation.Objects.TryGet(
+                        report.BlockedByObjectId,
+                        out PluginWorldObject blocked
+                    )
+                    && blocked.ObjectClass == PluginObjectClass.Door
+                    && !blocked.IsDoorOpen
+                    && blocked.CanActivate
+                )
                 {
                     _activeInteractionObjectId = blocked.ObjectId;
                     WaitingForInteraction = true;
@@ -725,8 +836,12 @@ internal sealed class GoArrowNavigator : IDisposable
             _indoorWalk = false;
             _indoorRouteLeg = false;
             _failureReason = report.Reason ?? report.State.ToString();
-            _host.Log.Warn($"GoArrow: Navigation stopped with state {report.State}: {_failureReason}.");
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Navigation stopped ({report.State}).");
+            _host.Log.Warn(
+                $"GoArrow: Navigation stopped with state {report.State}: {_failureReason}."
+            );
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Navigation stopped ({report.State})."
+            );
         }
     }
 
@@ -758,7 +873,9 @@ internal sealed class GoArrowNavigator : IDisposable
             _isNavigating = false;
             _host.Automation.Navigation.StopGoTo();
             _activeSequence = 0;
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Arrived at '{_destination.TargetName}'.");
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Arrived at '{_destination.TargetName}'."
+            );
             return;
         }
 
@@ -773,28 +890,36 @@ internal sealed class GoArrowNavigator : IDisposable
         var snapshot = _host.Automation.Navigation.Snapshot;
         _interactionOriginPosition = snapshot.IsAvailable ? snapshot.Position : null;
         _interactionSawPortalSpace = false;
-        _activeInteractionObjectId = step.ObjectId != 0 ? step.ObjectId
-            : step.Kind == RouteStepKind.Portal ? _resolvedIndoorPortalObjectId : 0;
+        _activeInteractionObjectId =
+            step.ObjectId != 0 ? step.ObjectId
+            : step.Kind == RouteStepKind.Portal ? _resolvedIndoorPortalObjectId
+            : 0;
         if (_activeInteractionObjectId == 0)
         {
-            PluginObjectCapabilities required = step.Kind == RouteStepKind.Portal
-                ? PluginObjectCapabilities.Portal
-                : PluginObjectCapabilities.Interactable;
-            var candidate = _host.Automation.Objects.CaptureObjects()
+            PluginObjectCapabilities required =
+                step.Kind == RouteStepKind.Portal
+                    ? PluginObjectCapabilities.Portal
+                    : PluginObjectCapabilities.Interactable;
+            var candidate = _host
+                .Automation.Objects.CaptureObjects()
                 .Where(obj => obj.CanActivate && (obj.Capabilities & required) != 0)
                 .Select(obj => new
                 {
                     Object = obj,
                     Distance = obj.HasPosition
-                        ? new RouteFinding.Coordinates(obj.Position.NorthSouth, obj.Position.EastWest)
-                            .DistanceTo(step.From.Coords)
+                        ? new RouteFinding.Coordinates(
+                            obj.Position.NorthSouth,
+                            obj.Position.EastWest
+                        ).DistanceTo(step.From.Coords)
                         : double.PositiveInfinity,
                     NameMatches = !string.IsNullOrWhiteSpace(step.Via)
-                        && obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase)
+                        && obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase),
                 })
-                .Where(candidate => candidate.NameMatches
-                    ? !candidate.Object.HasPosition || candidate.Distance <= 1.0
-                    : step.Kind == RouteStepKind.Portal && candidate.Distance <= 0.1)
+                .Where(candidate =>
+                    candidate.NameMatches
+                        ? !candidate.Object.HasPosition || candidate.Distance <= 1.0
+                        : step.Kind == RouteStepKind.Portal && candidate.Distance <= 0.1
+                )
                 .OrderBy(candidate => candidate.NameMatches ? 0 : 1)
                 .ThenBy(candidate => candidate.Distance)
                 .Select(candidate => candidate.Object)
@@ -806,7 +931,8 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             WaitingForInteraction = true;
             _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Could not identify {step.Kind.ToString().ToLowerInvariant()} '{step.Via}'. Complete it manually, then use /go resume.");
+                $"GoArrow: Could not identify {step.Kind.ToString().ToLowerInvariant()} '{step.Via}'. Complete it manually, then use /go resume."
+            );
             return;
         }
 
@@ -815,7 +941,8 @@ internal sealed class GoArrowNavigator : IDisposable
         if (!result.Accepted)
         {
             _host.Automation.Chat.PostSystemMessage(
-                $"GoArrow: Interaction with '{step.Via}' was not accepted ({result.Status}); use /go resume if completed manually.");
+                $"GoArrow: Interaction with '{step.Via}' was not accepted ({result.Status}); use /go resume if completed manually."
+            );
             return;
         }
         _host.Automation.Chat.PostSystemMessage($"GoArrow: Activating '{step.Via}'.");
@@ -823,14 +950,22 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private void OnActivationCompleted(PluginActivationCompletion completion)
     {
-        if (!WaitingForInteraction || completion.ObjectId != _activeInteractionObjectId
-            || completion.Revision == 0 || completion.Revision <= _lastActivationRevision)
+        if (
+            !WaitingForInteraction
+            || completion.ObjectId != _activeInteractionObjectId
+            || completion.Revision == 0
+            || completion.Revision <= _lastActivationRevision
+        )
             return;
         _lastActivationRevision = completion.Revision;
         if (!completion.IsSuccess)
         {
-            _host.Log.Warn($"GoArrow: Interaction failed ({completion.Outcome}) for object 0x{completion.ObjectId:X8}.");
-            _host.Automation.Chat.PostSystemMessage($"GoArrow: Interaction failed ({completion.Outcome}); use /go resume to retry.");
+            _host.Log.Warn(
+                $"GoArrow: Interaction failed ({completion.Outcome}) for object 0x{completion.ObjectId:X8}."
+            );
+            _host.Automation.Chat.PostSystemMessage(
+                $"GoArrow: Interaction failed ({completion.Outcome}); use /go resume to retry."
+            );
             return;
         }
         if (_destination.CurrentRoute is not { StepCount: > 0 } route)
@@ -848,8 +983,10 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private void OnObjectChanged(PluginObjectChange change)
     {
-        if (_destination.Kind != GoArrowDestinationKind.Object
-            || _destination.TargetObjectId != change.ObjectId)
+        if (
+            _destination.Kind != GoArrowDestinationKind.Object
+            || _destination.TargetObjectId != change.ObjectId
+        )
             return;
         if (change.Kind == PluginObjectChangeKind.Released || change.Current is not { } current)
         {
@@ -861,10 +998,13 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private void OnPortalTransition(PluginPortalTransition transition)
     {
-        if (!WaitingForInteraction || !transition.IsCompleted
+        if (
+            !WaitingForInteraction
+            || !transition.IsCompleted
             || transition.Kind == PluginPortalTransitionKind.Login
             || _destination.CurrentRoute is not { StepCount: > 0 } route
-            || route.Steps[0].Kind is not (RouteStepKind.Portal or RouteStepKind.Recall))
+            || route.Steps[0].Kind is not (RouteStepKind.Portal or RouteStepKind.Recall)
+        )
             return;
         if (transition.Revision > 0 && transition.Revision <= _lastTransitionRevision)
             return;
@@ -879,10 +1019,12 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private void CheckInteractionPosition()
     {
-        if (!WaitingForInteraction
+        if (
+            !WaitingForInteraction
             || _destination.CurrentRoute is not { StepCount: > 0 } route
             || route.Steps[0].Kind is not (RouteStepKind.Portal or RouteStepKind.Recall)
-            || _interactionOriginPosition is not { } origin)
+            || _interactionOriginPosition is not { } origin
+        )
             return;
 
         var snapshot = _host.Automation.Navigation.Snapshot;
@@ -895,16 +1037,22 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         var current = snapshot.Position;
-        bool changedWorld = current.IsOutdoor != origin.IsOutdoor
-            || (current.CellId != 0 && origin.CellId != 0
-                && (current.CellId & 0xFFFF0000u) != (origin.CellId & 0xFFFF0000u));
-        bool movedAfterPortalSpace = _interactionSawPortalSpace
-            && (current.CellId != origin.CellId
-                || current.HorizontalDistanceMeters(origin) > 20);
+        bool changedWorld =
+            current.IsOutdoor != origin.IsOutdoor
+            || (
+                current.CellId != 0
+                && origin.CellId != 0
+                && (current.CellId & 0xFFFF0000u) != (origin.CellId & 0xFFFF0000u)
+            );
+        bool movedAfterPortalSpace =
+            _interactionSawPortalSpace
+            && (current.CellId != origin.CellId || current.HorizontalDistanceMeters(origin) > 20);
         if (!changedWorld && !movedAfterPortalSpace)
             return;
 
-        _host.Log.Info($"GoArrow: Completed '{route.Steps[0].Via}' from the live position after portal transition.");
+        _host.Log.Info(
+            $"GoArrow: Completed '{route.Steps[0].Via}' from the live position after portal transition."
+        );
         ResumeAfterInteraction();
     }
 

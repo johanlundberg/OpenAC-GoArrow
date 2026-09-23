@@ -12,11 +12,21 @@ public sealed class HudCanvasTests
     [InlineData(false, true, false, true)]
     [InlineData(false, false, false, false)]
     public void DisplayTogglesControlArrowReadout(
-        bool showBearing, bool showDistance, bool expectBearing, bool expectDistance)
+        bool showBearing,
+        bool showDistance,
+        bool expectBearing,
+        bool expectDistance
+    )
     {
         var fake = new FakePluginHost();
         fake.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var ui = new RecordingUi();
         var host = new CanvasHost(fake, ui);
         var database = new LocationDatabase();
@@ -29,17 +39,24 @@ public sealed class HudCanvasTests
         var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
         destination.SetDestination("Finish");
         destination.CalculateRoute(new Location("Current", 0, 0));
-        using var hud = new GoArrowHud(host, destination,
-            new GoArrowNavigator(host, destination, settings), settings);
+        using var hud = new GoArrowHud(
+            host,
+            destination,
+            new GoArrowNavigator(host, destination, settings),
+            settings
+        );
         hud.Enable();
 
         var painter = new RecordingPainter();
         ui.PaintCallbacks["goarrow.arrow"](painter);
         string? readout = painter.Texts.SingleOrDefault(text =>
-            text.Contains('°') || text.EndsWith(" m") || text.EndsWith(" km"));
+            text.Contains('°') || text.EndsWith(" m") || text.EndsWith(" km")
+        );
         Assert.Equal(expectBearing, readout?.Contains('°') == true);
-        Assert.Equal(expectDistance,
-            readout?.EndsWith(" m") == true || readout?.EndsWith(" km") == true);
+        Assert.Equal(
+            expectDistance,
+            readout?.EndsWith(" m") == true || readout?.EndsWith(" km") == true
+        );
     }
 
     [Fact]
@@ -47,7 +64,13 @@ public sealed class HudCanvasTests
     {
         var fake = new FakePluginHost();
         fake.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
-            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+            true,
+            false,
+            1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true),
+            false,
+            false
+        );
         var ui = new RecordingUi();
         var host = new CanvasHost(fake, ui);
         var database = new LocationDatabase();
@@ -75,7 +98,7 @@ public sealed class HudCanvasTests
 
         fake.PluginNavigation.SnapshotValue = fake.PluginNavigation.SnapshotValue with
         {
-            Position = new PluginNavigationPosition(0, 0, 0, 0, 90, true)
+            Position = new PluginNavigationPosition(0, 0, 0, 0, 90, true),
         };
         painter.Lines.Clear();
         ui.PaintCallbacks["goarrow.arrow"](painter);
@@ -83,65 +106,170 @@ public sealed class HudCanvasTests
         Assert.True(shaft.To.Y < shaft.From.Y);
 
         var arrow = ui.Canvases["goarrow.arrow"];
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(70, 60), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(40, 40),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(70, 60),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(70, 60), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(70, 60),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
         fake.PluginEvents.RaiseTick(0.1);
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(40, 40),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(40, 40), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(40, 40),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-40, 140), arrow.Offset);
         Assert.Equal(-40, settings.ArrowOffsetX);
-        Assert.Equal(-40, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ArrowOffsetX);
+        Assert.Equal(
+            -40,
+            fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ArrowOffsetX
+        );
 
         var toolbar = ui.Canvases["goarrow.toolbar"];
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(200, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(200, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(220, 25),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(220, 25),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(220, 25), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(220, 25),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-50, 225), toolbar.Offset);
         Assert.Equal(-50, settings.ToolbarOffsetX);
-        Assert.Equal(-50, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX);
+        Assert.Equal(
+            -50,
+            fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX
+        );
         fake.PluginEvents.RaiseTick(0.1);
         var saved = new GoArrowSettings();
         saved.Load(fake.Storage);
         Assert.Equal(-40, saved.ArrowOffsetX);
         Assert.Equal(225, saved.ToolbarOffsetY);
 
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Move,
-            new PluginPoint(55, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(55, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(40, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Move,
+                new PluginPoint(55, 20),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(55, 20),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
         Assert.Equal(-35, settings.ToolbarOffsetX);
-        Assert.Equal(-35, fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX);
+        Assert.Equal(
+            -35,
+            fake.PluginStorage.ReadJson<GoArrowSettings>("settings.json")!.ToolbarOffsetX
+        );
 
         navigator.StartNavigation();
         Assert.True(navigator.IsNavigating);
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(40, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(40, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(40, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.False(navigator.IsNavigating);
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(190, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(190, 15), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(190, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(190, 15),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
     }
 
@@ -158,23 +286,60 @@ public sealed class HudCanvasTests
         using var hud = new GoArrowHud(host, destination, navigator, settings);
         hud.Enable();
         var arrow = ui.Canvases["goarrow.arrow"];
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(20, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
-        arrow.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(50, 45), PluginPointerButton.Left, PluginKeyModifiers.None));
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(20, 20),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        arrow.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(50, 45),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
         var toolbar = ui.Canvases["goarrow.toolbar"];
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Down,
-            new PluginPoint(20, 20), PluginPointerButton.Left, PluginKeyModifiers.None));
-        toolbar.PointerHandler!(new PluginPointerEvent(PluginPointerEventKind.Up,
-            new PluginPoint(60, 50), PluginPointerButton.Left, PluginKeyModifiers.None));
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Down,
+                new PluginPoint(20, 20),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
+        toolbar.PointerHandler!(
+            new PluginPointerEvent(
+                PluginPointerEventKind.Up,
+                new PluginPoint(60, 50),
+                PluginPointerButton.Left,
+                PluginKeyModifiers.None
+            )
+        );
 
         var restoredSettings = new GoArrowSettings();
         restoredSettings.Load(fake.PluginStorage);
         var restoredUi = new RecordingUi();
         var restoredHost = new CanvasHost(fake, restoredUi);
-        var restoredDestination = new GoArrowDestination(restoredSettings, database, new RouteFinder(database));
-        using var restoredNavigator = new GoArrowNavigator(restoredHost, restoredDestination, restoredSettings);
-        using var restoredHud = new GoArrowHud(restoredHost, restoredDestination, restoredNavigator, restoredSettings);
+        var restoredDestination = new GoArrowDestination(
+            restoredSettings,
+            database,
+            new RouteFinder(database)
+        );
+        using var restoredNavigator = new GoArrowNavigator(
+            restoredHost,
+            restoredDestination,
+            restoredSettings
+        );
+        using var restoredHud = new GoArrowHud(
+            restoredHost,
+            restoredDestination,
+            restoredNavigator,
+            restoredSettings
+        );
         restoredHud.Enable();
 
         Assert.Equal(new PluginPoint(-40, 145), restoredUi.Canvases["goarrow.arrow"].Offset);
@@ -223,7 +388,10 @@ public sealed class HudCanvasTests
 
         public void AddMarkupPanel(string markupPath, object binding) { }
 
-        public IPluginCanvas RegisterCanvas(PluginCanvasDescriptor descriptor, Action<IPluginPainter> paint)
+        public IPluginCanvas RegisterCanvas(
+            PluginCanvasDescriptor descriptor,
+            Action<IPluginPainter> paint
+        )
         {
             PaintCallbacks.Add(descriptor.CanvasId, paint);
             var canvas = new NoOpPluginCanvas(descriptor);
@@ -238,19 +406,43 @@ public sealed class HudCanvasTests
         public int Height => 90;
         public List<(PluginPoint From, PluginPoint To, float Thickness)> Lines { get; } = new();
         public List<string> Texts { get; } = new();
+
         public void Clear(PluginColor color) { }
+
         public void FillRect(PluginRect rect, PluginColor color) { }
+
         public void StrokeRect(PluginRect rect, PluginColor color, float thickness = 1f) { }
-        public void DrawLine(PluginPoint from, PluginPoint to, PluginColor color, float thickness = 1f) =>
-            Lines.Add((from, to, thickness));
-        public void DrawText(string text, PluginPoint position, PluginColor color, bool outline = false) =>
-            Texts.Add(text);
+
+        public void DrawLine(
+            PluginPoint from,
+            PluginPoint to,
+            PluginColor color,
+            float thickness = 1f
+        ) => Lines.Add((from, to, thickness));
+
+        public void DrawText(
+            string text,
+            PluginPoint position,
+            PluginColor color,
+            bool outline = false
+        ) => Texts.Add(text);
+
         public PluginSize MeasureText(string text) => new(0, 0);
+
         public void DrawImage(PluginImage image, PluginRect destination, PluginColor tint) { }
+
         public void DrawImageTransformed(
-            PluginImage image, PluginRect destination, PluginColor tint, double rotationRadians,
-            PluginPoint pivot, double scaleX = 1.0, double scaleY = 1.0) { }
+            PluginImage image,
+            PluginRect destination,
+            PluginColor tint,
+            double rotationRadians,
+            PluginPoint pivot,
+            double scaleX = 1.0,
+            double scaleY = 1.0
+        ) { }
+
         public void PushClip(PluginRect rect) { }
+
         public void PopClip() { }
     }
 }

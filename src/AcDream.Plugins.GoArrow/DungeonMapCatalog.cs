@@ -45,7 +45,9 @@ internal sealed class DungeonMapCatalog
         using var source = openArchive();
         using var archive = new ZipArchive(source, ZipArchiveMode.Read);
         var index = archive.Entries.FirstOrDefault(entry =>
-            Path.GetFileName(entry.FullName).Equals("dungeons.txt", StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(entry.FullName)
+                .Equals("dungeons.txt", StringComparison.OrdinalIgnoreCase)
+        );
         var names = index is null ? new Dictionary<int, string>() : ReadNames(index.Open());
 
         foreach (ZipArchiveEntry entry in archive.Entries)
@@ -61,7 +63,8 @@ internal sealed class DungeonMapCatalog
 
         var files = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).ToArray();
         string? index = files.FirstOrDefault(file =>
-            Path.GetFileName(file).Equals("dungeons.txt", StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(file).Equals("dungeons.txt", StringComparison.OrdinalIgnoreCase)
+        );
         var names = index is null ? new Dictionary<int, string>() : ReadNames(File.OpenRead(index));
         foreach (string file in files)
             AddImage(Path.GetRelativePath(directory, file), names);
@@ -79,8 +82,11 @@ internal sealed class DungeonMapCatalog
 
         using var sourceArchive = _openArchive!();
         using var archive = new ZipArchive(sourceArchive, ZipArchiveMode.Read);
-        ZipArchiveEntry entry = archive.GetEntry(map.RelativePath)
-            ?? throw new FileNotFoundException($"Dungeon map {map.Id:X4} is missing from the archive.");
+        ZipArchiveEntry entry =
+            archive.GetEntry(map.RelativePath)
+            ?? throw new FileNotFoundException(
+                $"Dungeon map {map.Id:X4} is missing from the archive."
+            );
         using var source = entry.Open();
         var copy = new MemoryStream((int)entry.Length);
         source.CopyTo(copy);
@@ -92,18 +98,24 @@ internal sealed class DungeonMapCatalog
     {
         string filename = Path.GetFileName(relativePath);
         string extension = Path.GetExtension(filename);
-        if (!extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
-            && !extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        if (
+            !extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+            && !extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+        )
             return;
         if (!TryParseId(Path.GetFileNameWithoutExtension(filename), out int id))
             return;
 
-        var candidate = new DungeonMapEntry(id,
-            names.TryGetValue(id, out string? name) && name.Length > 0
-                ? name : $"Dungeon {id:X4}", relativePath);
-        if (!_maps.TryGetValue(id, out var existing)
+        var candidate = new DungeonMapEntry(
+            id,
+            names.TryGetValue(id, out string? name) && name.Length > 0 ? name : $"Dungeon {id:X4}",
+            relativePath
+        );
+        if (
+            !_maps.TryGetValue(id, out var existing)
             || extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
-                && !existing.RelativePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                && !existing.RelativePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+        )
             _maps[id] = candidate;
     }
 

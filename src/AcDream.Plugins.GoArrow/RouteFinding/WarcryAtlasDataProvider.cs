@@ -23,7 +23,8 @@ internal sealed class WarcryAtlasDataProvider
     public WarcryAtlasDataProvider(
         IPluginStorage storage,
         HttpClient? httpClient = null,
-        string? url = null)
+        string? url = null
+    )
     {
         _storage = storage;
         _httpClient = httpClient ?? new HttpClient();
@@ -40,25 +41,27 @@ internal sealed class WarcryAtlasDataProvider
     {
         if (string.IsNullOrWhiteSpace(_url))
             throw new InvalidOperationException("Set a location data URL before downloading.");
-        using HttpResponseMessage response = await _httpClient.GetAsync(
-            _url,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient
+            .GetAsync(_url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
 
         if (response.StatusCode != HttpStatusCode.OK)
         {
             throw new HttpRequestException(
-                $"Atlas download returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase}).");
+                $"Atlas download returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase})."
+            );
         }
 
-        byte[] payload = await response.Content.ReadAsByteArrayAsync(cancellationToken)
+        byte[] payload = await response
+            .Content.ReadAsByteArrayAsync(cancellationToken)
             .ConfigureAwait(false);
         if (payload.Length == 0)
             throw new InvalidDataException("Atlas download was empty.");
         if (payload.Length > MaximumDownloadBytes)
         {
             throw new InvalidDataException(
-                $"Atlas download is larger than the {MaximumDownloadBytes / (1024 * 1024)} MiB limit.");
+                $"Atlas download is larger than the {MaximumDownloadBytes / (1024 * 1024)} MiB limit."
+            );
         }
 
         string xml = System.Text.Encoding.UTF8.GetString(payload);
@@ -105,7 +108,13 @@ internal sealed class WarcryAtlasDataProvider
         var document = new XmlDocument { XmlResolver = null };
         document.Load(reader);
 
-        if (!string.Equals(document.DocumentElement?.Name, "atlas", StringComparison.OrdinalIgnoreCase))
+        if (
+            !string.Equals(
+                document.DocumentElement?.Name,
+                "atlas",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
             throw new InvalidDataException("Atlas XML root element must be <atlas>.");
 
         int count = document.SelectNodes("/atlas/location")?.Count ?? 0;
@@ -120,8 +129,15 @@ internal sealed class WarcryAtlasDataProvider
             return;
 
         _storage.WriteText(CacheKey, xml);
-        _storage.WriteJson(MetadataKey, new CacheMetadata(DateTimeOffset.UtcNow, ValidateAtlasXml(xml), _url));
+        _storage.WriteJson(
+            MetadataKey,
+            new CacheMetadata(DateTimeOffset.UtcNow, ValidateAtlasXml(xml), _url)
+        );
     }
 
-    private sealed record CacheMetadata(DateTimeOffset DownloadedAt, int LocationCount, string SourceUrl);
+    private sealed record CacheMetadata(
+        DateTimeOffset DownloadedAt,
+        int LocationCount,
+        string SourceUrl
+    );
 }
