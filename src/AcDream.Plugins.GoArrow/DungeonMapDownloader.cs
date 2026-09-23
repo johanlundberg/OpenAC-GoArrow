@@ -6,8 +6,6 @@ namespace AcDream.Plugins.GoArrow;
 /// <summary>Downloads a user-requested dungeon map archive into plugin storage.</summary>
 internal sealed class DungeonMapDownloader
 {
-    public const string DefaultUrl =
-        "https://raw.githubusercontent.com/Darktorizo/GoArrow_Data_CoD/master/Dungeon_Map_Cache.zip";
     private const long MaximumDownloadBytes = 64L * 1024 * 1024;
     private static readonly HttpClient SharedHttpClient = new();
     private readonly IPluginStorage _storage;

@@ -23,7 +23,7 @@ public sealed class UiStartupTests
         Assert.True(settings.RecalculateRoute);
         Assert.True(settings.UseNavigationAutomation);
         Assert.Equal(string.Empty, settings.ExternalDataUrl);
-        Assert.Equal(DungeonMapDownloader.DefaultUrl, settings.DungeonMapUrl);
+        Assert.Equal(string.Empty, settings.DungeonMapUrl);
     }
 
     [Fact]

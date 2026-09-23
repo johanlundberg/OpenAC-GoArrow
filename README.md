@@ -99,6 +99,10 @@ dotnet build src/AcDream.Plugins.GoArrow/AcDream.Plugins.GoArrow.csproj
 ```
 
 The project currently builds cleanly with the supported OpenAC abstractions.
+For a local plugin that will load in the client, use `bash scripts/publish-local.sh`.
+It builds `dist/openac.goarrow` against the OpenAC release named by
+`plugin.json`'s `minHostVersion`. A normal build against a newer `../OpenAC`
+checkout can compile successfully but fail to load in an older installed client.
 
 The test project is located at:
 
@@ -156,9 +160,9 @@ After the plugin is enabled:
 /go clear
 ```
 
-The **Route** tab has searchable **From** and **Destination** fields. Type part of a location name and choose it from the matches. Both fields accept **Current Location**; From defaults to it. The destination may also be entered as coordinates. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking when From is Current Location. A named From location produces a route preview without moving the character. The panel displays the destination, estimated distance, bearing, route status, and steps.
+The **Route** tab has searchable **From** and **Destination** fields. Type part of a location name and choose it from the matches. Both fields accept **Current Location**; From defaults to it. When From is Current Location, routing starts at the character's exact coordinates and considers nearby graph connections. The destination may also be entered as coordinates. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking when From is Current Location. A named From location produces a route preview without moving the character. The panel displays the destination, estimated distance, bearing, route status, and steps.
 
-The **Config** tab lets you save the location-data XML URL and dungeon-map ZIP URL, then download either source on demand. The location-data URL starts empty; enter a direct XML URL before downloading. The dungeon-map ZIP URL defaults to Darktorizo's archive. A dungeon-map download is checked before it replaces the previous ZIP; it is loaded into the current session when the download completes. Neither download starts automatically.
+The **Config** tab lets you save the location-data XML URL and dungeon-map ZIP URL, then download either source on demand. Both URLs start empty; enter a direct XML or ZIP URL before downloading. A dungeon-map download is checked before it replaces the previous ZIP; it is loaded into the current session when the download completes. Neither download starts automatically.
 
 Dungeon maps are optional and are not included in the plugin package. You can download the archive from the Config tab or obtain it from [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD). Run `/go dungeon path` to find the persistent map folder. Place a `Dungeon_Map_Cache.zip` archive there, or extract its images and `dungeons.txt` under that folder (the archive's `Dungeon Map Cache/` subfolder can remain). Run `/go dungeon reload` after adding or changing files manually. Extracted images take precedence if both forms are present. PNG and GIF images named by four-digit hexadecimal dungeon ID are supported; `dungeons.txt` supplies display names. OpenAC currently limits plugin images to 2048 pixels on each side, so larger maps need resizing before they can display.
 
@@ -167,6 +171,7 @@ When the character enters a dungeon with a matching map, its diagram opens autom
 For location data, use [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD) as the primary source; its data is more up to date. Its [direct XML download](https://raw.githubusercontent.com/Darktorizo/GoArrow_Data_CoD/master/data_cod.xml) can be entered in Config. [Roogon's map site](http://maps.roogon.com/index.html) also provides location data. Set a direct XML URL in Config or with `/go url`, then use Download or `/go update`. The route graph uses portal entrance and arrival coordinates as directed links, and downloaded data is cached for later starts. Portals marked retired or without usable arrival coordinates are excluded. Saved URLs are preserved.
 
 Navigation automation is optional. When no live session or navigation provider is available, GoArrow remains usable for route and destination information but cannot walk the character.
+Outdoor route recalculation pauses inside dungeons and other indoor cells. The existing route remains visible, but its bearing and arrow are paused until the character returns outdoors; GoArrow does not yet plan indoor route legs.
 
 ## Scope and limitations
 

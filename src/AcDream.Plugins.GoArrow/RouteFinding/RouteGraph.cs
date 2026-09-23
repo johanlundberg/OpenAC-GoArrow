@@ -222,22 +222,49 @@ public sealed class RouteGraph
         EnsureBuilt();
         if (fromIndex < 0 || fromIndex >= _locations.Count)
             return null;
-        if (toIndex < 0 || toIndex >= _locations.Count)
+        return FindShortestPathCore([new RouteSeed(fromIndex, null, 0)], toIndex, costSelector);
+    }
+
+    /// <summary>
+    /// Connect an exact position to nearby graph nodes for this search only.
+    /// The first returned edge has source index -1 and represents the walk
+    /// from that position; the graph itself remains unchanged.
+    /// </summary>
+    public List<RouteGraphEdge>? FindShortestPathFromPosition(Location position, int toIndex,
+        double maxConnectionDistance, Func<RouteGraphEdge, double>? costSelector = null)
+    {
+        EnsureBuilt();
+        var seeds = new List<RouteSeed>();
+        for (int i = 0; i < _locations.Count; i++)
+        {
+            double distance = position.DistanceTo(_locations[i]);
+            if (!double.IsFinite(distance) || distance > maxConnectionDistance)
+                continue;
+            var connection = new RouteGraphEdge(-1, i, RouteEdgeKind.Walk, distance, "Walk to start");
+            double cost = distance == 0 ? 0 : costSelector?.Invoke(connection) ?? distance;
+            if (double.IsFinite(cost) && cost >= 0)
+                seeds.Add(new RouteSeed(i, connection, cost));
+        }
+        return FindShortestPathCore(seeds, toIndex, costSelector);
+    }
+
+    private readonly record struct RouteSeed(int Index, RouteGraphEdge? Connection, double Cost);
+
+    private List<RouteGraphEdge>? FindShortestPathCore(IReadOnlyList<RouteSeed> seeds, int toIndex,
+        Func<RouteGraphEdge, double>? costSelector)
+    {
+        if (toIndex < 0 || toIndex >= _locations.Count || seeds.Count == 0)
             return null;
-        if (fromIndex == toIndex)
-            return new List<RouteGraphEdge>(); // already there
 
         int n = _locations.Count;
         var gScore = new double[n];
-        var fScore = new double[n];
         var cameFrom = new int[n];
         var cameFromEdge = new RouteGraphEdge?[n];
+        var origin = new int[n];
+        var sourceEdges = new RouteGraphEdge?[n];
         Array.Fill(gScore, double.MaxValue);
-        Array.Fill(fScore, double.MaxValue);
         Array.Fill(cameFrom, -1);
-
-        gScore[fromIndex] = 0;
-        fScore[fromIndex] = 0d;
+        Array.Fill(origin, -1);
 
         // Priority queue: (fScore, gScore, nodeIndex, tieBreaker)
         var open = new SortedSet<(double f, double g, int node, int tie)>();
@@ -246,7 +273,15 @@ public sealed class RouteGraph
         // and just add duplicates to the SortedSet (skip when popped if already closed).
         var closed = new HashSet<int>();
         int tieCounter = 0;
-        open.Add((fScore[fromIndex], gScore[fromIndex], fromIndex, tieCounter++));
+        foreach (RouteSeed seed in seeds)
+        {
+            if (seed.Cost >= gScore[seed.Index])
+                continue;
+            gScore[seed.Index] = seed.Cost;
+            origin[seed.Index] = seed.Index;
+            sourceEdges[seed.Index] = seed.Connection;
+            open.Add((seed.Cost, seed.Cost, seed.Index, tieCounter++));
+        }
 
         while (open.Count > 0)
         {
@@ -257,7 +292,12 @@ public sealed class RouteGraph
                 continue; // already processed
 
             if (current == toIndex)
-                return ReconstructPath(cameFrom, cameFromEdge, current);
+            {
+                var path = ReconstructPath(cameFrom, cameFromEdge, current);
+                if (sourceEdges[origin[current]] is { } connection)
+                    path.Insert(0, connection);
+                return path;
+            }
 
             foreach (var edge in _adjacency[current])
             {
@@ -275,10 +315,9 @@ public sealed class RouteGraph
                 // Better path found
                 cameFrom[neighbor] = current;
                 cameFromEdge[neighbor] = edge;
+                origin[neighbor] = origin[current];
                 gScore[neighbor] = tentativeG;
-                fScore[neighbor] = tentativeG;
-
-                open.Add((fScore[neighbor], gScore[neighbor], neighbor, tieCounter++));
+                open.Add((tentativeG, tentativeG, neighbor, tieCounter++));
             }
         }
 

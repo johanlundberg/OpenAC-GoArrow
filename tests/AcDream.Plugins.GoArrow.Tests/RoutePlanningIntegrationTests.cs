@@ -14,6 +14,8 @@ public sealed class RoutePlanningIntegrationTests
         GoArrowPanel panel = plugin.Panel!;
 
         Assert.True(panel.RouteTabSelected);
+        Assert.Equal(string.Empty, panel.LocationDataUrlInput);
+        Assert.Equal(string.Empty, panel.DungeonMapUrlInput);
         panel.ShowConfigTab();
         Assert.True(panel.ConfigTabSelected);
         Assert.False(panel.RouteTabVisible);
@@ -167,6 +169,66 @@ public sealed class RoutePlanningIntegrationTests
         plugin.Go();
 
         Assert.Contains(plugin.GetCurrentRouteSteps(), step => step.Contains("Portal [Far Portal]"));
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+        plugin.Disable();
+    }
+
+    [Fact]
+    public void RecalculationKeepsOutdoorRouteWhileInsideDungeon()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginStorage.WriteText("data/warcry-atlas.xml", """
+            <atlas>
+              <location><id>1</id><name>Start</name><type>Town</type><latitude>0</latitude><longitude>1</longitude><retired>N</retired></location>
+              <location><id>2</id><name>Far Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>2</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
+              <location><id>3</id><name>Other Dungeon</name><type>Dungeon</type><latitude>0</latitude><longitude>95</longitude><dungeon_id>1234</dungeon_id><retired>N</retired></location>
+              <location><id>4</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
+            </atlas>
+            """);
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 1, 0, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("End"));
+        plugin.Go();
+        string[] original = plugin.GetCurrentRouteSteps().ToArray();
+        Assert.Contains(original, step => step.Contains("Portal [Far Portal]"));
+
+        host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false)
+        };
+        host.PluginEvents.RaiseTick(0.1);
+        host.PluginEvents.RaiseTick(0.1);
+        Assert.Equal(original, plugin.GetCurrentRouteSteps());
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+        Assert.Equal("Outdoor route paused indoors", plugin.Panel!.NavStatusText);
+        Assert.Empty(plugin.Panel.BearingText);
+
+        host.PluginNavigation.SnapshotValue = host.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0, 95, 0, 0, 0, true)
+        };
+        host.PluginEvents.RaiseTick(0.1);
+        Assert.DoesNotContain(plugin.GetCurrentRouteSteps(), step => step.Contains("Portal [Far Portal]"));
+        plugin.Disable();
+    }
+
+    [Fact]
+    public void GoDoesNotPlanOutdoorRouteFromIndoorPosition()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("Holtburg"));
+
+        plugin.Go();
+
+        Assert.Empty(plugin.GetCurrentRouteSteps());
         Assert.Empty(host.PluginNavigation.GoToPositionCalls);
         plugin.Disable();
     }

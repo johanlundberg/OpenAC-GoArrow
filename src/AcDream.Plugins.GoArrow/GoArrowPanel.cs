@@ -49,13 +49,13 @@ internal sealed class GoArrowPanel
 
     /// <summary>Distance to destination (formatted).</summary>
     public string DistanceText =>
-        _destination.HasDestination && _settings.ShowDistance
+        _destination.HasDestination && _settings.ShowDistance && !OutdoorRoutePaused
             ? $"{_destination.EstimatedDistance:F2} mu"
             : string.Empty;
 
     /// <summary>Bearing to the next route waypoint (formatted).</summary>
     public string BearingText =>
-        _destination.HasDestination && _settings.ShowBearing
+        _destination.HasDestination && _settings.ShowBearing && !OutdoorRoutePaused
             ? $"{_destination.BearingDegrees:F1}°"
             : string.Empty;
 
@@ -72,7 +72,18 @@ internal sealed class GoArrowPanel
                 return "Arrived!";
             if (string.IsNullOrEmpty(_destination.TargetName))
                 return "Idle";
+            if (OutdoorRoutePaused)
+                return "Outdoor route paused indoors";
             return _destination.CurrentRoute is { StepCount: > 0 } ? "Route ready" : "Ready";
+        }
+    }
+
+    private bool OutdoorRoutePaused
+    {
+        get
+        {
+            var snapshot = _host.Automation.Navigation.Snapshot;
+            return snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor);
         }
     }
 

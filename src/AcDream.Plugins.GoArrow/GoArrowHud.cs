@@ -84,8 +84,18 @@ internal sealed class GoArrowHud : IDisposable
         var center = new PluginPoint(37, 45);
         DrawCompassDial(painter, center);
 
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor))
+        {
+            painter.DrawText("OUTDOOR ROUTE PAUSED", new PluginPoint(84, 25),
+                new PluginColor(255, 215, 113), outline: true);
+            painter.DrawText("Resumes outdoors", new PluginPoint(84, 53), PluginColor.White,
+                outline: true);
+            return;
+        }
+
         double bearingDegrees = _destination.BearingDegrees;
-        double headingDegrees = _host.Automation.Navigation.Snapshot.Position.HeadingDegrees;
+        double headingDegrees = snapshot.Position.HeadingDegrees;
         if (double.IsFinite(bearingDegrees) && double.IsFinite(headingDegrees))
             DrawPointer(painter, center, (bearingDegrees - headingDegrees) * Math.PI / 180.0);
 

@@ -61,40 +61,45 @@ public class RouteFinder
         if (!destination.HasCoordinates)
             return new Route(destination.Name) { Description = $"Destination '{destination.Name}' has no coordinates." };
 
-        // Try graph-based route finding
-        var nearestFrom = FindNearestNamedLocation(currentPosition);
-        if (nearestFrom != null)
+        // Connect this exact origin to all nearby graph nodes for this search.
+        // Choosing one named location before Dijkstra can miss a better portal
+        // or add an artificial detour at the start of the route.
+        int toIdx = _graph.GetNodeIndex(destination);
+        if (toIdx >= 0)
         {
-            int fromIdx = _graph.GetNodeIndex(nearestFrom);
-            int toIdx = _graph.GetNodeIndex(destination);
-
-            if (fromIdx >= 0 && toIdx >= 0)
-            {
-                Func<RouteGraphEdge, double>? weighting = profile == RouteCostProfile.ShortestWalk
-                    ? null
-                    : edge => profile switch
-                    {
-                        RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk ? 1d : 0.1d,
-                        RouteCostProfile.PreferRecall => edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone ? edge.Cost * 0.1d : edge.Cost,
-                        RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk ? edge.Cost : edge.Cost * 1000d,
-                        _ => edge.Cost
-                    };
-                var path = _graph.FindShortestPath(fromIdx, toIdx, weighting);
-                if (path != null)
+            Func<RouteGraphEdge, double>? weighting = profile == RouteCostProfile.ShortestWalk
+                ? null
+                : edge => profile switch
                 {
-                    var route = _graph.ToRoute(path, destination.Name);
-
-                    // Prepend walk from current position to nearest named location
-                    double distToNearest = currentPosition.DistanceTo(nearestFrom);
-                    if (distToNearest > 0.01)
-                    {
-                        route.PrependStep(new RouteStep(
-                            RouteStepKind.Travel, currentPosition, nearestFrom,
-                            distToNearest, "Walk to start"));
-                    }
-
-                    return route;
+                    RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk ? 1d : 0.1d,
+                    RouteCostProfile.PreferRecall => edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone ? edge.Cost * 0.1d : edge.Cost,
+                    RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk ? edge.Cost : edge.Cost * 1000d,
+                    _ => edge.Cost
+                };
+            var path = _graph.FindShortestPathFromPosition(
+                currentPosition, toIdx, _maxWalkDistance, weighting);
+            if (path is { Count: > 0 })
+            {
+                var connection = path[0];
+                Location entry = _graph.GetLocation(connection.ToIndex);
+                if (path.Count == 1)
+                {
+                    var directRoute = new Route(destination.Name);
+                    directRoute.AddTravelStep(currentPosition, entry,
+                        connection.Cost == 0 ? "Arrived" : "Walk");
+                    return directRoute;
                 }
+
+                var route = _graph.ToRoute(path.Skip(1).ToList(), destination.Name);
+                if (connection.Cost > 0)
+                {
+                    route.PrependStep(new RouteStep(
+                        RouteStepKind.Travel, currentPosition, entry,
+                        connection.Cost, "Walk to start"));
+                }
+                else
+                    route.SetFirstStepOrigin(currentPosition);
+                return route;
             }
         }
 

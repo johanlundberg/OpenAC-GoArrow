@@ -13,6 +13,7 @@ internal sealed class GoArrowNavigator : IDisposable
     private readonly GoArrowDestination _destination;
     private readonly GoArrowSettings _settings;
     private bool _isNavigating;
+    private bool _pausedForOutdoorRoute;
     private PluginNavigationPosition? _currentNavPosition;
     private long _activeSequence;
     private long _lastHandledReportRevision;
@@ -96,6 +97,14 @@ internal sealed class GoArrowNavigator : IDisposable
             return false;
 
         var snapshot = _host.Automation.Navigation.Snapshot;
+        // The Atlas graph has outdoor map coordinates but no indoor cells or
+        // floors. Reusing an indoor map coordinate would attach this route to
+        // whichever outdoor entrance happens to be closest on the map.
+        if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor))
+        {
+            _host.Log.Warn("GoArrow: Outdoor route planning is paused while indoors or in portal space.");
+            return false;
+        }
         if (snapshot.IsAvailable)
             _currentNavPosition = snapshot.Position;
         if (_currentNavPosition is null)
@@ -136,6 +145,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (_isNavigating)
             StopNavigation();
+        _pausedForOutdoorRoute = false;
         if (!PlanRoute())
             return;
 
@@ -161,6 +171,7 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         _isNavigating = false;
+        _pausedForOutdoorRoute = false;
         HasArrived = false;
         WaitingForInteraction = false;
         _activeSequence = 0;
@@ -181,6 +192,18 @@ internal sealed class GoArrowNavigator : IDisposable
     /// </summary>
     public void OnTick(double elapsed)
     {
+        if (_pausedForOutdoorRoute)
+        {
+            var snapshot = _host.Automation.Navigation.Snapshot;
+            if (!snapshot.IsAvailable || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor)
+                return;
+            _pausedForOutdoorRoute = false;
+            if (!PlanRoute())
+                return;
+            _failureReason = string.Empty;
+            StartCurrentLeg();
+        }
+
         if (!_isNavigating || _destination.TargetLocation == null || _currentNavPosition == null)
             return;
 
@@ -216,18 +239,19 @@ internal sealed class GoArrowNavigator : IDisposable
     }
 
     /// <summary>
-    /// Resume a route after the user has completed the current portal or recall
-    /// interaction. OpenAC does not currently expose a generic interaction API,
-    /// so the action is intentionally explicit rather than pretending that
-    /// arrival at a portal completes the transition.
+    /// Resume a route after a portal transition completes or the user confirms
+    /// a manual portal or recall interaction.
     /// </summary>
     public void ResumeAfterInteraction()
     {
-        if (!WaitingForInteraction || _destination.CurrentRoute is not { StepCount: > 0 })
+        if (!WaitingForInteraction || _destination.CurrentRoute is not { StepCount: > 0 } route
+            || route.Steps[0].Kind == RouteStepKind.Travel)
             return;
 
         _destination.AdvanceStep();
         WaitingForInteraction = false;
+        _activeInteractionObjectId = 0;
+        _legIndex++;
         if (_destination.CurrentRoute.StepCount == 0)
         {
             HasArrived = true;
@@ -243,6 +267,15 @@ internal sealed class GoArrowNavigator : IDisposable
         var step = _destination.CurrentRoute?.Steps.FirstOrDefault();
         if (step is null)
             return;
+
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor))
+        {
+            _isNavigating = false;
+            _pausedForOutdoorRoute = true;
+            _failureReason = "Outdoor route paused while indoors or in portal space.";
+            return;
+        }
 
         if (step.Kind != RouteStepKind.Travel)
         {
@@ -360,9 +393,24 @@ internal sealed class GoArrowNavigator : IDisposable
                 ? PluginObjectCapabilities.Portal
                 : PluginObjectCapabilities.Interactable;
             var candidate = _host.Automation.Objects.CaptureObjects()
-                .FirstOrDefault(obj => (obj.Capabilities & required) != 0
-                    && (string.IsNullOrWhiteSpace(step.Via)
-                        || obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase)));
+                .Where(obj => obj.CanActivate && (obj.Capabilities & required) != 0)
+                .Select(obj => new
+                {
+                    Object = obj,
+                    Distance = obj.HasPosition
+                        ? new RouteFinding.Coordinates(obj.Position.NorthSouth, obj.Position.EastWest)
+                            .DistanceTo(step.From.Coords)
+                        : double.PositiveInfinity,
+                    NameMatches = !string.IsNullOrWhiteSpace(step.Via)
+                        && obj.Name.Contains(step.Via, StringComparison.OrdinalIgnoreCase)
+                })
+                .Where(candidate => candidate.NameMatches
+                    ? !candidate.Object.HasPosition || candidate.Distance <= 1.0
+                    : step.Kind == RouteStepKind.Portal && candidate.Distance <= 0.1)
+                .OrderBy(candidate => candidate.NameMatches ? 0 : 1)
+                .ThenBy(candidate => candidate.Distance)
+                .Select(candidate => candidate.Object)
+                .FirstOrDefault();
             _activeInteractionObjectId = candidate.ObjectId;
         }
 
@@ -374,15 +422,14 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
+        WaitingForInteraction = true;
         var result = _host.Automation.Objects.Activate(_activeInteractionObjectId);
         if (!result.Accepted)
         {
-            WaitingForInteraction = true;
             _host.Automation.Chat.PostSystemMessage(
                 $"GoArrow: Interaction with '{step.Via}' was not accepted ({result.Status}); use /go resume if completed manually.");
             return;
         }
-        WaitingForInteraction = true;
         _host.Automation.Chat.PostSystemMessage($"GoArrow: Activating '{step.Via}'.");
     }
 
@@ -398,7 +445,17 @@ internal sealed class GoArrowNavigator : IDisposable
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Interaction failed ({completion.Outcome}); use /go resume to retry.");
             return;
         }
-        ResumeAfterInteraction();
+        if (_destination.CurrentRoute is not { StepCount: > 0 } route)
+            return;
+
+        if (route.Steps[0].Kind == RouteStepKind.Travel)
+        {
+            WaitingForInteraction = false;
+            _activeInteractionObjectId = 0;
+            StartCurrentLeg();
+        }
+        // Portal and recall activation only confirms that the interaction
+        // succeeded. The route advances when the world transition completes.
     }
 
     private void OnObjectChanged(PluginObjectChange change)
@@ -417,7 +474,10 @@ internal sealed class GoArrowNavigator : IDisposable
     private void OnPortalTransition(PluginPortalTransition transition)
     {
         if (!WaitingForInteraction || transition.Revision == 0
-            || transition.Revision <= _lastTransitionRevision || !transition.IsCompleted)
+            || transition.Revision <= _lastTransitionRevision || !transition.IsCompleted
+            || transition.Kind == PluginPortalTransitionKind.Login
+            || _destination.CurrentRoute is not { StepCount: > 0 } route
+            || route.Steps[0].Kind is not (RouteStepKind.Portal or RouteStepKind.Recall))
             return;
         _lastTransitionRevision = transition.Revision;
         ResumeAfterInteraction();

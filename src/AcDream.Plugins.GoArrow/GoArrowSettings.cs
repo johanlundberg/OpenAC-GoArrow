@@ -41,7 +41,7 @@ public class GoArrowSettings
     // ── External data ──────────────────────────────────────────────
     /// <summary>Location-data URL used by the explicit update command.</summary>
     public string ExternalDataUrl { get; set; } = string.Empty;
-    public string DungeonMapUrl { get; set; } = DungeonMapDownloader.DefaultUrl;
+    public string DungeonMapUrl { get; set; } = string.Empty;
 
     // ── Recall Tracking ────────────────────────────────────────────
     public string LastPortalRecall { get; set; } = string.Empty;
@@ -122,8 +122,7 @@ public class GoArrowSettings
             InteractionTimeoutSeconds = structured.InteractionTimeoutSeconds > 0 ? structured.InteractionTimeoutSeconds : 15;
             AtlasCacheMaxAgeDays = Math.Max(0, structured.AtlasCacheMaxAgeDays);
             ExternalDataUrl = structured.ExternalDataUrl ?? string.Empty;
-            DungeonMapUrl = string.IsNullOrWhiteSpace(structured.DungeonMapUrl)
-                ? DungeonMapDownloader.DefaultUrl : structured.DungeonMapUrl;
+            DungeonMapUrl = structured.DungeonMapUrl ?? string.Empty;
             LastPortalRecall = structured.LastPortalRecall;
             LastSecondaryRecall = structured.LastSecondaryRecall;
             LastAllegianceRecall = structured.LastAllegianceRecall;
@@ -170,9 +169,7 @@ public class GoArrowSettings
             AtlasCacheMaxAgeDays = Math.Max(0, cacheDays);
 
         ExternalDataUrl = storage.ReadText("externalDataUrl") ?? string.Empty;
-        DungeonMapUrl = storage.ReadText("dungeonMapUrl") ?? DungeonMapDownloader.DefaultUrl;
-        if (string.IsNullOrWhiteSpace(DungeonMapUrl))
-            DungeonMapUrl = DungeonMapDownloader.DefaultUrl;
+        DungeonMapUrl = storage.ReadText("dungeonMapUrl") ?? string.Empty;
 
         LastPortalRecall = storage.ReadText("lastPortalRecall") ?? string.Empty;
         LastSecondaryRecall = storage.ReadText("lastSecondaryRecall") ?? string.Empty;

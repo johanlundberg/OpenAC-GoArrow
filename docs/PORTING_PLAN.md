@@ -18,7 +18,6 @@ The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal 
 - Original GoArrow documentation: <http://virindi.net/wiki/index.php/GoArrow_(VVS_Edition)>
 - OpenAC repository: <https://github.com/eriknihlen/OpenAC>
 - OpenAC plugin development documentation: <https://github.com/eriknihlen/OpenAC/tree/main/docs>
-- External Atlas data source considered for future work: `http://maps.roogon.com/downloads/data_cod_TN_Directions_Non_Olthoi.xml`
 
 ## Current implementation status
 

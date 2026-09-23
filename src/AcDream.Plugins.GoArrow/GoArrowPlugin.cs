@@ -601,6 +601,12 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_host is null || _settings is null)
             return;
+        if (string.IsNullOrWhiteSpace(_settings.DungeonMapUrl))
+        {
+            DungeonDownloadStatus = "Set a dungeon map URL first.";
+            _host.Automation.Chat.PostSystemMessage("GoArrow: Set a dungeon map URL in Config before downloading.");
+            return;
+        }
         if (Interlocked.Exchange(ref _dungeonUpdateInProgress, 1) != 0)
         {
             _host.Automation.Chat.PostSystemMessage("GoArrow: A dungeon map download is already running.");
@@ -694,7 +700,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             // Recalculate while idle. During navigation the navigator owns
             // the current route and advances it from navigation reports.
-            if (_destination.HasDestination && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
+            if (_destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
+                && position.IsOutdoor && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
                 && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true))
             {
                 var currentLoc = new RouteFinding.Location(
@@ -703,7 +710,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                     position.EastWest);
                 _destination.CalculateRoute(_routeFromOverride ?? currentLoc);
             }
-            else if (_destination.HasDestination)
+            else if (_destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
+                && position.IsOutdoor)
             {
                 var currentLoc = new RouteFinding.Location(
                     "Current Position",

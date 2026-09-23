@@ -102,6 +102,55 @@ public class RouteFinderTests
     }
 
     [Fact]
+    public void RouteStartsAtExactCurrentCoordinatesEvenForTinyOffset()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsCsv(new[] { "Start;0;0", "Middle;0;8", "End;0;16" });
+        var current = new Location("Current Position", 0.003, 0.004);
+
+        Route route = new RouteFinder(db).FindRoute(current, "End");
+
+        Assert.NotEmpty(route.Steps);
+        Assert.Same(current, route.Steps[0].From);
+        Assert.Equal(0.003, route.Steps[0].From.NS);
+        Assert.Equal(0.004, route.Steps[0].From.EW);
+    }
+
+    [Fact]
+    public void RouteKeepsExactOriginWhenStandingOnAGraphNode()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsCsv(new[] { "Start;0;0", "Middle;0;8", "End;0;16" });
+        var current = new Location("Current Position", 0, 0);
+
+        Route route = new RouteFinder(db).FindRoute(current, "End");
+
+        Assert.Same(current, route.Steps[0].From);
+        Assert.Equal(0, route.Steps[0].From.NS);
+        Assert.Equal(0, route.Steps[0].From.EW);
+    }
+
+    [Fact]
+    public void RouteCanEnterGraphAwayFromNearestNamedLocation()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <atlas>
+              <location><id>1</id><name>Nearest Town</name><type>Town</type><latitude>0</latitude><longitude>-1</longitude><retired>N</retired></location>
+              <location><id>2</id><name>Useful Portal</name><type>Wilderness Portal</type><latitude>0</latitude><longitude>5</longitude><arrival_latitude>0</arrival_latitude><arrival_longitude>95</arrival_longitude><retired>N</retired></location>
+              <location><id>3</id><name>End</name><type>Town</type><latitude>0</latitude><longitude>96</longitude><retired>N</retired></location>
+            </atlas>
+            """);
+        var current = new Location("Current Position", 0, 0);
+
+        Route route = new RouteFinder(db).FindRoute(current, "End");
+
+        Assert.Equal("Useful Portal", route.Steps[0].To.Name);
+        Assert.Same(current, route.Steps[0].From);
+        Assert.Equal(1, route.PortalCount);
+    }
+
+    [Fact]
     public void RouteFinder_FindRouteFindsDirectRouteStart()
     {
         var (db, finder) = CreateTestDb();

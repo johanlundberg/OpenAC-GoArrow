@@ -57,6 +57,21 @@ public class Route
             PortalCount++;
     }
 
+    /// <summary>Keep the exact route origin when it shares a graph node's coordinates.</summary>
+    public void SetFirstStepOrigin(Location origin)
+    {
+        if (_steps.Count == 0)
+            return;
+        RouteStep first = _steps[0];
+        _steps[0] = new RouteStep(first.Kind, origin, first.To, first.Distance, first.Via)
+        {
+            ObjectId = first.ObjectId,
+            ObjectCapabilities = first.ObjectCapabilities,
+            InteractionTimeout = first.InteractionTimeout,
+            MaxRetries = first.MaxRetries,
+        };
+    }
+
     public void AddTravelStep(Location from, Location to, string via = "")
     {
         double distance = from.Coords.DistanceTo(to.Coords);
