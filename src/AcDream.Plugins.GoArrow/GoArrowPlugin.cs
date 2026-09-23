@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Diagnostics;
+using System.Xml;
 using AcDream.Plugin.Abstractions;
 using AcDream.Plugins.GoArrow.RouteFinding;
 
@@ -47,6 +49,15 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private Action<PluginPortalTransition>? _portalTransitionHandler;
     private long _recallRequestRevision;
     private Location? _routeFromOverride;
+    private PendingRouteWork _pendingRouteWork;
+    private long _routeWorkReadyAt;
+    private bool _routeWorkInProgress;
+    private PluginNavigationPosition? _lastPreviewPosition;
+    private long _lastPreviewAt;
+    private const string IndoorLocationsStorageKey = "GoArrow/indoor-locations.xml";
+    private enum PendingRouteWork { None, Go, Preview }
+
+    internal bool IsComputingRoute => _pendingRouteWork != PendingRouteWork.None || _routeWorkInProgress;
 
     /// <summary>
     /// The name of the current destination, or empty.
@@ -66,6 +77,24 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _settings.Save(_host.Storage);
     }
 
+    internal void SetArrowVisible(bool visible)
+    {
+        if (_settings is null || _host is null)
+            return;
+        _settings.HudVisible = visible;
+        _hud?.SetArrowVisible(visible);
+        _settings.Save(_host.Storage);
+    }
+
+    internal void SetToolbarVisible(bool visible)
+    {
+        if (_settings is null || _host is null)
+            return;
+        _settings.ToolbarVisible = visible;
+        _hud?.SetToolbarVisible(visible);
+        _settings.Save(_host.Storage);
+    }
+
     public void Initialize(IPluginHost host)
     {
         _host = host;
@@ -81,6 +110,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         LoadEmbeddedData();
         LoadCachedAtlasData();
         LoadLayeredData();
+        LoadSavedIndoorLocations();
 
         // ── Initialize route finding ───────────────────────────────
         _routeFinder = new RouteFinder(_database);
@@ -157,6 +187,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     public void Disable()
     {
+        _pendingRouteWork = PendingRouteWork.None;
         if (_host is not null && _tickHandler is not null)
             _host.Events.Tick -= _tickHandler;
 
@@ -198,6 +229,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         bool found = _destination.SetDestination(name);
         if (found)
         {
+            _pendingRouteWork = PendingRouteWork.None;
+            _lastPreviewAt = 0;
             _navigator?.StopNavigation();
             _settings?.Save(_host.Storage);
             _host.Automation.Chat.PostSystemMessage($"GoArrow: Destination '{name}' set.");
@@ -210,6 +243,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal void ClearDestination()
     {
+        _pendingRouteWork = PendingRouteWork.None;
+        _lastPreviewAt = 0;
         _navigator?.StopNavigation();
         _destination?.ClearDestination();
         _settings?.Save(_host?.Storage!);
@@ -220,6 +255,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal void StopNavigation()
     {
+        _pendingRouteWork = PendingRouteWork.None;
         _navigator?.StopNavigation();
     }
 
@@ -228,30 +264,68 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     {
         if (_navigator is null)
             return;
-        if (_routeFromOverride is { } from)
+        if (_host?.HasUi == true && _tickHandler is not null)
         {
-            _navigator.StopNavigation();
-            _destination?.CalculateRoute(from);
+            QueueRouteWork(PendingRouteWork.Go);
             return;
         }
-        if (_destination?.TargetName == "Current Location")
-        {
-            _navigator.PlanRoute();
-            return;
-        }
-        if (_settings?.AutoNavigate == true)
-        {
-            _navigator.StartNavigation();
-            return;
-        }
+        ExecuteGo();
+    }
 
-        if (_navigator.IsNavigating)
-            _navigator.StopNavigation();
-        _navigator.PlanRoute();
+    private void ExecuteGo()
+    {
+        if (_navigator is null)
+            return;
+        try
+        {
+            if (_routeFromOverride is { } from)
+            {
+                _navigator.StopNavigation();
+                _destination?.CalculateRoute(from);
+                return;
+            }
+            if (_destination?.TargetName == "Current Location")
+            {
+                _navigator.PlanRoute();
+                return;
+            }
+            if (_settings?.AutoNavigate == true)
+            {
+                _navigator.StartNavigation();
+                return;
+            }
+
+            if (_navigator.IsNavigating)
+                _navigator.StopNavigation();
+            _navigator.PlanRoute();
+        }
+        finally
+        {
+            if (_host?.Automation.IsAvailable == true)
+            {
+                var snapshot = _host.Automation.Navigation.Snapshot;
+                if (snapshot.IsAvailable)
+                {
+                    _lastPreviewPosition = snapshot.Position;
+                    _lastPreviewAt = Stopwatch.GetTimestamp();
+                }
+            }
+        }
+    }
+
+    private void QueueRouteWork(PendingRouteWork work)
+    {
+        _pendingRouteWork = work;
+        // Let at least one drawn frame show the status before a large graph
+        // build blocks the UI thread.
+        _routeWorkReadyAt = Stopwatch.GetTimestamp()
+            + (long)(Stopwatch.Frequency * 0.05);
     }
 
     internal bool SetRouteFrom(string? name)
     {
+        _pendingRouteWork = PendingRouteWork.None;
+        _lastPreviewAt = 0;
         if (name is null)
         {
             _routeFromOverride = null;
@@ -610,6 +684,73 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         return true;
     }
 
+    /// <summary>Save the current indoor point as a named, searchable location.</summary>
+    internal bool MarkCurrentIndoorLocation(string name)
+    {
+        if (_host is null || _database is null || _destination is null
+            || !_host.Storage.IsAvailable || string.IsNullOrWhiteSpace(name))
+            return false;
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        var position = snapshot.Position;
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || position.IsOutdoor
+            || (position.CellId & 0xFFFFu) <= 0x40u)
+            return false;
+
+        string trimmedName = name.Trim();
+        var location = new Location(trimmedName, position.NorthSouth, position.EastWest)
+        {
+            IndoorPosition = position,
+            IsCustomized = true,
+            UseInRouteFinding = false,
+        };
+        try
+        {
+            var document = new XmlDocument();
+            XmlElement root = document.CreateElement("locations");
+            document.AppendChild(root);
+            foreach (Location item in _database.UserLocations
+                .Where(item => !item.Name.Equals(trimmedName, StringComparison.OrdinalIgnoreCase))
+                .Append(location))
+            {
+                var entry = new XmlDocument();
+                entry.LoadXml(item.ToXml());
+                root.AppendChild(document.ImportNode(entry.DocumentElement!, true));
+            }
+            _host.Storage.WriteText(IndoorLocationsStorageKey, document.OuterXml);
+            _database.UpsertUserLocation(location);
+            _routeFinder?.InvalidateGraph();
+            _navigator?.StopNavigation();
+            _destination.SetDestination(location);
+            _settings?.Save(_host.Storage);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Warn($"GoArrow: Could not save indoor location: {exception.Message}");
+            return false;
+        }
+    }
+
+    private void LoadSavedIndoorLocations()
+    {
+        if (_host is null || _database is null)
+            return;
+        string? xml = _host.Storage.ReadText(IndoorLocationsStorageKey);
+        if (string.IsNullOrWhiteSpace(xml))
+            return;
+        try
+        {
+            var saved = new LocationDatabase();
+            saved.LoadLocationsXml(xml);
+            foreach (Location location in saved.AllLocations.Where(location => location.IndoorPosition is not null))
+                _database.UpsertUserLocation(location);
+        }
+        catch (Exception exception)
+        {
+            _host.Log.Warn($"GoArrow: Ignoring invalid saved indoor locations: {exception.Message}");
+        }
+    }
+
     internal void SetNavigationLock(bool locked)
     {
         if (_settings is null || _host is null)
@@ -730,6 +871,34 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     private void OnTick(double elapsed)
     {
+        if (_pendingRouteWork != PendingRouteWork.None
+            && Stopwatch.GetTimestamp() >= _routeWorkReadyAt)
+        {
+            var work = _pendingRouteWork;
+            _pendingRouteWork = PendingRouteWork.None;
+            _routeWorkInProgress = true;
+            try
+            {
+                if (work == PendingRouteWork.Go)
+                    ExecuteGo();
+                else if (_destination?.HasDestination == true && _host?.Automation.IsAvailable == true)
+                {
+                    var preview = _host.Automation.Navigation.Snapshot;
+                    if (preview.IsAvailable && !preview.IsPortalSpace && preview.Position.IsOutdoor)
+                    {
+                        var current = new Location("Current Position",
+                            preview.Position.NorthSouth, preview.Position.EastWest);
+                        _destination.CalculateRoute(_routeFromOverride ?? current);
+                        _lastPreviewPosition = preview.Position;
+                        _lastPreviewAt = Stopwatch.GetTimestamp();
+                    }
+                }
+            }
+            finally
+            {
+                _routeWorkInProgress = false;
+            }
+        }
         if (Interlocked.Exchange(ref _pendingDungeonMapReload, 0) != 0)
         {
             bool loaded = ReloadDungeonMaps();
@@ -750,18 +919,29 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 SetCurrentLocationDestination();
             var position = snapshot.Position;
             _navigator.UpdatePosition(position);
+            if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !position.IsOutdoor))
+                _lastPreviewAt = 0;
 
             // Recalculate while idle. During navigation the navigator owns
             // the current route and advances it from navigation reports.
-            if (_destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
+            if (_pendingRouteWork == PendingRouteWork.None
+                && _destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
                 && position.IsOutdoor && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_navigator.HasArrived
-                && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true))
+                && (_destination.CurrentRoute is null || _settings?.RecalculateRoute == true)
+                && (_lastPreviewAt == 0 || Stopwatch.GetElapsedTime(_lastPreviewAt).TotalSeconds >= 1)
+                && (_destination.CurrentRoute is null || _lastPreviewPosition is not { } last
+                    || position.HorizontalDistanceMeters(last) >= 20))
             {
-                var currentLoc = new RouteFinding.Location(
-                    "Current Position",
-                    position.NorthSouth,
-                    position.EastWest);
-                _destination.CalculateRoute(_routeFromOverride ?? currentLoc);
+                if (_host.HasUi)
+                    QueueRouteWork(PendingRouteWork.Preview);
+                else
+                {
+                    var currentLoc = new RouteFinding.Location(
+                        "Current Position", position.NorthSouth, position.EastWest);
+                    _destination.CalculateRoute(_routeFromOverride ?? currentLoc);
+                    _lastPreviewPosition = position;
+                    _lastPreviewAt = Stopwatch.GetTimestamp();
+                }
             }
             else if (_destination.HasDestination && snapshot.IsAvailable && !snapshot.IsPortalSpace
                 && position.IsOutdoor)

@@ -35,6 +35,12 @@ internal sealed class GoArrowDestination
     /// <summary>Selected object id when this is an object destination.</summary>
     public uint? TargetObjectId { get; private set; }
 
+    /// <summary>The last live cell and floor position of an object destination.</summary>
+    public PluginNavigationPosition? TargetObjectPosition { get; private set; }
+
+    /// <summary>The exact cell and floor of an indoor point destination.</summary>
+    public PluginNavigationPosition? TargetIndoorPosition { get; private set; }
+
     /// <summary>Whether an object destination no longer has a live position.</summary>
     public bool TargetUnavailable { get; private set; }
 
@@ -77,6 +83,8 @@ internal sealed class GoArrowDestination
         Kind = GoArrowDestinationKind.Location;
         CoordinateText = string.Empty;
         TargetObjectId = null;
+        TargetObjectPosition = null;
+        TargetIndoorPosition = loc.IndoorPosition;
         TargetUnavailable = false;
         _settings.DestinationName = loc.Name;
         CurrentRoute = null;
@@ -92,6 +100,8 @@ internal sealed class GoArrowDestination
         Kind = GoArrowDestinationKind.Location;
         CoordinateText = string.Empty;
         TargetObjectId = null;
+        TargetObjectPosition = null;
+        TargetIndoorPosition = location.IndoorPosition;
         TargetUnavailable = false;
         _settings.DestinationName = location.Name;
         CurrentRoute = null;
@@ -106,6 +116,8 @@ internal sealed class GoArrowDestination
         TargetLocation = new RouteFinding.Location(CoordinateText, northSouth, eastWest);
         Kind = GoArrowDestinationKind.Coordinates;
         TargetObjectId = null;
+        TargetObjectPosition = null;
+        TargetIndoorPosition = null;
         TargetUnavailable = false;
         _settings.DestinationName = CoordinateText;
         CurrentRoute = null;
@@ -122,6 +134,8 @@ internal sealed class GoArrowDestination
             obj.Position.EastWest);
         Kind = GoArrowDestinationKind.Object;
         TargetObjectId = obj.ObjectId;
+        TargetObjectPosition = obj.Position;
+        TargetIndoorPosition = null;
         TargetUnavailable = false;
         CoordinateText = string.Empty;
         _settings.DestinationName = TargetLocation.Name;
@@ -150,6 +164,7 @@ internal sealed class GoArrowDestination
             string.IsNullOrWhiteSpace(obj.Name) ? TargetLocation?.Name ?? "Object" : obj.Name,
             obj.Position.NorthSouth,
             obj.Position.EastWest);
+        TargetObjectPosition = obj.Position;
         TargetUnavailable = false;
         CurrentRoute = null;
     }
@@ -163,6 +178,8 @@ internal sealed class GoArrowDestination
         Kind = GoArrowDestinationKind.Location;
         CoordinateText = string.Empty;
         TargetObjectId = null;
+        TargetObjectPosition = null;
+        TargetIndoorPosition = null;
         TargetUnavailable = false;
         _settings.DestinationName = string.Empty;
         CurrentRoute = null;

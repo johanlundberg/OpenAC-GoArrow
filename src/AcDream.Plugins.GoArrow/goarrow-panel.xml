@@ -23,6 +23,7 @@
     <button x="88" y="8" w="72" h="22" text="Stop" enabled="{IsNavigating}" onclick="{StopNavigation}" />
     <button x="168" y="8" w="80" h="22" text="Resume" enabled="{WaitingForInteraction}" onclick="{ResumeNavigation}" />
     <button x="256" y="8" w="80" h="22" text="Clear" enabled="{HasDestination}" onclick="{ClearDestination}" />
+    <label x="344" y="12" text="{NavStatusText}" />
     <label x="8" y="40" text="Route:" />
     <label x="52" y="40" text="{RouteStepsText}" />
     <label x="120" y="40" text="{FromText}" />
@@ -60,8 +61,11 @@
     <label x="8" y="128" text="Extracted maps take precedence over the ZIP." />
   </group>
 
-  <group x="8" y="374" w="544" h="52" anchor="left right top" border="#FF4A3A14" visible="{ConfigTabVisible}">
-    <button x="8" y="12" w="180" h="24" text="Reset overlay positions" onclick="{ResetOverlayPositionsAction}" />
+  <group x="8" y="374" w="544" h="100" anchor="left right top" border="#FF4A3A14" visible="{ConfigTabVisible}">
+    <label x="8" y="8" text="Overlays" />
+    <toggle x="8" y="32" w="150" h="20" text="Show Arrow" checked="{ArrowVisible}" onclick="{ToggleArrowVisible}" />
+    <toggle x="170" y="32" w="150" h="20" text="Show Toolbar" checked="{ToolbarVisible}" onclick="{ToggleToolbarVisible}" />
+    <button x="8" y="64" w="180" h="24" text="Reset overlay positions" onclick="{ResetOverlayPositionsAction}" />
   </group>
 
   <group x="8" y="42" w="544" h="565" anchor="left right top bottom" border="#FF4A3A14" visible="{DetailsTabVisible}">

@@ -8,7 +8,7 @@ internal sealed class GoArrowCommandDefinition : IPluginCommandDefinition
     private static readonly string[] Subcommands =
     {
         "to", "from", "start", "end", "selected", "attach", "list", "search",
-        "loc", "dest", "route", "status", "stop", "resume", "clear", "reset",
+        "loc", "dest", "mark", "route", "status", "stop", "resume", "clear", "reset",
         "lock", "unlock", "recall", "save", "favorites", "update", "help"
     };
     private readonly GoArrowCommands _commands;

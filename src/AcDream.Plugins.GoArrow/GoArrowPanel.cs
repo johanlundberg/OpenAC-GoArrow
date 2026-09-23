@@ -73,6 +73,10 @@ internal sealed class GoArrowPanel
     {
         get
         {
+            if (_plugin.IsComputingRoute)
+                return "Computing route...";
+            if (_navigator.IsPlanningPath)
+                return "Client planning path...";
             if (_navigator.IsNavigating)
                 return "Navigating...";
             if (_navigator.WaitingForInteraction)
@@ -81,6 +85,10 @@ internal sealed class GoArrowPanel
                 return "Arrived!";
             if (string.IsNullOrEmpty(_destination.TargetName))
                 return "Idle";
+            if (_navigator.WaitingForIndoorPortal)
+                return "Finding indoor portal";
+            if (_navigator.HasIndoorTarget)
+                return "Indoor target ready";
             if (OutdoorRoutePaused)
                 return "Outdoor route paused indoors";
             return _destination.CurrentRoute is { StepCount: > 0 } ? "Route ready" : "Ready";
@@ -119,7 +127,7 @@ internal sealed class GoArrowPanel
     public bool HasDestination => _destination.HasDestination;
 
     /// <summary>Whether navigation is active.</summary>
-    public bool IsNavigating => _navigator.IsNavigating;
+    public bool IsNavigating => _navigator.IsNavigating || _plugin.IsComputingRoute;
 
     /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
@@ -262,7 +270,11 @@ internal sealed class GoArrowPanel
 
     public string SearchResultsLabel => _searchingFrom ? "From matches" : "Destination matches";
 
-    public IReadOnlyList<string> RouteSteps => _plugin.GetCurrentRouteSteps();
+    public IReadOnlyList<string> RouteSteps => _destination.CurrentRoute?.Steps
+        .Select(step => string.IsNullOrWhiteSpace(StepDetailsLocation(step).Notes)
+            ? step.ToString()
+            : $"{step} [notes]")
+        .ToArray() ?? [];
 
     private RouteStep? SelectedStep
     {
@@ -297,9 +309,11 @@ internal sealed class GoArrowPanel
         ShowDetailsTab();
     };
 
+    private static Location StepDetailsLocation(RouteStep step) =>
+        step.Kind == RouteStepKind.Portal ? step.From : step.To;
+
     private Location? DetailsLocation => SelectedStep is { } step
-        ? step.Kind == RouteStepKind.Portal ? step.From : step.To
-        : null;
+        ? StepDetailsLocation(step) : null;
 
     public string DetailsStepNumberText => SelectedStep is null
         ? "Select a route step to see details."
@@ -525,6 +539,8 @@ internal sealed class GoArrowPanel
     }
 
     public bool DungeonMapVisible => _plugin.DungeonMapVisible;
+    public bool ArrowVisible => _settings.HudVisible;
+    public bool ToolbarVisible => _settings.ToolbarVisible;
 
     // ── Actions bound to the panel ──────────────────────────────────
 
@@ -545,6 +561,8 @@ internal sealed class GoArrowPanel
     public Action ToggleRecalculateRoute => () => RecalculateRoute = !RecalculateRoute;
 
     public Action ToggleDungeonMap => () => _plugin.SetDungeonMapVisible(!DungeonMapVisible);
+    public Action ToggleArrowVisible => () => _plugin.SetArrowVisible(!ArrowVisible);
+    public Action ToggleToolbarVisible => () => _plugin.SetToolbarVisible(!ToolbarVisible);
 
     /// <summary>Compute and display the route; optionally start navigation.</summary>
     public Action StartNavigation => () =>

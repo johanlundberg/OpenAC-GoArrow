@@ -177,7 +177,7 @@ public sealed class UiStartupTests
             RecalculateRoute = false,
             UseNavigationAutomation = false
         };
-        oldSettings.Save(storage);
+        storage.WriteJson("settings.json", oldSettings);
 
         var settings = new GoArrowSettings();
         settings.Load(storage);
@@ -195,7 +195,7 @@ public sealed class UiStartupTests
     public void PanelOnlyRepairAlsoRestoresPreviouslyHiddenHud()
     {
         var storage = new FakePluginStorage();
-        new GoArrowSettings
+        var oldSettings = new GoArrowSettings
         {
             PanelVisible = true,
             HudVisible = false,
@@ -203,7 +203,8 @@ public sealed class UiStartupTests
             MapVisible = false,
             ShowDistance = true,
             ShowBearing = true
-        }.Save(storage);
+        };
+        storage.WriteJson("settings.json", oldSettings);
 
         var settings = new GoArrowSettings();
         settings.Load(storage);
@@ -310,6 +311,41 @@ public sealed class UiStartupTests
             typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("checked")!.Value))!.PropertyType);
         Assert.Equal(typeof(Action),
             typeof(GoArrowPanel).GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!.PropertyType);
+    }
+
+    [Fact]
+    public void ConfigOverlayTogglesPersistIndependentVisibility()
+    {
+        var host = new FakePluginHost();
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        GoArrowPanel panel = plugin.Panel!;
+        string directory = Path.GetDirectoryName(typeof(GoArrowPlugin).Assembly.Location)!;
+        var markup = XDocument.Load(Path.Combine(directory, "goarrow-panel.xml"));
+
+        foreach (string label in new[] { "Show Arrow", "Show Toolbar" })
+        {
+            XElement toggle = markup.Descendants("toggle")
+                .Single(element => (string?)element.Attribute("text") == label);
+            Assert.Equal(typeof(bool), typeof(GoArrowPanel)
+                .GetProperty(BindingName(toggle.Attribute("checked")!.Value))!.PropertyType);
+            Assert.Equal(typeof(Action), typeof(GoArrowPanel)
+                .GetProperty(BindingName(toggle.Attribute("onclick")!.Value))!.PropertyType);
+        }
+
+        panel.ToggleArrowVisible();
+        Assert.False(panel.ArrowVisible);
+        Assert.True(panel.ToolbarVisible);
+        panel.ToggleToolbarVisible();
+        Assert.False(panel.ToolbarVisible);
+
+        var reloaded = new GoArrowSettings();
+        reloaded.Load(host.PluginStorage);
+        Assert.False(reloaded.HudVisible);
+        Assert.False(reloaded.ToolbarVisible);
+        panel.ToggleArrowVisible();
+        Assert.True(panel.ArrowVisible);
+        Assert.False(panel.ToolbarVisible);
     }
 
     private static string BindingName(string value) => value.Trim('{', '}');

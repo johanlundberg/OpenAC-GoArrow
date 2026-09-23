@@ -36,6 +36,7 @@ public class GoArrowSettings
     public bool ShowBearing { get; set; } = true;
     public bool HudVisible { get; set; } = true;
     public bool ToolbarVisible { get; set; } = true;
+    public int VisibilitySettingsVersion { get; set; }
     public bool HudClickThrough { get; set; }
     public double HudScale { get; set; } = 1;
     public double ArrowOffsetX { get; set; } = -70;
@@ -89,6 +90,7 @@ public class GoArrowSettings
     public void Save(IPluginStorage storage)
     {
         OverlayPositionVersion = 1;
+        VisibilitySettingsVersion = 1;
         storage.WriteJson("settings.json", this, JsonOptions);
         foreach (string key in LegacyKeys)
             storage.Delete(key);
@@ -109,6 +111,7 @@ public class GoArrowSettings
             ShowBearing = structured.ShowBearing;
             HudVisible = structured.HudVisible;
             ToolbarVisible = structured.ToolbarVisible;
+            VisibilitySettingsVersion = structured.VisibilitySettingsVersion;
             HudClickThrough = structured.HudClickThrough;
             HudScale = structured.HudScale > 0 ? structured.HudScale : 1;
             ArrowOffsetX = structured.ArrowOffsetX;
@@ -142,7 +145,8 @@ public class GoArrowSettings
             LastMansionRecall = structured.LastMansionRecall;
             RecallsByCharacter = structured.RecallsByCharacter ?? new();
             FavoriteDestinations = structured.FavoriteDestinations ?? new List<string>();
-            RestoreUiHiddenByOldDefaults();
+            if (VisibilitySettingsVersion < 1)
+                RestoreUiHiddenByOldDefaults();
             foreach (string key in LegacyKeys)
                 storage.Delete(key);
             return;

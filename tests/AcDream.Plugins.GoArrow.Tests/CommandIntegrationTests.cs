@@ -7,6 +7,22 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class CommandIntegrationTests
 {
     [Fact]
+    public void MarkCommandAddsAnIndoorLocationToSearchableData()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0x12340122, 10, 10, 0, 0, false), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+
+        Assert.True(host.PluginCommands.Invoke("go", "mark Lower Chamber"));
+        Assert.Equal("Lower Chamber", plugin.CurrentDestinationName);
+        Assert.Contains(plugin.SearchLocations("Lower"), location => location.IndoorPosition?.CellId == 0x12340122);
+        plugin.Disable();
+    }
+
+    [Fact]
     public void DungeonCommandControlsAutomaticMapVisibility()
     {
         var host = new FakePluginHost { HasUiValue = false };

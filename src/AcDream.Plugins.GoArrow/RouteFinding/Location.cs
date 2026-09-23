@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
+using AcDream.Plugin.Abstractions;
 
 namespace AcDream.Plugins.GoArrow.RouteFinding;
 
@@ -75,6 +76,9 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
 
     /// <summary>Optional dungeon or region identifier.</summary>
     public int DungeonId { get; set; }
+
+    /// <summary>Optional exact indoor cell and floor position for local location data.</summary>
+    public PluginNavigationPosition? IndoorPosition { get; set; }
 
     /// <summary>Human-readable description or source notes.</summary>
     public string Notes { get; set; } = string.Empty;
@@ -182,6 +186,10 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
             }
         }
 
+        PluginNavigationPosition? indoorPosition = ParseIndoorPosition(element);
+        if (indoorPosition is { } indoor && (!double.IsFinite(coords.NS) || !double.IsFinite(coords.EW)))
+            coords = new Coordinates(indoor.NorthSouth, indoor.EastWest);
+
         var location = new Location(
             id,
             name,
@@ -198,6 +206,7 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         location.UseInRouteFinding = ParseBool(
             GetAttribute(element, "use") ?? GetAttribute(element, "useInRouteFinding"), true);
         location.SpecializedIcon = ParseHexInt(GetAttribute(element, "icon"), 0);
+        location.IndoorPosition = indoorPosition;
         return location;
     }
 
@@ -240,6 +249,30 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         return location;
     }
 
+    private static PluginNavigationPosition? ParseIndoorPosition(XmlElement element)
+    {
+        XmlElement source = element.SelectSingleNode("Position") as XmlElement ?? element;
+        string? cellText = GetAttribute(source, "cellId");
+        if (string.IsNullOrWhiteSpace(cellText))
+            return null;
+        string hex = cellText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? cellText[2..] : cellText;
+        if (!uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint cellId)
+            || (cellId & 0xFFFFu) <= 0x40u
+            || !double.TryParse(GetAttribute(source, "x"), NumberStyles.Float, CultureInfo.InvariantCulture, out double x)
+            || !double.TryParse(GetAttribute(source, "y"), NumberStyles.Float, CultureInfo.InvariantCulture, out double y)
+            || !double.TryParse(GetAttribute(source, "z"), NumberStyles.Float, CultureInfo.InvariantCulture, out double z)
+            || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(z))
+            throw new FormatException($"Location '{GetAttribute(element, "name")}' has an invalid indoor position.");
+        uint blockX = (cellId >> 24) & 0xFFu;
+        uint blockY = (cellId >> 16) & 0xFFu;
+        return new PluginNavigationPosition(
+            cellId,
+            (((double)blockX - 127d) * 192d + x - 84d) / 240d,
+            (((double)blockY - 127d) * 192d + y - 84d) / 240d,
+            z / 240d, 0f, false);
+    }
+
     /// <summary>Serializes the complete compact GoArrow location model.</summary>
     public string ToXml()
     {
@@ -257,6 +290,14 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         }
         if (DungeonId != 0)
             element.SetAttribute("dungeonId", DungeonId.ToString(CultureInfo.InvariantCulture));
+        if (IndoorPosition is { } indoor)
+        {
+            var local = PluginDungeonFloorplan.ToLandblockLocal(indoor);
+            element.SetAttribute("cellId", $"0x{indoor.CellId:X8}");
+            element.SetAttribute("x", local.X.ToString("R", CultureInfo.InvariantCulture));
+            element.SetAttribute("y", local.Y.ToString("R", CultureInfo.InvariantCulture));
+            element.SetAttribute("z", local.Z.ToString("R", CultureInfo.InvariantCulture));
+        }
         if (!UseInRouteFinding)
             element.SetAttribute("use", bool.FalseString);
         if (IsCustomized)

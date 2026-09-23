@@ -6,6 +6,38 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class RoutePlanningIntegrationTests
 {
     [Fact]
+    public void RouteTabShowsPluginCalculationThenClientPathPlanning()
+    {
+        var host = new FakePluginHost { HasUiValue = true };
+        new GoArrowSettings { AutoNavigate = true }.Save(host.PluginStorage);
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("Holtburg"));
+
+        plugin.Go();
+
+        Assert.Equal("Computing route...", plugin.Panel!.NavStatusText);
+        Assert.True(plugin.Panel.IsNavigating);
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+        plugin.StopNavigation();
+        Thread.Sleep(70);
+        host.PluginEvents.RaiseTick(0.1);
+        Assert.Empty(host.PluginNavigation.GoToPositionCalls);
+
+        plugin.Go();
+        Assert.Equal("Computing route...", plugin.Panel.NavStatusText);
+        Thread.Sleep(70);
+        host.PluginEvents.RaiseTick(0.1);
+
+        Assert.NotEmpty(host.PluginNavigation.GoToPositionCalls);
+        Assert.Equal("Client planning path...", plugin.Panel.NavStatusText);
+        plugin.Disable();
+    }
+
+    [Fact]
     public void AutoNavigateWaitsForGoAfterDestinationChanges()
     {
         var host = new FakePluginHost { HasUiValue = false };
@@ -201,7 +233,10 @@ public sealed class RoutePlanningIntegrationTests
 
         Assert.Contains(plugin.GetCurrentRouteSteps(), step => step == "Portal: Far Portal");
         GoArrowPanel panel = plugin.Panel!;
-        int portalIndex = panel.RouteSteps.ToList().IndexOf("Portal: Far Portal");
+        int portalIndex = panel.RouteSteps.ToList().IndexOf("Portal: Far Portal [notes]");
+        Assert.True(portalIndex >= 0);
+        Assert.Contains(panel.RouteSteps, step => step.StartsWith("Walk: Far Portal") && step.EndsWith(" [notes]"));
+        Assert.DoesNotContain(panel.RouteSteps, step => step.StartsWith("Walk: End") && step.EndsWith(" [notes]"));
         panel.SelectRouteStepAction(portalIndex);
         Assert.True(panel.DetailsTabSelected);
         Assert.False(panel.RouteTabVisible);

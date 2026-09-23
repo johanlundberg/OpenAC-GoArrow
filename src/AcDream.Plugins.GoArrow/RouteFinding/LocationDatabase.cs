@@ -11,6 +11,7 @@ namespace AcDream.Plugins.GoArrow.RouteFinding;
 public class LocationDatabase
 {
     private readonly List<Location> _locations = new();
+    private readonly Dictionary<string, Location> _userLocations = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<Location>> _locationsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PortalDevice> _portalDevices = new();
     private readonly List<RouteStart> _routeStarts = new();
@@ -22,6 +23,29 @@ public class LocationDatabase
     public IReadOnlyList<Location> AllLocations
     {
         get { lock (_lock) return _locations.ToArray(); }
+    }
+
+    public IReadOnlyList<Location> UserLocations
+    {
+        get { lock (_lock) return _userLocations.Values.ToArray(); }
+    }
+
+    /// <summary>Adds a named user location that survives base-data reloads.</summary>
+    public void UpsertUserLocation(Location location)
+    {
+        lock (_lock)
+        {
+            _userLocations[location.Name] = location;
+            AddOrReplaceLocation(location);
+        }
+    }
+
+    private void AddOrReplaceLocation(Location location)
+    {
+        _locations.RemoveAll(existing => existing.Name.Equals(location.Name, StringComparison.OrdinalIgnoreCase));
+        _locationsByName.Remove(location.Name);
+        _locations.Add(location);
+        _locationsByName[location.Name] = [location];
     }
 
     /// <summary>
@@ -106,6 +130,8 @@ public class LocationDatabase
                     _locationsByName[loc.Name] = new List<Location>();
                 _locationsByName[loc.Name].Add(loc);
             }
+            foreach (Location userLocation in _userLocations.Values)
+                AddOrReplaceLocation(userLocation);
         }
     }
 
@@ -224,6 +250,8 @@ public class LocationDatabase
                     _locationsByName[loc.Name] = new List<Location>();
                 _locationsByName[loc.Name].Add(loc);
             }
+            foreach (Location userLocation in _userLocations.Values)
+                AddOrReplaceLocation(userLocation);
         }
     }
 
@@ -350,6 +378,7 @@ public class LocationDatabase
         lock (_lock)
         {
             _locations.Clear();
+            _userLocations.Clear();
             _locationsByName.Clear();
             _portalDevices.Clear();
             _routeStarts.Clear();

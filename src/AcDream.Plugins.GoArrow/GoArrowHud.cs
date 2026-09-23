@@ -177,9 +177,14 @@ internal sealed class GoArrowHud : IDisposable
         var snapshot = _host.Automation.Navigation.Snapshot;
         if (snapshot.IsAvailable && (snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor))
         {
-            painter.DrawText("OUTDOOR ROUTE PAUSED", new PluginPoint(84, 25),
+            bool indoorTarget = _navigator.HasIndoorTarget;
+            bool findingPortal = _navigator.WaitingForIndoorPortal;
+            painter.DrawText(findingPortal ? "FINDING INDOOR PORTAL"
+                : indoorTarget ? "INDOOR TARGET" : "OUTDOOR ROUTE PAUSED", new PluginPoint(84, 25),
                 new PluginColor(255, 215, 113), outline: true);
-            painter.DrawText("Resumes outdoors", new PluginPoint(84, 53), PluginColor.White,
+            painter.DrawText(findingPortal ? "Waiting for portal object"
+                : indoorTarget ? FitText(painter, _destination.TargetName, painter.Width - 94) : "Resumes outdoors",
+                new PluginPoint(84, 53), PluginColor.White,
                 outline: true);
             return;
         }
@@ -287,6 +292,18 @@ internal sealed class GoArrowHud : IDisposable
             _toolbar.Offset = new PluginPoint(_settings.ToolbarOffsetX, _settings.ToolbarOffsetY);
         _arrowDisplayedOffset = _arrow?.Offset ?? default;
         _toolbarDisplayedOffset = _toolbar?.Offset ?? default;
+    }
+
+    public void SetArrowVisible(bool visible)
+    {
+        if (_arrow is not null)
+            _arrow.IsVisible = visible;
+    }
+
+    public void SetToolbarVisible(bool visible)
+    {
+        if (_toolbar is not null)
+            _toolbar.IsVisible = visible;
     }
 
     public void Dispose()

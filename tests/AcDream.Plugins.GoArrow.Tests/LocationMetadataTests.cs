@@ -6,6 +6,25 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public class LocationMetadataTests
 {
     [Fact]
+    public void IndoorCellPositionRoundTripsInNamedLocationXml()
+    {
+        var document = new XmlDocument();
+        document.LoadXml("""
+            <loc name="Lower Chamber" type="Dungeon" cellId="0x12340122" x="35" y="50" z="-6">A note</loc>
+            """);
+
+        var location = Location.FromXml(document.DocumentElement!);
+        Assert.NotNull(location.IndoorPosition);
+        Assert.Equal((uint)0x12340122, location.IndoorPosition.Value.CellId);
+        Assert.Equal("A note", location.Notes);
+
+        document.LoadXml(location.ToXml());
+        var copy = Location.FromXml(document.DocumentElement!);
+        Assert.Equal(location.IndoorPosition, copy.IndoorPosition);
+        Assert.Equal("A note", copy.Notes);
+    }
+
+    [Fact]
     public void CompactXml_PreservesLocationMetadata()
     {
         var document = new XmlDocument();

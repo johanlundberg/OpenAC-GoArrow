@@ -142,6 +142,29 @@ public sealed class HudCanvasTests
         Assert.Equal(new PluginPoint(-35, 230), toolbar.Offset);
     }
 
+    [Fact]
+    public void OverlayVisibilityChangesApplyToActiveCanvases()
+    {
+        var fake = new FakePluginHost();
+        var ui = new RecordingUi();
+        var host = new CanvasHost(fake, ui);
+        var database = new LocationDatabase();
+        var settings = new GoArrowSettings();
+        var destination = new GoArrowDestination(settings, database, new RouteFinder(database));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        using var hud = new GoArrowHud(host, destination, navigator, settings);
+        hud.Enable();
+
+        hud.SetArrowVisible(false);
+        Assert.False(ui.Canvases["goarrow.arrow"].IsVisible);
+        Assert.True(ui.Canvases["goarrow.toolbar"].IsVisible);
+        hud.SetToolbarVisible(false);
+        Assert.False(ui.Canvases["goarrow.toolbar"].IsVisible);
+        hud.SetArrowVisible(true);
+        Assert.True(ui.Canvases["goarrow.arrow"].IsVisible);
+        Assert.False(ui.Canvases["goarrow.toolbar"].IsVisible);
+    }
+
     private sealed class CanvasHost(FakePluginHost inner, IUiRegistry ui) : IPluginHost
     {
         public bool HasUi => true;

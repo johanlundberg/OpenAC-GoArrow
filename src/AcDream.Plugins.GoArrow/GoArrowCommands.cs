@@ -94,6 +94,13 @@ internal sealed class GoArrowCommands
                     _host.Automation.Chat.PostSystemMessage("GoArrow: Selected object is unavailable or has no position.");
                 break;
 
+            case "mark":
+                string markName = string.Join(" ", args.Skip(1)).Trim();
+                _host.Automation.Chat.PostSystemMessage(_plugin.MarkCurrentIndoorLocation(markName)
+                    ? $"GoArrow: Saved indoor location '{markName}'."
+                    : "GoArrow: Stand at an indoor point and use /go mark <name>.");
+                break;
+
             case "loc":
                 _host.Automation.Chat.PostSystemMessage(_plugin.CurrentPositionText());
                 break;
@@ -339,6 +346,7 @@ internal sealed class GoArrowCommands
                "  /go status - Show current destination\n" +
                "  /go route - Show the current route steps\n" +
                "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n" +
+               "  /go mark <name> - Save this indoor point as a named location\n" +
                "  /go stop - Stop navigation\n" +
                "  /go resume - Resume after a portal or recall interaction\n" +
                "  /go clear - Clear destination\n" +

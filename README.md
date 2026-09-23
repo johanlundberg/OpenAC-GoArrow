@@ -173,7 +173,7 @@ After the plugin is enabled:
 /go clear
 ```
 
-The **Route** tab has searchable **From** and **Destination** fields. Type part of a location name and choose it from the matches. Both fields accept **Current Location**; From defaults to it. When From is Current Location, routing starts at the character's exact coordinates and considers nearby graph connections. The destination may also be entered as coordinates. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking when From is Current Location. A named From location produces a route preview without moving the character. The panel displays the destination, estimated distance, bearing, route status, and steps.
+The **Route** tab has searchable **From** and **Destination** fields. Type part of a location name and choose it from the matches. Both fields accept **Current Location**; From defaults to it. When From is Current Location, routing starts at the character's exact coordinates and considers nearby graph connections. The destination may also be entered as coordinates. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking when From is Current Location. A named From location produces a route preview without moving the character. The panel displays the destination, estimated distance, bearing, route status, and steps. Steps with notes end in **[notes]**; select a step to read them in Details. Route status shows **Computing route...** while GoArrow builds the location route and **Client planning path...** while OpenAC plans the walk.
 
 The **Config** tab lets you save the location-data XML URL and dungeon-map ZIP URL, then download either source on demand. Both URLs start empty; enter a direct XML or ZIP URL before downloading. A dungeon-map download is checked before it replaces the previous ZIP; it is loaded into the current session when the download completes. Neither download starts automatically.
 
@@ -184,7 +184,17 @@ When the character enters a dungeon with a matching map, its diagram opens autom
 For location data, use [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD) as the primary source; its data is more up to date. Its [direct XML download](https://raw.githubusercontent.com/Darktorizo/GoArrow_Data_CoD/master/data_cod.xml) can be entered in Config. [Roogon's map site](http://maps.roogon.com/index.html) also provides location data. Set a direct XML URL in Config or with `/go url`, then use Download or `/go update`. The route graph uses portal entrance and arrival coordinates as directed links, and downloaded data is cached for later starts. Portals marked retired or without usable arrival coordinates are excluded. Saved URLs are preserved.
 
 Navigation automation is optional. When no live session or navigation provider is available, GoArrow remains usable for route and destination information but cannot walk the character.
-Outdoor route recalculation pauses inside dungeons and other indoor cells. The existing route remains visible, but its bearing and arrow are paused until the character returns outdoors; GoArrow does not yet plan indoor route legs.
+Outdoor route recalculation pauses inside dungeons and other indoor cells when no indoor leg can be resolved. For a named location in the current dungeon whose XML record includes an exact indoor cell position, **Go** with Auto-Navigate enabled asks OpenAC to path to that position through the indoor collision world. For a named destination such as **Sawato** or **Sawato Portal** inside Town Network, GoArrow can also match a live portal object named **Sawato Portal** or **Portal to Sawato** in the current indoor landblock and walk to it. A direct request to that name stops at the portal. An outdoor route that enters Town Network continues through its portal step automatically, walks to the named indoor portal, activates it, and resumes its remaining route after the next transition. A selected object in the same dungeon also works: use `/go selected`, then **Go**. OpenAC plans the indoor steps, so they do not appear in GoArrow's route list or schematic dungeon image.
+
+Local location XML can add an exact indoor point to a named record using the cell ID and `/loc`'s landblock-local metres:
+
+```xml
+<locations>
+  <loc name="Dungeon Chest" type="Dungeon" cellId="0x12340122" x="35" y="50" z="6" />
+</locations>
+```
+
+Load the file with `/go file filename.xml`, choose **Dungeon Chest** as the destination, enable Auto-Navigate, and press **Go**. You can also stand at point B and use `/go mark <name>` to save it as a named location in `GoArrow/indoor-locations.xml`; later, select that name from point A and press **Go**. Saved indoor points stay available when location data is reloaded. The destination must be in the current dungeon landblock. Standard Atlas records include entrance map coordinates and sometimes a dungeon ID, but no exact indoor cell or floor position; a named location can be reached indoors from those records only when a same-named live portal is present in the current landblock.
 
 ## Scope and limitations
 
