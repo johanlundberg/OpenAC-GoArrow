@@ -1,16 +1,17 @@
 # GoArrow → OpenAC Porting Plan
 
-## Purpose
+## Purpose and boundary
 
-This document tracks the port of GoArrow to OpenAC's supported
-`AcDream.Plugin.Abstractions` contract. It distinguishes:
+This document records what the GoArrow port currently does, where its behavior
+is limited, and what remains for a closer replacement of the original plugin.
 
-- behavior currently implemented in this repository;
-- behavior adapted because OpenAC exposes a different API;
-- behavior not yet implemented;
-- OpenAC capabilities that would be needed for a complete behavioral replacement.
+The plugin uses the supported `AcDream.Plugin.Abstractions` contract. It must
+not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal APIs, raw
+network messages, client memory, packet injection, or graphics-device types.
 
-The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal APIs, raw network messages, client memory access, or packet injection.
+This status reflects the repository on 2026-09-24. "Implemented" means the
+behavior exists in this repository, not that every original GoArrow workflow
+has been reproduced or verified in a live client.
 
 ## References
 
@@ -18,381 +19,157 @@ The port must not depend on OpenAC `App`, `Runtime`, or `Core` internals, Decal 
 - Original GoArrow documentation: <http://virindi.net/wiki/index.php/GoArrow_(VVS_Edition)>
 - OpenAC repository: <https://github.com/eriknihlen/OpenAC>
 - OpenAC plugin development documentation: <https://github.com/eriknihlen/OpenAC/tree/main/docs>
+- Historical OpenAC API requests: `docs/OpenAC-improvements.md`. Check the
+  current contract before treating any request there as an API gap.
 
-## Current implementation status
+## Current implementation
 
-### Implemented
-
-- .NET 10 plugin project and OpenAC manifest.
-- `IAcDreamPlugin` lifecycle through `GoArrowPlugin`.
-- OpenAC-compatible `plugin.json`:
-  - ID: `openac.goarrow`;
-  - entry DLL: `AcDream.Plugins.GoArrow.dll`;
-  - API version: `1`;
-  - kind: `Gameplay`.
-- Declarative `goarrow-panel.xml` panel.
-- Settings persisted through `IPluginStorage.ReadText` and `WriteText`.
-- `/go` command registration through `IPluginCommandRegistry`.
-- Embedded default location, portal-device, and route-start data.
-- Coordinate parsing, distance, bearing, rounding, and landcell conversion.
-- Rich location model retaining:
-  - ID;
-  - `LocationType`;
-  - primary and exit coordinates;
-  - notes/descriptions;
-  - dungeon ID;
-  - favorite/customized/retired state;
-  - `UseInRouteFinding`;
-  - specialized icon metadata.
-- Compact GoArrow XML parsing and serialization.
-- Existing simplified OpenAC XML parsing.
-- Crossroads/Warcry Atlas location parsing, including latitude sign conversion.
-- Location database search and case-insensitive lookup.
-- Basic portal-device and route-start records.
-- Basic route construction and route finding.
-- Optional `INavigationAutomation.GoTo` integration.
-- Headless/unavailable navigation degradation.
-- 98 automated route/data-model tests passing.
-
-### Adapted
-
-| Original feature | OpenAC implementation | Status |
+| Area | Implemented in this repository | Remaining limit |
 | --- | --- | --- |
-| `@go`/configurable command prefix | `/go` command registration | Adapted; OpenAC does not currently require legacy `@` support |
-| Arrow D3D HUD | Declarative panel with destination, distance, bearing, and status | Adapted; custom rendering unavailable |
-| Map/dungeon HUD | Dereth map surface and optional indoor dungeon canvas | User supplied schematic maps implemented; calibrated floor and player overlays remain deferred |
-| Toolbar HUD | Panel actions and chat commands | Adapted |
-| Manual key-held movement | `INavigationAutomation.GoTo` | Adapted |
-| Decal settings | `IPluginStorage` text keys | Adapted |
-| Decal XML services | .NET XML APIs and embedded resources | Adapted |
-| Raw server dispatch | No raw dispatch; semantic OpenAC state only | Deferred/limited |
-| Clickable chat coordinates | Manual `/go` commands | Deferred |
-
-## Feature inventory and status
-
-### 1. Destination tracking
-
-Original behavior supports coordinates, named locations, selected objects, and route waypoints.
-
-Current state:
-
-- named locations are supported;
-- destination state and route state are implemented;
-- distance and bearing are calculated from the current position;
-- object destinations are not yet fully wired to selection/object events;
-- direct coordinate command parsing is not yet implemented in the command handler;
-- route-waypoint advancement exists in the navigator but needs more robust host reports.
-
-Next work:
-
-1. Add explicit destination kinds (`Coordinates`, `Location`, `Object`, `Route`).
-2. Wire `ISelectionService` and `IEvents.ObjectChanged` for object targets.
-3. Add `/go to`, `/go here`, and coordinate parsing.
-4. Add tests for every destination kind and loss of the target object.
-
-### 2. Location model and data
-
-The `Location` model must remain compatible with the original GoArrow data concepts. It must not be reduced to just `Name`, `NS`, and `EW`.
-
-Retained metadata:
-
-- stable source ID;
-- semantic `LocationType`;
-- primary coordinates;
-- portal/dungeon exit coordinates;
-- description/notes;
-- dungeon ID;
-- retired state;
-- route-finding eligibility;
-- favorite/customized state;
-- specialized icon metadata.
-
-Current data support:
-
-- embedded project defaults are loaded;
-- compact GoArrow `<loc>` records are supported;
-- current port `<Location>` records are supported;
-- Warcry Atlas `<atlas><location>` records can be parsed;
-- route finding excludes retired or `UseInRouteFinding == false` locations.
-
-Implemented for the first data-provider increment:
-
-- explicit `/go update` command;
-- configurable HTTP/HTTPS download URL;
-- `/go url <url>` to persist a new source URL;
-- `/go update <url>` to change the URL and immediately download;
-- `/go file filename.xml` to load a local XML file from the plugin's hardcoded `GoArrow/` storage directory through `IPluginStorage.ReadText`;
-- HTTP download from the configured source URL;
-- response status, size, XML-root, and non-empty-record validation;
-- atomic-after-validation cache write under `data/warcry-atlas.xml`;
-- cached-data fallback when a later download fails;
-- no automatic download during plugin startup;
-- cancellation support in the provider API.
-
-Still deferred:
-
-- cache expiry and user-configurable refresh policy;
-- panel UI for editing the data URL;
-- merge precedence between embedded, installed, and user data;
-- license/attribution workflow for external data;
-- full import of every Atlas field such as restrictions, settlement, monsters, and time-of-day requirements;
-- UI progress and cancellation controls.
-
-The downloader remains opt-in and separate from the parser. `/go update` replaces the location snapshot only after the downloaded XML has been validated.
-
-### 3. Route finding
-
-The port now uses a weighted location graph and A* shortest-path search as the primary route-finding algorithm. `RouteGraph` builds eligible location nodes, connects nearby nodes with bidirectional walk edges, adds route-start edges, and converts paths into the existing `Route`/`RouteStep` model. `RouteFinder` adds the initial walk from the player's current position to the nearest graph node and falls back to a direct walk when the graph cannot produce a route.
-
-Implemented:
-
-- graph construction filtered by `UseInRouteFinding`, `IsRetired`, and coordinates;
-- configurable maximum walk distance between graph nodes;
-- deterministic A* shortest-path search;
-- multi-hop walk routes;
-- route-start edges classified as walk, portal, recall, or lifestone;
-- route conversion into travel, portal, and recall steps;
-- explicit portal-device entrance/exit edges when records provide `Entrance`/`From` and `Exit`/`To` location names;
-- `PortalDevice.EntranceLocation` and `PortalDevice.ExitLocation` fields with CSV and XML support;
-- explicit pause/resume for portal and recall steps when no interaction API is available;
-- unreachable, retired, duplicate-name, and edge-case tests;
-- direct-walk fallback for destinations outside the graph.
-
-Missing or incomplete behavior:
-
-- lifestone bind and lifestone tie state;
-- primary and secondary portal tie state;
-- house and mansion recall state;
-- allegiance bindstone state;
-- portal-device usage requirements and interaction actions;
-- arrival/exit coordinates on portal and dungeon transitions;
-- graph invalidation/rebuild after location data updates;
-- route cost profiles and configurable edge priorities;
-- multiple candidate routes and detailed route explanations.
-
-Next work:
-
-1. Add supported portal, door, NPC, and recall interaction APIs.
-2. Make graph snapshots rebuild atomically when `/go update` or `/go file` replaces data.
-3. Add route cost policies for walking, recalls, portals, and unavailable actions.
-4. Add route tests for portal transitions, alternate routes, and data reloads.
-
-### 4. Commands
-
-Currently implemented commands:
-
-- `/go help`;
-- `/go list`;
-- `/go search <term>` / `/go find <term>`;
-- `/go loc`;
-- `/go dest`;
-- `/go file filename.xml`;
-- `/go update` / `/go download`;
-- `/go url <url>`;
-- `/go status`;
-- `/go route` / `/go steps`;
-- `/go stop` / `/go cancel`;
-- `/go resume`;
-- `/go clear`;
-- `/go save <name>`;
-- `/go favorites` / `/go favs`;
-- `/go recall` placeholder behavior.
-
-Still needed for original command parity:
-
-- `/go to <coords|here|location>`;
-- `/go from` / `/go start`;
-- `/go end`;
-- `/go loc`;
-- `/go dest`;
-- `/go find` / `/go search`;
-- `/go reset`;
-- `/go lock` / `/go unlock`;
-- object attach/tag commands;
-- aliases and quoted multi-word arguments;
-- command completion.
-
-The command prefix remains `/go`; changing it to `@go` is not required by the OpenAC contract.
-
-### 5. Recall and bind tracking
-
-Current state:
-
-- settings fields exist for recall names;
-- no authoritative recall-state provider is currently wired;
-- no complete chat heuristic tracker is implemented;
-- no raw house/allegiance network tracking is planned.
-
-Required future OpenAC support:
-
-- normalized primary/secondary portal recall state;
-- house recall state;
-- allegiance recall state;
-- successful cast/use/portal transition reports;
-- character and world scoping;
-- stale/unknown/unavailable status.
-
-Until those APIs exist, recall values should be manual or explicitly marked as inferred. They must not be presented as authoritative.
-
-### 6. Navigation
-
-Current state:
-
-- `GoArrowNavigator` submits `GoTo` point requests for travel legs;
-- it consumes `NavigationChanged` events and filters stale reports by sequence number and revision;
-- it advances route steps on matching arrival states (`Arrived`, `ArrivedWithoutSight`);
-- it handles `NoRoute`, `Blocked`, `Interrupted`, and `Lost` failures;
-- it pauses at portal and recall legs and supports manual `/go resume` continuation;
-- it stops on completion, failure, or manual cancellation;
-- it handles unavailable/headless automation without throwing.
-
-Needs improvement:
-
-- portal-space transition detection and automatic route recovery;
-- object-target navigation;
-- interaction steps for portals, doors, and NPCs;
-- explicit acceptance/rejection handling from `GoTo`.
-- automatic portal execution via a supported interaction API.
-
-### 7. Panel/UI
-
-Current panel displays:
-
-- searchable From and Destination fields, with Current Location in both;
-- matching location search results;
-- destination;
-- distance;
-- bearing;
-- navigation status (Idle, Ready, Navigating..., Waiting for interaction, Arrived!);
-- route-step count;
-- current route leg;
-- host navigation report state;
-- start/stop/resume/clear actions;
-- basic display and recalculation toggles.
-
-Still needed:
-
-- route profile editor;
-- validation/error display;
-- reliable binding invalidation on each tick;
-- panel focus and visibility commands.
-
-### 8. HUDs and maps
-
-The plugin now uses OpenAC's canvas and image APIs to display a user supplied
-dungeon map by indoor cell ID. Maps can be loaded from a ZIP or extracted images
-in the persistent `dungeon-maps` folder. The supplied maps are composite diagrams without
-pixel-to-world or floor-region metadata, so player and route overlays on these
-images remain deferred. The Dereth map uses the map resource API where the host
-provides it.
-
-Required OpenAC capabilities are documented in `docs/OpenAC-improvements.md`, including:
-
-- plugin-owned HUD registration;
-- host-managed textures and images;
-- canvas/map controls;
-- map coordinate conversion;
-- markers, route lines, zoom, pan, and selection;
-- persisted HUD position, size, scale, and visibility.
-
-### 9. External route-data provider
-
-This is deliberately later-phase work.
-
-Before adding an HTTP provider, implement:
-
-1. full location metadata model — now substantially restored;
-2. typed data-provider interface;
-3. schema/version validation;
-4. explicit opt-in update action;
-5. local cache and atomic replacement;
-6. timeout, cancellation, retry, and offline behavior;
-7. coordinate and type conversion tests;
-8. retired/invalid record policy;
-9. duplicate-name and ID conflict policy;
-10. copyright and attribution review.
-
-Suggested future interface:
-
-```csharp
-public interface ILocationDataProvider
-{
-    string Id { get; }
-    Task<LocationDataSnapshot> LoadAsync(
-        LocationDataLoadOptions options,
-        CancellationToken cancellationToken);
-}
-```
-
-The provider should return a complete immutable snapshot. `LocationDatabase` should atomically replace its data rather than mutate collections while route-finding is running.
-
-## OpenAC API mapping
-
-| Need | Existing API | Assessment |
-| --- | --- | --- |
-| Lifecycle | `IAcDreamPlugin` | Sufficient |
-| Storage | `IPluginStorage` | Sufficient for current settings; scoped/structured storage would improve it |
-| Commands | `IPluginCommandRegistry` | Sufficient for basic `/go`; completion/quoting would improve parity |
-| Chat output | `IAutomation.Chat.PostSystemMessage` | Sufficient for current status output |
-| Chat links | No structured link/click API | Required for clickable coordinate parity |
-| Position | `INavigationAutomation.Snapshot` | Sufficient for basic display; position events would improve reliability |
-| Walking | `GoTo` / `StopGoTo` / `GoToReport` | Sufficient for basic point navigation; ownership/events/interactions needed for robust routes |
-| World objects | navigation object lookup and OpenAC events | Partially sufficient; needs complete plugin wiring and semantic object capabilities |
-| Panels | `IUiRegistry.AddPanel` | Searchable From and Destination fields and route list work; richer panel controls remain |
-| Rendering | No plugin-owned rendering surface | Required for arrow/map/toolbar HUDs |
-| Recall state | No complete normalized recall API | Required for automatic bind/recall tracking |
-| External data | No plugin data-provider/download service | Can be implemented later in the plugin once storage/resource policy is defined |
-
-## Implementation order
-
-1. **Correctness and tests**
-   - Finish destination-kind model and command parsing.
-   - Add lifecycle, command, storage, and navigator tests.
-   - Add route graph tests. **Done** — graph construction, A* routing, multi-hop paths, route-start edges, unreachable routes, and filtering are covered.
-   - Add multi-leg navigation tests. **Done** — report-driven leg advancement, stale report rejection, and failure state handling are covered.
-   - Add portal device edge tests. **Done** — entrance/exit metadata parsing and explicit portal graph edges are covered.
-
-2. **Complete location/route domain**
-   - Finish original location types and route metadata.
-   - Add explicit portal and interaction edge types. **Done** — `PortalDevice` supports `EntranceLocation`/`ExitLocation`; the graph builds explicit portal edges when these are present.
-   - Add atomic graph rebuilds when location data is replaced.
-   - Add custom/favorite/recent location persistence.
-
-3. **Navigation reliability**
-   - ~~Add request ownership, sequence IDs, event-driven reports, and portal transition recovery.~~ **Done** — sequence validation, revision-based duplicate filtering, `NavigationChanged` subscription, and failure state handling are implemented.
-   - Add automatic portal interaction and portal-space transition recovery.
-
-4. **Recall/bind state**
-   - Add semantic OpenAC recall and transition APIs.
-   - Replace manual/chat-only values with authoritative state where available.
-
-5. **Panel parity**
-   - Add current leg progress to the route-step list.
-   - Add reliable binding invalidation on each tick.
-
-6. **External data provider**
-   - Add opt-in, cached, validated provider for Atlas data only after licensing and schema policy are settled.
-
-7. **Rendering and maps**
-   - Add OpenAC render/map APIs, then port arrow, toolbar, Dereth map, and dungeon map HUDs.
-
-8. **Chat parity**
-   - Add structured coordinate links and click actions.
+| Plugin boundary | .NET 10 `IAcDreamPlugin`, manifest, lifecycle, optional headless behavior, declarative panel | Validate the packaged plugin against the minimum supported host release and in a live graphical session |
+| Destinations | Named locations, coordinates, selected objects, route steps, clicked chat coordinates; object updates and disappearance handling | Coordinate and object destinations do not restore correctly after restart; richer original attach/tag workflows remain |
+| Commands | `/go` and `/goarrow`, quoted arguments, typed command definition, subcommand/location completion, search, favorites, route control, recall, data and dungeon commands | `/go from` and `/go start` only report the current position; `/go to here` reports it rather than setting a destination; help text is maintained separately from command metadata |
+| Location data | Rich location metadata, compact GoArrow and OpenAC XML, Atlas XML, embedded defaults, user indoor marks, local file loading, resource-catalog loading | Layer precedence and conflict rules need a documented, tested policy; imported Atlas metadata is incomplete |
+| Route finding | Weighted graph, portal-device and route-start edges, direct-walk fallback, four cost profiles, route-step editing methods | Multiple candidate routes, explanations, action availability constraints, and atomic database/graph snapshot replacement remain |
+| Walking | `GoTo` legs, ownership/sequence/revision checks, blocked-door activation, failure reporting, portal transition recovery | Interrupted and blocked walking mostly stops with a diagnostic; retry/replan policy and interaction timeouts are incomplete |
+| Interactions | Nearby portal matching and activation, activation reports, transition-based continuation, manual `/go resume` fallback | NPC/dialog actions, portal usage requirements, and unambiguous correlation of every interaction to its route leg remain |
+| Recall | Semantic recall calls for lifestone, marketplace, house, mansion, and allegiance; known-location capture and successful transition learning scoped by character/world | Full bind/tie state, stale/unknown/unavailable display, and safe recall-edge availability policy remain |
+| UI | Searchable From/Destination fields, route list and details, basic navigation status, data URLs and download actions, visibility controls | Detailed progress/failure bindings, route-step editing controls, route cost/profile editor, saved route profiles, consistent validation feedback, and complete command/panel parity remain |
+| HUD and maps | Arrow and compact toolbar canvases, Dereth map surface with markers/route lines, click-to-coordinate, optional schematic dungeon canvas | Original artwork/tooltips and toolbar actions; calibrated dungeon player/route overlays, floor focus, and dungeon click navigation |
+| Storage and updates | `settings.json` with legacy-key migration, explicit Atlas XML download and validated cache, optional dungeon ZIP download with validation | Scoped state audit, migration/version diagnostics, cancellable UI operations, robust snapshot replacement, provenance and redistribution decisions |
+| Tests and release | Route, data, destination, navigation, UI, HUD, map, dungeon, lifecycle, and command tests; CI build/test and release packaging | Live-host smoke coverage and a documented release gate for the packaged archive |
+
+### Important behavior already ported
+
+- The destination model distinguishes location, coordinates, object, route,
+  and recall kinds. `/go selected` attaches the selected object, and object
+  change events update or invalidate that target.
+- `PluginChatCoordinateLinkRouter` handles clicked coordinate links.
+- `GoArrowNavigator` can walk to an exact indoor cell position or a matching
+  live portal in the current indoor area. Outdoor graph routing pauses in
+  portal space or indoors when no indoor leg can be resolved. `/go mark <name>`
+  saves an exact indoor point in `GoArrow/indoor-locations.xml`.
+- The Dereth map uses OpenAC map resources when available. Dungeon diagrams
+  come from an optional user-supplied ZIP or extracted images and are selected
+  by indoor landblock. They support zoom and pan, but the source diagrams do
+  not provide floor regions or a pixel-to-world transform.
+- Atlas and dungeon downloads are opt-in. Failed Atlas downloads can fall
+  back to a validated cache; failed dungeon downloads retain the previous
+  archive. Neither download starts automatically.
+
+## Remaining work, in priority order
+
+### 1. Restore and scope destination state
+
+Settings currently save `DestinationName`. On startup the plugin resolves that
+string only as a database location. A coordinate destination saves its display
+text there, and an object destination saves its object name, so neither kind
+reliably returns after restart.
+
+1. Persist destination kind and the data needed to restore that kind. Define
+   whether an object destination should reattach to a live object, become
+   unavailable, or be cleared after logout.
+2. Migrate the existing `DestinationName` setting without losing named
+   destinations. Retain the original coordinate text for display.
+3. Define per-character versus global scope for destination, route origin,
+   favorites, indoor marks, HUD/map state, and recall state. Prevent one
+   character or world from inheriting another's authoritative recall data.
+4. Test restart, character/world switch, missing location, and vanished object
+   behavior through the plugin lifecycle.
+
+### 2. Make multi-leg navigation and interactions predictable
+
+Walking reports already filter foreign owners and stale sequence/revision
+values. Portal activation and transition recovery work for supported routes,
+with manual resume when an interaction cannot be identified.
+
+1. Define a route-leg identity and correlate navigation, activation, recall,
+   and transition events to that leg. Reject unrelated or late events.
+2. Apply bounded retry, timeout, and replan policies after interruption,
+   blocked movement, target movement, failed activation, and portal-space exit.
+   Expose the final reason and recovery action in chat and the panel.
+3. Add portal usage restrictions and explicit action availability to route
+   selection. Do not choose an action merely because its edge is cheap.
+4. Add NPC/dialog actions where the original route data actually requires
+   them. Keep manual `/go resume` for unsupported or ambiguous interactions.
+5. Cover indoor cases: exact cell destinations, same-dungeon selected objects,
+   named live portal matching, Town Network continuation, stale indoor targets,
+   and the pause/resume boundary between indoor and outdoor routing.
+
+### 3. Make data replacement and provenance explicit
+
+The plugin loads embedded data, cached Atlas data, resource-catalog files,
+and saved indoor locations. Database loads replace base location collections;
+user indoor locations are reapplied. The route finder invalidates its graph
+after updates and rebuilds it lazily. This is not a single immutable
+database-plus-graph snapshot.
+
+1. Specify source order and record conflict rules by stable ID and name,
+   including duplicate names, retired records, user overrides, and invalid
+   records. Test the rules across all input formats.
+2. Build and validate replacement location, portal, route-start, and graph
+   state before publishing it as one coherent snapshot. Preserve the last
+   valid snapshot after a failed update.
+3. Add schema/version diagnostics for migrated data and report which source
+   supplied a location or route edge.
+4. Finish Atlas field mapping and document unsupported restrictions before
+   using imported records for automatic interactions.
+5. Add user-visible cancellation and progress for Atlas and dungeon downloads.
+   Decide how cache age affects startup, offline fallback, and refresh; the
+   current `AtlasCacheMaxAgeDays` setting is used for failed-download fallback.
+6. Record external data source and license/attribution requirements before
+   redistributing downloaded XML, dungeon images, or copied original assets.
+
+### 4. Finish recall and route policy
+
+Semantic recall requests and successful-transition learning exist. A known
+recall location is not the same as a currently usable recall action.
+
+1. Track primary/secondary portal ties, lifestone bind, house/mansion, and
+   allegiance state only through supported host signals. Label unknown,
+   stale, and unavailable values distinctly in `/go status` and the panel.
+2. Add recall route-start edges only when both destination and action are
+   usable. Correlate completion with the request revision before learning.
+3. Expose the existing cost profiles in the UI, and test deterministic edge
+   selection with unavailable actions, portal restrictions, and alternate
+   routes. Add route explanations or alternatives if needed for parity.
+
+### 5. Complete command, panel, and map workflows
+
+1. Decide and document the intended semantics of `/go from`, `/go start`,
+   `/go to here`, `/go end`, and `/go reset`; make command help, completion,
+   panel actions, and tests agree. Preserve `/go` as the OpenAC command prefix.
+2. Show validation errors and detailed leg progress/failure reasons in the
+   panel. Bind the existing route-step editing methods to controls. Add route
+   cost/profile selection, saved route profiles, and panel focus/visibility
+   controls where useful.
+3. Keep Dereth map acceptance separate from dungeon diagrams. Dereth clicks
+   can create coordinate destinations; dungeon clicks and overlays require
+   calibrated floor regions and pixel-to-world mapping. Until that data
+   exists, keep dungeon diagrams explicitly schematic.
+4. Decide which original arrow/toolbar artwork, tooltips, and actions are
+   worth reproducing through public canvas/resource APIs.
+
+### 6. Verify the released plugin
+
+1. Keep deterministic fake-host tests for lifecycle, commands, destinations,
+   route data, walking, interactions, recall, maps, storage, and headless mode.
+2. Add an end-to-end fixture for walking, portal activation, transition,
+   indoor continuation, and final arrival. Include foreign and delayed event
+   reports and an update during route planning.
+3. For each release, build against the minimum supported OpenAC version,
+   validate the archive with the host's plugin checker, and smoke-test the
+   installed archive in a graphical client. Check panel/canvas input,
+   transition recovery, persistence across restart, and disable/unload.
 
 ## Completion criteria
 
-The port is behaviorally complete when it can provide, using only supported OpenAC APIs:
+The port can be described as a complete behavioral replacement only when it
+provides equivalent destination, route, command, panel, chat, HUD, and map
+workflows through supported OpenAC APIs; handles unavailable actions and live
+world changes safely; restores scoped user state; and passes both automated
+and packaged-host checks. Schematic dungeon maps remain a documented limit
+until calibrated map data is available.
 
-- directional arrow HUD;
-- Dereth and dungeon map HUDs;
-- toolbar HUD;
-- clickable coordinate/object links;
-- full named-location and coordinate destination workflows;
-- complete graph routing with recall, portal, and interaction edges;
-- authoritative recall/house/allegiance tracking;
-- robust multi-leg navigation and portal recovery;
-- persistent per-character settings and route data;
-- user-updatable external location data;
-- equivalent command, panel, chat, map, and HUD workflows.
-
-Until then, the repository should be described as a supported core navigation port rather than a complete replacement for the original GoArrow plugin.
+Until then, describe it as a supported navigation port with the specific
+limits above, rather than as a full replacement for the original GoArrow.
