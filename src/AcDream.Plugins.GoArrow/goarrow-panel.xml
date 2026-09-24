@@ -196,7 +196,7 @@
     h="252"
     anchor="left right top bottom"
     border="#FF4A3A14"
-    visible="{RouteTabVisible}"
+    visible="{RouteListVisible}"
   >
     <label x="8" y="8" text="Route steps" />
     <label x="88" y="8" text="{NextTargetText}" />
@@ -211,6 +211,29 @@
       selected="{SelectedRouteStep}"
       onchange="{SelectRouteStepAction}"
       selectionband="true"
+    />
+  </group>
+
+  <group
+    x="8"
+    y="378"
+    w="544"
+    h="252"
+    anchor="left right top bottom"
+    border="#FF4A3A14"
+    visible="{IndoorPathVisible}"
+  >
+    <label x="8" y="8" text="{IndoorPathSummary}" />
+    <list
+      x="8"
+      y="32"
+      w="528"
+      h="212"
+      anchor="left right top bottom"
+      rowheight="18"
+      items="{IndoorPathWaypoints}"
+      selected="{SelectedIndoorPathWaypoint}"
+      selectionband="false"
     />
   </group>
 

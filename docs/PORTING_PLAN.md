@@ -34,7 +34,7 @@ has been reproduced or verified in a live client.
 | Walking | `GoTo` legs, ownership/sequence/revision checks, blocked-door activation, failure reporting, portal transition recovery | Interrupted and blocked walking mostly stops with a diagnostic; retry/replan policy and interaction timeouts are incomplete |
 | Interactions | Nearby portal matching and activation, activation reports, transition-based continuation, manual `/go resume` fallback | NPC/dialog actions, portal usage requirements, and unambiguous correlation of every interaction to its route leg remain |
 | Recall | Semantic recall calls for lifestone, marketplace, house, mansion, and allegiance; known-location capture and successful transition learning scoped by character/world | Full bind/tie state, stale/unknown/unavailable display, and safe recall-edge availability policy remain |
-| UI | Searchable From/Destination fields, route list and details, basic navigation status, data URLs and download actions, visibility controls | Detailed progress/failure bindings, route-step editing controls, route cost/profile editor, saved route profiles, consistent validation feedback, and complete command/panel parity remain |
+| UI | Searchable From/Destination fields, route list and details, indoor path length and cell-aware waypoints, basic navigation status, data URLs and download actions, visibility controls | Detailed progress/failure bindings, route-step editing controls, route cost/profile editor, saved route profiles, consistent validation feedback, and complete command/panel parity remain |
 | HUD and maps | Arrow and compact toolbar canvases, Dereth map surface with markers/route lines, click-to-coordinate, optional schematic dungeon canvas | Original artwork/tooltips and toolbar actions; calibrated dungeon player/route overlays, floor focus, and dungeon click navigation |
 | Storage and updates | `settings.json` with legacy-key migration, explicit Atlas XML download and validated cache, optional dungeon ZIP download with validation | Scoped state audit, migration/version diagnostics, cancellable UI operations, robust snapshot replacement, provenance and redistribution decisions |
 | Tests and release | Route, data, destination, navigation, UI, HUD, map, dungeon, lifecycle, and command tests; CI build/test and release packaging | Live-host smoke coverage and a documented release gate for the packaged archive |
@@ -49,6 +49,8 @@ has been reproduced or verified in a live client.
   live portal in the current indoor area. Outdoor graph routing pauses in
   portal space or indoors when no indoor leg can be resolved. `/go mark <name>`
   saves an exact indoor point in `GoArrow/indoor-locations.xml`.
+- The Route tab uses `PreviewPathAsync` to show plan-only indoor walking
+  distance and ordered cell-aware waypoints for an available indoor target.
 - The Dereth map uses OpenAC map resources when available. Dungeon diagrams
   come from an optional user-supplied ZIP or extracted images and are selected
   by indoor landblock. They support zoom and pan, but the source diagrams do

@@ -33,6 +33,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private RouteFinder? _routeFinder;
     private GoArrowDestination? _destination;
     private GoArrowNavigator? _navigator;
+    private GoArrowIndoorPathPreview? _indoorPathPreview;
     private GoArrowCommands? _commands;
     private GoArrowPanel? _panel;
     private GoArrowHud? _hud;
@@ -134,12 +135,15 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // ── Initialize navigator ───────────────────────────────────
         _navigator = new GoArrowNavigator(host, _destination, _settings);
+        _indoorPathPreview = new GoArrowIndoorPathPreview(host, _navigator, _settings);
 
         // ── Initialize commands ────────────────────────────────────
         _commands = new GoArrowCommands(host, this);
 
         // ── Initialize panel ───────────────────────────────────────
-        _panel = new GoArrowPanel(host, this, _settings, _destination, _navigator);
+        _panel = new GoArrowPanel(
+            host, this, _settings, _destination, _navigator, _indoorPathPreview
+        );
 
         host.Log.Info("GoArrow initialized");
     }
@@ -207,6 +211,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     public void Disable()
     {
         _pendingRouteWork = PendingRouteWork.None;
+        _indoorPathPreview?.Clear();
         if (_host is not null && _tickHandler is not null)
             _host.Events.Tick -= _tickHandler;
 
@@ -248,6 +253,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         bool found = _destination.SetDestination(name);
         if (found)
         {
+            _indoorPathPreview?.Clear();
             _pendingRouteWork = PendingRouteWork.None;
             _lastPreviewAt = 0;
             _navigator?.StopNavigation();
@@ -262,6 +268,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal void ClearDestination()
     {
+        _indoorPathPreview?.Clear();
         _pendingRouteWork = PendingRouteWork.None;
         _lastPreviewAt = 0;
         _navigator?.StopNavigation();
@@ -372,6 +379,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             snapshot.Position.EastWest,
             "Current Location"
         );
+        _indoorPathPreview?.Clear();
         _settings?.Save(_host.Storage);
         return true;
     }
@@ -609,6 +617,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             return;
         _navigator?.StopNavigation();
         _destination.SetCoordinate(northSouth, eastWest, displayText);
+        _indoorPathPreview?.Clear();
         _settings?.Save(_host.Storage);
     }
 
@@ -778,6 +787,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         )
             return false;
         _navigator?.StopNavigation();
+        _indoorPathPreview?.Clear();
         _settings?.Save(_host.Storage);
         return true;
     }
@@ -832,6 +842,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             _routeFinder?.InvalidateGraph();
             _navigator?.StopNavigation();
             _destination.SetDestination(location);
+            _indoorPathPreview?.Clear();
             _settings?.Save(_host.Storage);
             return true;
         }
@@ -1117,6 +1128,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
         // Tick navigator
         _navigator.OnTick(elapsed);
+        _indoorPathPreview?.OnTick();
         _panel?.OnTick(elapsed);
     }
 

@@ -15,6 +15,7 @@ internal sealed class GoArrowPanel
     private readonly GoArrowSettings _settings;
     private readonly GoArrowDestination _destination;
     private readonly GoArrowNavigator _navigator;
+    private readonly GoArrowIndoorPathPreview? _indoorPathPreview;
     private bool _searchingFrom;
     private bool _showSearchResults;
     private int _selectedSearchResult = -1;
@@ -34,7 +35,8 @@ internal sealed class GoArrowPanel
         GoArrowPlugin plugin,
         GoArrowSettings settings,
         GoArrowDestination destination,
-        GoArrowNavigator navigator
+        GoArrowNavigator navigator,
+        GoArrowIndoorPathPreview? indoorPathPreview = null
     )
     {
         _host = host;
@@ -42,6 +44,7 @@ internal sealed class GoArrowPanel
         _settings = settings;
         _destination = destination;
         _navigator = navigator;
+        _indoorPathPreview = indoorPathPreview;
         DestinationInput = settings.DestinationName;
         LocationDataUrlInput = settings.ExternalDataUrl;
         DungeonMapUrlInput = settings.DungeonMapUrl;
@@ -111,12 +114,20 @@ internal sealed class GoArrowPanel
     {
         get
         {
+            if (IndoorPathVisible)
+                return "indoor preview";
             var route = _destination.CurrentRoute;
             if (route == null)
                 return "0 steps";
             return $"{route.StepCount} steps";
         }
     }
+
+    public bool IndoorPathVisible => RouteTabVisible && _indoorPathPreview?.Visible == true;
+    public bool RouteListVisible => RouteTabVisible && !IndoorPathVisible;
+    public string IndoorPathSummary => _indoorPathPreview?.Summary ?? string.Empty;
+    public IReadOnlyList<string> IndoorPathWaypoints => _indoorPathPreview?.Waypoints ?? [];
+    public int SelectedIndoorPathWaypoint => -1;
 
     /// <summary>The currently active route leg.</summary>
     public string CurrentLegText =>
@@ -422,7 +433,9 @@ internal sealed class GoArrowPanel
     }
 
     public string NextTargetText =>
-        _destination.CurrentRoute is { StepCount: > 0 }
+        IndoorPathVisible
+            ? $"Target: {_destination.TargetName}"
+            : _destination.CurrentRoute is { StepCount: > 0 }
             ? $"Next: {_destination.GetImmediateTarget()?.Name}"
             : "No route calculated";
 

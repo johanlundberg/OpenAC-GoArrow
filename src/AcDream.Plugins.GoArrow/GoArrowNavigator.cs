@@ -607,6 +607,64 @@ internal sealed class GoArrowNavigator : IDisposable
             );
     }
 
+    /// <summary>Finds the same indoor target that a direct walk would use.</summary>
+    internal bool TryGetIndoorPreviewTarget(out uint objectId, out PluginNavigationPosition position)
+    {
+        objectId = 0;
+        position = default;
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor)
+            return false;
+
+        if (
+            _destination.Kind == GoArrowDestinationKind.Object
+            && CanNavigateIndoorTarget(snapshot)
+            && _destination.TargetObjectId is { } selectedId
+            && _destination.TargetObjectPosition is { } selectedPosition
+        )
+        {
+            objectId = selectedId;
+            position = selectedPosition;
+            return true;
+        }
+
+        if (
+            _destination.TargetIndoorPosition is { } indoorPosition
+            && CanNavigateIndoorTarget(snapshot)
+        )
+        {
+            position = indoorPosition;
+            return true;
+        }
+
+        if (
+            _resolvedIndoorPortalObjectId != 0
+            && CanNavigateIndoorTarget(snapshot)
+            && _resolvedIndoorPortalPosition is { } portalPosition
+        )
+        {
+            objectId = _resolvedIndoorPortalObjectId;
+            position = portalPosition;
+            return true;
+        }
+
+        if (
+            _destination.Kind == GoArrowDestinationKind.Location
+            && _destination.TargetIndoorPosition is null
+        )
+        {
+            PluginWorldObject portal = FindIndoorPortal(snapshot, _destination.TargetName);
+            if (portal.ObjectId != 0)
+            {
+                objectId = portal.ObjectId;
+                position = portal.Position;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool TryResolveIndoorPortal(PluginNavigationSnapshot snapshot)
     {
         if (
@@ -624,18 +682,28 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private bool TryResolveIndoorPortal(PluginNavigationSnapshot snapshot, string name)
     {
+        PluginWorldObject portal = FindIndoorPortal(snapshot, name);
+        if (portal.ObjectId == 0)
+            return false;
+        _resolvedIndoorPortalObjectId = portal.ObjectId;
+        _resolvedIndoorPortalPosition = portal.Position;
+        return true;
+    }
+
+    private PluginWorldObject FindIndoorPortal(PluginNavigationSnapshot snapshot, string name)
+    {
         if (
             !snapshot.IsAvailable
             || snapshot.IsPortalSpace
             || snapshot.Position.IsOutdoor
             || snapshot.Position.CellId == 0
         )
-            return false;
+            return default;
 
         string destinationName = PortalDestinationName(name);
         if (destinationName.Length == 0)
-            return false;
-        PluginWorldObject portal = _host
+            return default;
+        return _host
             .Automation.Objects.CaptureObjects()
             .Where(obj =>
                 obj.ObjectId != 0
@@ -650,11 +718,6 @@ internal sealed class GoArrowNavigator : IDisposable
             )
             .OrderBy(obj => snapshot.Position.HorizontalDistanceMeters(obj.Position))
             .FirstOrDefault();
-        if (portal.ObjectId == 0)
-            return false;
-        _resolvedIndoorPortalObjectId = portal.ObjectId;
-        _resolvedIndoorPortalPosition = portal.Position;
-        return true;
     }
 
     private static bool AreNearbyIndoorLandblocks(uint first, uint second)
