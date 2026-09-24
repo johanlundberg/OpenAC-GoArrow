@@ -165,7 +165,6 @@
       enabled="{HasDestination}"
       onclick="{ClearDestination}"
     />
-    <label x="344" y="12" text="{NavStatusText}" />
     <label x="8" y="40" text="Route:" />
     <label x="52" y="40" text="{RouteStepsText}" />
     <label x="120" y="40" text="{FromText}" />
@@ -193,7 +192,7 @@
     x="8"
     y="378"
     w="544"
-    h="252"
+    h="238"
     anchor="left right top bottom"
     border="#FF4A3A14"
     visible="{RouteListVisible}"
@@ -204,7 +203,7 @@
       x="8"
       y="32"
       w="528"
-      h="212"
+      h="198"
       anchor="left right top bottom"
       rowheight="18"
       items="{RouteSteps}"
@@ -218,7 +217,7 @@
     x="8"
     y="378"
     w="544"
-    h="252"
+    h="238"
     anchor="left right top bottom"
     border="#FF4A3A14"
     visible="{IndoorPathVisible}"
@@ -228,7 +227,7 @@
       x="8"
       y="32"
       w="528"
-      h="212"
+      h="198"
       anchor="left right top bottom"
       rowheight="18"
       items="{IndoorPathWaypoints}"
@@ -236,6 +235,14 @@
       selectionband="false"
     />
   </group>
+
+  <label
+    x="16"
+    y="625"
+    anchor="left bottom"
+    text="{NavStatusText}"
+    visible="{RouteTabVisible}"
+  />
 
   <group
     x="8"
