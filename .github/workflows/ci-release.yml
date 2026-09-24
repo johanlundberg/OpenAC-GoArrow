@@ -15,7 +15,7 @@ permissions:
 # Build releases against a tagged OpenAC contract. Update OPENAC_TAG and
 # plugin.json's minHostVersion together when the required contract changes.
 env:
-  OPENAC_TAG: "v0.1.16"
+  OPENAC_TAG: "v0.1.18"
 
 jobs:
   test:
