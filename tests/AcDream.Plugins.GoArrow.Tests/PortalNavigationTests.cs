@@ -7,6 +7,67 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class PortalNavigationTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void LivePortalIsUsedImmediatelyWhenNearOrOnceAfterCoordinateFailure(bool retryFails, bool portalNear)
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Portal to Town Network", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x12340010, 2.05, 0, 0.1, 0, true),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, portalNear ? 1.95 : 1, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network Portal(Bluespire)" type="WildernessPortal" NS="0" EW="2" exitNS="0" exitEW="95" />
+              <loc name="End" type="Town" NS="0" EW="96" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        if (portalNear)
+            Assert.Empty(host.Inner.PluginNavigation.GoToPositionCalls);
+        else
+            host.EventsValue.RaiseNavigationChanged(
+                new PluginGoToReport(1, PluginGoToState.NoRoute, 0, 36, 0, "No reachable spot can see the goal") { Revision = 1 });
+        Assert.True(navigator.IsNavigating);
+        Assert.Equal((uint)42, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            host.Inner.PluginNavigation.GoToReport.Sequence,
+            retryFails ? PluginGoToState.NoRoute : PluginGoToState.Arrived,
+            42, 0, 0, retryFails ? "Live portal is also unreachable" : null) { Revision = 2 });
+        Assert.Single(host.Inner.PluginNavigation.GoToCalls);
+        if (retryFails)
+        {
+            Assert.False(navigator.IsNavigating);
+            Assert.Empty(objects.Activated);
+            Assert.Equal("Live portal is also unreachable", navigator.FailureReason);
+        }
+        else
+        {
+            Assert.Equal(new uint[] { 42 }, objects.Activated);
+            Assert.True(navigator.WaitingForInteraction);
+        }
+    }
+
+    [Theory]
     [InlineData("Sawato", "Unmarked Portal", "Sawato")]
     [InlineData("Sawato", "Sawato Portal", "28.7S, 59.3E")]
     [InlineData("Sawato", "Portal to Sawato", "Sawato (28.7S, 59.3E)")]

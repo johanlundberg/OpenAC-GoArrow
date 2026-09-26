@@ -21,6 +21,7 @@ internal sealed class GoArrowNavigator : IDisposable
     private uint _pendingPortalIdentificationObjectId;
     private readonly HashSet<uint> _portalIdentificationAttempted = [];
     private bool _observedIndoorRoute;
+    private uint _outdoorPortalRetryObjectId;
     private uint _resolvedIndoorPortalObjectId;
     private PluginNavigationPosition? _resolvedIndoorPortalPosition;
     private double _indoorRetryElapsed;
@@ -139,6 +140,7 @@ internal sealed class GoArrowNavigator : IDisposable
         if (_destination.TargetLocation is null || !_host.Automation.IsAvailable)
             return false;
 
+        _outdoorPortalRetryObjectId = 0;
         _resolvedIndoorPortalObjectId = 0;
         _resolvedIndoorPortalPosition = null;
         var snapshot = _host.Automation.Navigation.Snapshot;
@@ -275,6 +277,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _portalIdentificationAttempted.Clear();
         _observedIndoorRoute = false;
         _resolvedIndoorPortalObjectId = 0;
+        _outdoorPortalRetryObjectId = 0;
         _resolvedIndoorPortalPosition = null;
         _indoorRetryElapsed = 0;
         HasArrived = false;
@@ -479,6 +482,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _destination.AdvanceStep();
         WaitingForInteraction = false;
         _activeInteractionObjectId = 0;
+        _outdoorPortalRetryObjectId = 0;
         _interactionOriginPosition = null;
         _interactionSawPortalSpace = false;
         _resolvedIndoorPortalObjectId = 0;
@@ -594,7 +598,10 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         var immediateTarget = step.To;
+        _outdoorPortalRetryObjectId = 0;
         _isNavigating = true;
+        if (TryStartOutdoorPortalWalk())
+            return;
         var navPos = new PluginNavigationPosition(
             CellId: 0,
             EastWest: immediateTarget.Coords.EW,
@@ -634,6 +641,47 @@ internal sealed class GoArrowNavigator : IDisposable
             .ToArray();
         return $"Waiting for indoor portal '{expected}'; player cell={snapshot.Position.CellId:X8}. "
             + $"Visible portals: {(portals.Length == 0 ? "none" : string.Join("; ", portals))}";
+    }
+
+    private bool TryStartOutdoorPortalWalk(bool coordinateFailed = false)
+    {
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (_outdoorPortalRetryObjectId != 0 || !snapshot.IsAvailable
+            || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor
+            || _destination.CurrentRoute is not { Steps.Count: > 1 } route
+            || route.Steps[0].Kind != RouteStepKind.Travel
+            || route.Steps[1].Kind != RouteStepKind.Portal)
+            return false;
+        var target = route.Steps[0].To;
+        string expected = target.Name.StartsWith("Town Network Portal(", StringComparison.OrdinalIgnoreCase)
+            ? "Town Network" : PortalDestinationName(target.Name);
+        var portal = _host.Automation.Objects.CaptureObjects()
+            .Where(obj => obj.HasPosition && obj.Position.IsOutdoor && obj.CanActivate
+                && (obj.Capabilities & PluginObjectCapabilities.Portal) != 0
+                && (coordinateFailed || snapshot.Position.HorizontalDistanceMeters(obj.Position) <= 60))
+            .Select(obj => new
+            {
+                Object = obj,
+                Distance = target.Coords.DistanceTo(new Coordinates(obj.Position.NorthSouth, obj.Position.EastWest)),
+                Matches = PortalMatchesDestination(obj, expected),
+            })
+            .Where(candidate => candidate.Distance <= (candidate.Matches ? 0.25 : 0.1))
+            .OrderBy(candidate => candidate.Matches ? 0 : 1)
+            .ThenBy(candidate => candidate.Distance)
+            .Select(candidate => candidate.Object)
+            .FirstOrDefault();
+        if (portal.ObjectId == 0)
+            return false;
+        _outdoorPortalRetryObjectId = portal.ObjectId;
+        var status = _host.Automation.Navigation.GoTo(
+            portal.ObjectId, (float)Math.Max(2.5, _settings.ArrivalDistance));
+        if (status != PluginNavigationCommandStatus.Accepted)
+            return false;
+        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
+        _lastHandledReportRevision = 0;
+        _failureReason = string.Empty;
+        _host.Log.Info($"GoArrow: Approaching live portal '{portal.Name}' (0x{portal.ObjectId:X8}).");
+        return true;
     }
 
     private bool IsIndoorPortalStep()
@@ -1043,6 +1091,8 @@ internal sealed class GoArrowNavigator : IDisposable
                 or PluginGoToState.Lost
         )
         {
+            if (report.State == PluginGoToState.NoRoute && !_indoorWalk && TryStartOutdoorPortalWalk(coordinateFailed: true))
+                return;
             _lastHandledReportRevision = report.Revision;
             if (
                 report.State == PluginGoToState.Lost
@@ -1154,6 +1204,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _interactionSawPortalSpace = false;
         _activeInteractionObjectId =
             step.ObjectId != 0 ? step.ObjectId
+            : step.Kind == RouteStepKind.Portal && _outdoorPortalRetryObjectId != 0 ? _outdoorPortalRetryObjectId
             : step.Kind == RouteStepKind.Portal ? _resolvedIndoorPortalObjectId
             : 0;
         if (_activeInteractionObjectId == 0)
