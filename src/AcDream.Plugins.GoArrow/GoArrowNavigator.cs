@@ -514,6 +514,22 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (snapshot.IsAvailable && !snapshot.Position.IsOutdoor)
         {
+            if (_routeId != Guid.Empty
+                && step.Kind == RouteStepKind.Portal
+                && step.Via.StartsWith("Town Network Portal(", StringComparison.OrdinalIgnoreCase))
+            {
+                // These Atlas records lead from a town into Town Network.
+                // Being indoors means the entry has completed, even if the
+                // transition notification was missed or Stop cleared it.
+                _destination.AdvanceStep();
+                WaitingForInteraction = false;
+                _resolvedIndoorPortalObjectId = 0;
+                _resolvedIndoorPortalPosition = null;
+                _activeInteractionObjectId = 0;
+                _legIndex++;
+                StartCurrentLeg();
+                return;
+            }
             if (IsIndoorPortalStep())
                 _observedIndoorRoute = true;
             if (
@@ -563,7 +579,10 @@ internal sealed class GoArrowNavigator : IDisposable
             }
             _isNavigating = false;
             _pausedForOutdoorRoute = true;
-            _failureReason = "Waiting for the next indoor portal.";
+            string reason = IndoorPortalSearchReason(snapshot, step);
+            if (_failureReason != reason)
+                _host.Log.Info($"GoArrow: {reason}");
+            _failureReason = reason;
             return;
         }
 
@@ -599,6 +618,22 @@ internal sealed class GoArrowNavigator : IDisposable
         _host.Log.Info(
             $"GoArrow: Navigating to {immediateTarget.Name} at ({navPos.EastWest:F2}, {navPos.NorthSouth:F2})"
         );
+    }
+
+    private string IndoorPortalSearchReason(PluginNavigationSnapshot snapshot, RouteStep step)
+    {
+        string expected = step.Kind == RouteStepKind.Portal ? step.Via : step.To.Name;
+        var portals = _host.Automation.Objects.CaptureObjects()
+            .Where(obj => obj.ObjectClass == PluginObjectClass.Portal
+                || (obj.Capabilities & PluginObjectCapabilities.Portal) != 0)
+            .OrderBy(obj => obj.ObjectId)
+            .Take(8)
+            .Select(obj => $"'{obj.Name}' destination='{obj.PortalDestination ?? "unknown"}' "
+                + $"cell={obj.Position.CellId:X8} position={obj.HasPosition} "
+                + $"outdoor={obj.Position.IsOutdoor} activate={obj.CanActivate}")
+            .ToArray();
+        return $"Waiting for indoor portal '{expected}'; player cell={snapshot.Position.CellId:X8}. "
+            + $"Visible portals: {(portals.Length == 0 ? "none" : string.Join("; ", portals))}";
     }
 
     private bool IsIndoorPortalStep()

@@ -7,10 +7,10 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class PortalNavigationTests
 {
     [Theory]
-    [InlineData("Unmarked Portal", "Sawato")]
-    [InlineData("Sawato Portal", "28.7S, 59.3E")]
-    [InlineData("Portal to Sawato", "Sawato (28.7S, 59.3E)")]
-    public void IndoorPortalMatchesNameOrDestinationLabel(string objectName, string destinationLabel)
+    [InlineData("Sawato", "Unmarked Portal", "Sawato")]
+    [InlineData("Sawato", "Sawato Portal", "28.7S, 59.3E")]
+    [InlineData("Sawato", "Portal to Sawato", "Sawato (28.7S, 59.3E)")]
+    public void IndoorPortalMatchesNameOrDestinationLabel(string targetName, string objectName, string destinationLabel)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
@@ -33,10 +33,10 @@ public sealed class PortalNavigationTests
             false, false
         );
         var db = new LocationDatabase();
-        db.LoadLocationsXml("<locations><loc name='Sawato' type='Town' NS='80' EW='80' /></locations>");
+        db.LoadLocationsXml($"<locations><loc name='{targetName}' type='Town' NS='80' EW='80' /></locations>");
         var settings = new GoArrowSettings { AutoNavigate = true };
         var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
-        Assert.True(destination.SetDestination("Sawato"));
+        Assert.True(destination.SetDestination(targetName));
         using var navigator = new GoArrowNavigator(host, destination, settings);
         navigator.StartNavigation();
 
@@ -248,7 +248,7 @@ public sealed class PortalNavigationTests
             new PluginWorldObject(
                 42,
                 0,
-                "Town Network Portal(Shoushi)",
+                "Portal to Town Network",
                 PluginObjectClass.Portal,
                 0,
                 0,
@@ -367,7 +367,7 @@ public sealed class PortalNavigationTests
         host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
         {
             IsPortalSpace = false,
-            Position = new PluginNavigationPosition(0x12340100, 40, 40, 0, 0, false),
+            Position = new PluginNavigationPosition(0x12340100, resumeBeforeEntryStepCompletes ? 42 : 40, 40, 0, 0, false),
         };
         if (resumeBeforeEntryStepCompletes)
         {
