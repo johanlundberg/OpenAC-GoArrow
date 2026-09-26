@@ -829,16 +829,17 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private static bool PortalMatchesDestination(PluginWorldObject portal, string destination)
     {
-        string? known = portal.PortalDestination;
-        return known is null
-            ? PortalDestinationName(portal.Name).Equals(
+        // Appraisal destinations are display labels and can include coordinates
+        // or other text. They must not suppress a matching live portal name.
+        return PortalDestinationName(portal.Name).Equals(
                 destination,
                 StringComparison.OrdinalIgnoreCase
             )
-            : PortalDestinationName(known).Equals(
+            || (portal.PortalDestination is { } known
+                && PortalDestinationName(known).Equals(
                 destination,
                 StringComparison.OrdinalIgnoreCase
-            );
+            ));
     }
 
     private void RequestPortalDestination(PluginWorldObject[] portals)

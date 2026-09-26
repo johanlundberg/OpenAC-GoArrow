@@ -6,17 +6,20 @@ namespace AcDream.Plugins.GoArrow.Tests;
 
 public sealed class PortalNavigationTests
 {
-    [Fact]
-    public void IndoorPortalDestinationCanMatchWhenObjectNameDoesNot()
+    [Theory]
+    [InlineData("Unmarked Portal", "Sawato")]
+    [InlineData("Sawato Portal", "28.7S, 59.3E")]
+    [InlineData("Portal to Sawato", "Sawato (28.7S, 59.3E)")]
+    public void IndoorPortalMatchesNameOrDestinationLabel(string objectName, string destinationLabel)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
-        objects.Objects.Add(new PluginWorldObject(43, 0, "Unmarked Portal", PluginObjectClass.Portal, 0, 0, 0)
+        objects.Objects.Add(new PluginWorldObject(43, 0, objectName, PluginObjectClass.Portal, 0, 0, 0)
         {
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
             HasPosition = true,
             Position = new PluginNavigationPosition(0x12340122, 40, 40, 0, 0, false),
-            PortalDestination = "Sawato",
+            PortalDestination = destinationLabel,
         });
         host.Inner.AutomationValue = new FakeAutomationSurface
         {
@@ -269,6 +272,7 @@ public sealed class PortalNavigationTests
         )
         {
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            PortalDestination = "Sawato (80N, 80E)",
             HasPosition = true,
             Position = new PluginNavigationPosition(
                 portalInNextLandblock ? 0x12350122u : 0x12340122u,
