@@ -6,12 +6,412 @@ namespace AcDream.Plugins.GoArrow.Tests;
 
 public sealed class PortalNavigationTests
 {
+    [Fact]
+    public void OutdoorNoProgressTriesSideDetoursThenReplansFromReachedPoint()
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(true, false, 1,
+            new PluginNavigationPosition(0, -52.15, -62.55, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("<locations><loc name='Hurnmel the Smith' type='Vendor' NS='-65.4' EW='-44' /></locations>");
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("Hurnmel the Smith"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        var commands = host.Inner.PluginNavigation.GoToPositionCalls;
+        Assert.Single(commands);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1, PluginGoToState.NoRoute,
+            0, 2000, 0, "no clear path leads any nearer the goal") { Revision = 1 });
+        Assert.Equal(2, commands.Count);
+        Assert.InRange(host.Inner.PluginNavigation.Snapshot.Position.HorizontalDistanceMeters(commands[1].Position), 79, 81);
+        Assert.Contains("detour 1/12", navigator.FailureReason);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(2, PluginGoToState.NoRoute,
+            0, 2000, 0, "no clear path leads any nearer the goal") { Revision = 2 });
+        Assert.Equal(3, commands.Count);
+        Assert.True(commands[1].Position.HorizontalDistanceMeters(commands[2].Position) > 100);
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        { Position = commands[2].Position };
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(3, PluginGoToState.Arrived,
+            0, 0, 0, null) { Revision = 3 });
+        Assert.Equal(4, commands.Count);
+        Assert.Equal(-44, commands[3].Position.EastWest);
+        Assert.Equal(-65.4, commands[3].Position.NorthSouth);
+    }
+
+    [Fact]
+    public void UnrelatedOutdoorNoRouteDoesNotStartDetour()
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(true, false, 1,
+            new PluginNavigationPosition(0, -52.15, -62.55, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("<locations><loc name='End' type='Town' NS='-65.4' EW='-44' /></locations>");
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1, PluginGoToState.NoRoute,
+            0, 2000, 0, "the destination is unavailable") { Revision = 1 });
+        Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls);
+        Assert.False(navigator.IsNavigating);
+    }
+
+    [Fact]
+    public void OutdoorDetoursStopAfterFiniteUnreachableCandidates()
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(true, false, 1,
+            new PluginNavigationPosition(0, -52.15, -62.55, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("<locations><loc name='End' type='Town' NS='-65.4' EW='-44' /></locations>");
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        for (int sequence = 1; sequence <= 13 && navigator.IsNavigating; sequence++)
+            host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(sequence, PluginGoToState.NoRoute,
+                0, 2000, 0, "no clear path leads any nearer the goal") { Revision = sequence });
+        Assert.False(navigator.IsNavigating);
+        Assert.InRange(host.Inner.PluginNavigation.GoToPositionCalls.Count, 2, 13);
+        Assert.Contains("outdoor detour attempts", navigator.FailureReason);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void WalkingIntoTownNetworkBeforeArrivalCompletesApproachAndCrossing(bool liveApproach, bool alreadyTeleported, bool resumeAfterStop)
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Portal to Town Network", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true, Position = new PluginNavigationPosition(0x12340001, 2, 0, 0, 0, true),
+        });
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Sawato Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true, Position = new PluginNavigationPosition(0x56780101, 95, 0, 0, 0, false),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation, Chat = host.Inner.PluginChat, Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0x12340001, liveApproach ? 1.9 : 0, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network Portal(Sanamar)" type="PortalHub" NS="0" EW="2" exitNS="0" exitEW="95" />
+              <loc name="Town Network (S L 1) to Sawato" type="PortalHub" NS="0" EW="95" exitNS="0" exitEW="200" />
+              <loc name="End" type="Vendor" NS="0" EW="201" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        long approachSequence = host.Inner.PluginNavigation.GoToReport.Sequence;
+        var inside = new PluginNavigationPosition(0x56780100, 95, 0, 0, 0, false);
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        { IsPortalSpace = !alreadyTeleported, Position = alreadyTeleported ? inside : host.Inner.PluginNavigation.Snapshot.Position };
+        var lost = new PluginGoToReport(approachSequence, PluginGoToState.Lost,
+            liveApproach ? 42u : 0u, 0, 0, "the character entered portal space") { Revision = 1 };
+        if (resumeAfterStop)
+        {
+            navigator.StopNavigation();
+            host.Inner.PluginNavigation.GoToReportValue = lost;
+            navigator.ResumeNavigation();
+        }
+        else
+            host.EventsValue.RaiseNavigationChanged(lost);
+        if (!alreadyTeleported)
+        {
+            Assert.False(navigator.IsNavigating);
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            { IsPortalSpace = false, Position = inside };
+            navigator.OnTick(0.1);
+        }
+        Assert.True(navigator.IsNavigating);
+        Assert.Equal("Town Network (S L 1) to Sawato", destination.CurrentRoute!.Steps[0].To.Name);
+        Assert.Equal((uint)43, host.Inner.PluginNavigation.GoToCalls[^1].ObjectId);
+        Assert.Empty(objects.Activated);
+        // A delayed report from the entrance cannot stop the outgoing walk.
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            approachSequence, PluginGoToState.Lost, 0, 0, 0, "the character entered portal space") { Revision = 2 });
+        Assert.True(navigator.IsNavigating);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void RestartInsideDesertMarchExploresThenSwitchesToBlackHillWithoutUsingSurfacePortal(bool reachExplorationCell, bool unreachableCell)
+    {
+        var host = new NavigationHost();
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = DungeonPortalSearchTests.Position(-5),
+        });
+        automation.Inner.Objects = objects;
+        host.Inner.AutomationValue = automation;
+        navigation.Inner.SnapshotValue = new(true, false, 1, DungeonPortalSearchTests.Position(0), false, false);
+        automation.Map.Cells = [new(0x02AA0230, new System.Numerics.Vector3(20, 0, 0), 0),
+            new(0x02AA0232, new System.Numerics.Vector3(50, 0, 0), 0)];
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Desert March" type="PortalHub" NS="0" EW="1" dungeonId="02AA" />
+              <loc name="Desert March to Black Hill Portal" type="UndergroundPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+              <loc name="End" type="Vendor" NS="0" EW="98" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        Assert.Equal(new uint[] { 43 }, objects.Identified);
+        Assert.Empty(objects.Activated);
+        navigator.OnTick(0.6);
+        navigator.OnTick(0.6);
+        Assert.Single(navigation.Inner.GoToPositionCalls);
+        Assert.Contains("Exploring dungeon", navigator.FailureReason);
+        Assert.Equal(1, destination.CurrentRoute!.StepCount);
+        var panel = new GoArrowPanel(host, new GoArrowPlugin(), settings, destination, navigator);
+        Assert.Contains(panel.RouteSteps, row => row.Contains("Dungeon Searching cell"));
+        Assert.Equal(2, panel.RouteSteps.Count);
+        panel.SelectRouteStepAction(1);
+        Assert.Contains("Dungeon waypoint", panel.DetailsStepNumberText);
+        Assert.Contains("floor", panel.DetailsCoordinates);
+        if (reachExplorationCell || unreachableCell)
+        {
+            host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+                navigation.GoToReport.Sequence, unreachableCell ? PluginGoToState.NoRoute : PluginGoToState.Arrived,
+                0, 0, 0, unreachableCell ? "cell is unreachable" : null) { Revision = 1 });
+            Assert.Equal(1, destination.CurrentRoute.StepCount);
+            Assert.False(navigator.HasArrived);
+        }
+        if (unreachableCell)
+        {
+            navigator.OnTick(0.6);
+            Assert.Equal(2, navigation.Inner.GoToPositionCalls.Count);
+            Assert.Equal(0x02AA0232u, navigation.Inner.GoToPositionCalls[^1].Position.CellId);
+        }
+        objects.Objects.Add(new PluginWorldObject(44, 0, "Black Hill", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            PortalDestination = "Black Hill",
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = DungeonPortalSearchTests.Position(60),
+        });
+        navigator.OnTick(0.6);
+        Assert.Equal((uint)44, Assert.Single(navigation.Inner.GoToCalls).ObjectId);
+        Assert.Empty(objects.Activated);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            navigation.GoToReport.Sequence, PluginGoToState.Arrived, 44, 0, 0, null) { Revision = 2 });
+        Assert.Equal(new uint[] { 44 }, objects.Activated);
+    }
+
+    [Fact]
+    public void UniqueSurfacePortalMustBeIdentifiedBeforeNavigationOrActivation()
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x12340122, 95.5, 0, 0, 0, false),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation, Chat = host.Inner.PluginChat, Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("<locations><loc name='End' type='Town' NS='0' EW='98' /></locations>");
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        Assert.Equal(new uint[] { 43 }, objects.Identified);
+        Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+        Assert.Empty(objects.Activated);
+        objects.Objects[0] = objects.Objects[0] with { PortalDestination = "Outdoor exit" };
+        host.EventsValue.RaiseObjectChanged(new PluginObjectChange(43, PluginObjectChangeKind.IdentReceived));
+        Assert.Equal((uint)43, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public void LivePortalIsUsedImmediatelyWhenNearOrOnceAfterCoordinateFailure(bool retryFails, bool portalNear)
+    public void BlackHillCrossingUsesNamedDistantExitInsteadOfSurfacePortal(bool exitAppearsLater, bool unnamedExit)
+    {
+        string atlasName = unnamedExit ? "Uncharted Passage" : "Desert March to Black Hill Portal";
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Desert March", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0, 1, 0, 0, 0, true),
+        });
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x12340101, 95.01, 0, 0, 0, false),
+            PortalDestination = unnamedExit ? "0.0N, 1.0E" : null,
+        });
+        var exit = new PluginWorldObject(44, 0, unnamedExit ? "Unmarked Portal" : "Black Hill", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            PortalDestination = unnamedExit ? null : "Black Hill",
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x123401FF, 101.25, 0, 0, 0, false),
+        };
+        if (!exitAppearsLater)
+            objects.Objects.Add(exit);
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml($"""
+            <locations>
+              <loc name="{atlasName}" type="UndergroundPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+              <loc name="End" type="Vendor" NS="0" EW="98" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            1, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
+        Assert.Equal(new uint[] { 42 }, objects.Activated);
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0x12340100, 95, 0, 0, 0, false),
+        };
+        host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
+            0, 1, 0x12340100, true, true, true, false) { Kind = PluginPortalTransitionKind.Portal });
+        if (exitAppearsLater)
+        {
+            Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+            Assert.Contains(unnamedExit ? "End" : "Black Hill", navigator.FailureReason);
+            Assert.False(navigator.PlanRoute());
+            Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+            objects.Objects.Add(exit);
+            navigator.OnTick(0.6);
+        }
+        if (unnamedExit)
+        {
+            Assert.Contains((uint)44, objects.Identified);
+            Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+            int index = objects.Objects.FindIndex(p => p.ObjectId == 44);
+            objects.Objects[index] = objects.Objects[index] with { PortalDestination = "Somewhere (0.0N, 95.0E)" };
+            host.EventsValue.RaiseObjectChanged(new PluginObjectChange(44, PluginObjectChangeKind.IdentReceived));
+        }
+        Assert.Equal((uint)44, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+        navigator.StopNavigation();
+        navigator.ResumeNavigation();
+        Assert.Equal(2, host.Inner.PluginNavigation.GoToCalls.Count);
+        Assert.Equal((uint)44, host.Inner.PluginNavigation.GoToCalls[^1].ObjectId);
+        navigator.StopNavigation();
+        navigator.StartNavigation();
+        Assert.Equal(3, host.Inner.PluginNavigation.GoToCalls.Count);
+        Assert.Equal((uint)44, host.Inner.PluginNavigation.GoToCalls[^1].ObjectId);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            host.Inner.PluginNavigation.GoToReport.Sequence, PluginGoToState.Arrived, 44, 0, 0, null) { Revision = 2 });
+        Assert.Equal(new uint[] { 42, 44 }, objects.Activated);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void LandscapeWalkThroughInteriorContinuesButPortalTransitDoesNot(bool portalTransit, bool nextIsDistantWalk)
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(
+            true, false, 1, new PluginNavigationPosition(0x35DB0010, 0, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="First entrance" type="WildernessPortal" NS="0" EW="0.1" exitNS="0" exitEW="90" />
+              <loc name="End" type="Town" NS="0" EW="100" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        if (nextIsDistantWalk)
+            Assert.True(destination.RemoveRouteStep(1));
+        if (portalTransit)
+        {
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with { IsPortalSpace = true };
+            navigator.OnTick(0.1);
+        }
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        {
+            IsPortalSpace = false,
+            Position = new PluginNavigationPosition(0x35DB0101, 0.1, 0, 0, 0, false),
+        };
+        navigator.OnTick(0.1);
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            host.Inner.PluginNavigation.GoToReport.Sequence, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
+        // The next leg is the entrance activation. A surface cave uses normal
+        // portal searching; a portal transit still uses indoor resolution.
+        Assert.Equal(portalTransit, navigator.WaitingForIndoorPortal);
+        if (nextIsDistantWalk && !portalTransit)
+        {
+            Assert.True(navigator.IsNavigating);
+            Assert.Equal(100, host.Inner.PluginNavigation.GoToPositionCalls[^1].Position.EastWest);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    public void LivePortalIsUsedImmediatelyWhenNearOrOnceAfterCoordinateFailure(bool retryFails, bool portalNear, bool portalInSurfaceInterior)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
@@ -19,7 +419,8 @@ public sealed class PortalNavigationTests
         {
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
             HasPosition = true,
-            Position = new PluginNavigationPosition(0x12340010, 2.05, 0, 0.1, 0, true),
+            Position = new PluginNavigationPosition(portalInSurfaceInterior ? 0x12340110u : 0x12340010u,
+                2.05, 0, 0.1, 0, !portalInSurfaceInterior),
         });
         host.Inner.AutomationValue = new FakeAutomationSurface
         {
@@ -42,6 +443,14 @@ public sealed class PortalNavigationTests
         using var navigator = new GoArrowNavigator(host, destination, settings);
         navigator.Enable();
         navigator.StartNavigation();
+        if (portalInSurfaceInterior)
+        {
+            host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+            {
+                Position = new PluginNavigationPosition(0x12340120, 1.95, 0, 0, 0, false),
+            };
+            navigator.OnTick(0.1);
+        }
         if (portalNear)
             Assert.Empty(host.Inner.PluginNavigation.GoToPositionCalls);
         else
@@ -64,6 +473,7 @@ public sealed class PortalNavigationTests
         {
             Assert.Equal(new uint[] { 42 }, objects.Activated);
             Assert.True(navigator.WaitingForInteraction);
+            Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute!.Steps[0].Kind);
         }
     }
 
@@ -104,8 +514,10 @@ public sealed class PortalNavigationTests
         Assert.Equal((uint)43, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
     }
 
-    [Fact]
-    public void StartingInsideDungeonCanUseUniqueSurfacePortalForOutdoorDestination()
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(6.25)]
+    public void StartingInsideDungeonCanUseUniqueSurfacePortalForOutdoorDestination(double exitOffset)
     {
         var host = new NavigationHost();
         var objects = new TestWorldObjects();
@@ -113,7 +525,8 @@ public sealed class PortalNavigationTests
         {
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
             HasPosition = true,
-            Position = new PluginNavigationPosition(0x12340122, 95.5, 0, 0, 0, false),
+            PortalDestination = "Outdoor exit",
+            Position = new PluginNavigationPosition(0x12340122, 95 + exitOffset, 0, 0, 0, false),
         });
         host.Inner.AutomationValue = new FakeAutomationSurface
         {
@@ -193,6 +606,7 @@ public sealed class PortalNavigationTests
         var objects = new TestWorldObjects();
         objects.Objects.Add(new PluginWorldObject(42, 0, "Black Hill Portal", PluginObjectClass.Portal, 0, 0, 0)
         {
+            PortalDestination = "Dungeon entrance",
             Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
             HasPosition = true,
             Position = new PluginNavigationPosition(0, 1, 0, 0, 0, true),

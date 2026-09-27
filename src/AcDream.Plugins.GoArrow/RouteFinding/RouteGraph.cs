@@ -325,6 +325,13 @@ public sealed class RouteGraph
 
             foreach (var edge in _adjacency[current])
             {
+                // Dungeon coordinates identify an entrance, not an outdoor
+                // transit waypoint. Reaching one does not establish a walk
+                // through it; only a recorded interaction can continue there.
+                if ((_locations[current].Type & LocationType.Dungeon) != 0
+                    && edge.Kind == RouteEdgeKind.Walk
+                    && (cameFrom[current] >= 0 || sourceEdges[origin[current]] is not null))
+                    continue;
                 int neighbor = edge.ToIndex;
                 if (closed.Contains(neighbor))
                     continue;

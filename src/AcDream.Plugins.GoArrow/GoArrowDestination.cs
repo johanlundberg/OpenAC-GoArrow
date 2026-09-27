@@ -199,6 +199,38 @@ internal sealed class GoArrowDestination
     /// <summary>
     /// Calculate or recalculate the route from the current position.
     /// </summary>
+    public bool TryPlanDungeonExit(uint cellId)
+    {
+        if (TargetLocation is null || TargetIndoorPosition is not null
+            || TargetObjectPosition is { IsOutdoor: false })
+            return false;
+        int dungeonId = (int)(cellId >> 16);
+        var locations = _database.AllLocations;
+        var dungeonNames = locations.Where(l => l.DungeonId == dungeonId && dungeonId != 0)
+            .Select(l => l.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var exits = locations.Where(l => l.UseInRouteFinding && !l.IsRetired && l.HasExitCoords
+            && dungeonNames.Any(name => l.Name.StartsWith(name + " to ", StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase).ThenBy(l => l.Id);
+        RouteFinding.Location? selected = null;
+        double bestCost = double.PositiveInfinity;
+        foreach (var exit in exits)
+        {
+            var onward = _routeFinder.FindRoute(new RouteFinding.Location("Dungeon exit", exit.ExitCoords),
+                TargetLocation, _settings.RouteCostProfile);
+            if (onward.StepCount == 0 || onward.TotalDistance >= bestCost)
+                continue;
+            bestCost = onward.TotalDistance;
+            selected = exit;
+        }
+        if (selected is null)
+            return false;
+        CurrentRoute = new Route(TargetLocation.Name);
+        CurrentRoute.AddTravelStep(new RouteFinding.Location(
+            $"{selected.Name} arrival ({selected.Id})", selected.ExitCoords), TargetLocation,
+            "Walk after dungeon exit");
+        return true;
+    }
+
     public void CalculateRoute(RouteFinding.Location currentPosition)
     {
         if (TargetLocation == null)

@@ -31,6 +31,44 @@ public class RouteGraphTests
     // ── Build tests ─────────────────────────────────────────────────
 
     [Fact]
+    public void PortalHubWithArrivalCoordinatesCreatesPortalRoute()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network Portal(Sanamar)" type="PortalHub" NS="72" EW="-61.3" exitNS="-96.6" exitEW="-101.6" />
+              <loc name="Town Network to Destination" type="PortalHub" NS="-96.6" EW="-101.6" exitNS="-65.4" exitEW="-44" />
+              <loc name="Destination" type="Vendor" NS="-65.4" EW="-44" />
+            </locations>
+            """);
+        var route = new RouteFinder(db).FindRoute(new Location("Player", 73.6, -59.2), "Destination");
+        Assert.Equal(2, route.PortalCount);
+        Assert.Equal("Town Network Portal(Sanamar)", route.Steps[0].To.Name);
+        Assert.Equal(RouteStepKind.Portal, route.Steps[1].Kind);
+    }
+
+    [Fact]
+    public void DungeonEntranceCannotBridgeOutdoorWalksButRemainsADestination()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Start" type="Town" NS="0" EW="0" />
+              <loc name="Humid Hovel" type="Dungeon" NS="0" EW="9" />
+              <loc name="End" type="Town" NS="0" EW="18" />
+            </locations>
+            """);
+        var graph = new RouteGraph();
+        graph.Build(db, maxWalkDistance: 10);
+        Assert.Null(graph.FindShortestPath("Start", "End"));
+        Assert.NotNull(graph.FindShortestPath("Start", "Humid Hovel"));
+        Assert.Null(graph.FindShortestPathFromPosition(new Location("Player", 0, 0),
+            graph.GetNodeIndex("End"), 10));
+        Assert.NotNull(graph.FindShortestPathFromPosition(new Location("Player", 0, 0),
+            graph.GetNodeIndex("Humid Hovel"), 10));
+    }
+
+    [Fact]
     public void Build_CreatesNodesForEligibleLocations()
     {
         var (_, graph) = CreateGraph("Alpha;0;0", "Beta;10;5", "Gamma;20;10");

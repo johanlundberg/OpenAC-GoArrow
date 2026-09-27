@@ -131,6 +131,50 @@ Other files in that directory contain data rather than preferences:
 `GoArrow/*.xml` can contain user supplied location files. Keep those files if
 you want to use the corresponding data without downloading or importing it again.
 
+### Learned dungeon traversals
+
+GoArrow records indoor movement while enabled, including cell IDs and floor
+heights, in `GoArrow/dungeon-traversals.json`. Records are saved every 15 seconds,
+when a route exit is found, and when navigation stops. Portal transitions and
+movement gaps over 12 metres break a trace rather than create a walking edge.
+
+When GoArrow has previously found the exit requested by a route, it computes
+the shortest path through recorded movement segments to an observation point
+for that exit. Multiple exits in the same dungeon have separate destination
+keys and share the corridor graph. Edges are directional: observing a descent
+does not establish an ascent. Saved paths guide navigation; the live portal
+must still match the route before activation. A failed saved path falls back
+to exploration. This finds the shortest **recorded** route, not necessarily
+the shortest possible route through the dungeon.
+
+Before replay, GoArrow removes intermediate recorded points where the dungeon
+floorplan shows a clear walk on the same floor. Shortcuts are limited to 45
+metres and retain turns at walls, floor changes, gaps, and known portals. The
+Route steps window lists the remaining recorded waypoints, or the current
+exploration target, with dungeon cell and floor details. `/go route` includes
+the same live dungeon steps.
+
+If the outdoor client reports that no clear path leads nearer a distant goal,
+GoArrow tries a limited number of nearby side and retreat waypoints, replanning
+after one is reached. It reports the number of attempts if none is reachable.
+
+To share or combine records:
+
+```text
+/go dungeon export dungeon-traversals-share.json
+/go dungeon import dungeon-traversals-share.json
+```
+
+Export reports the OpenAC plugin storage folder. Copy the JSON file from that
+folder to share it; put a received file in your own GoArrow storage folder
+before importing. Import merges records and removes duplicates. Both commands
+default to `dungeon-traversals-share.json` when no filename is supplied. The
+versioned JSON contains dungeon positions, directed edges, and exit labels;
+it contains no character names or live object IDs. Position coordinates use
+GoArrow's north-positive/east-positive map units, with 240 metres per unit,
+including elevation. Each exit records the route's destination key and the
+portal's observed name and destination label.
+
 ## CI and releases
 
 GitHub Actions runs the plugin build and test suite for pull requests and pushes. A semantic version tag creates a GitHub release containing an installable plugin archive:

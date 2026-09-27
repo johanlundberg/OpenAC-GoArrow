@@ -178,6 +178,13 @@ internal sealed class GoArrowCommands
 
             case "dungeon":
                 string mode = args.Length > 1 ? args[1].ToLowerInvariant() : "toggle";
+                if (mode is "export" or "import")
+                {
+                    _host.Automation.Chat.PostSystemMessage(args.Length <= 3
+                        ? _plugin.ShareDungeonTraversals(mode, args.Length == 3 ? args[2] : null)
+                        : "GoArrow: Usage: /go dungeon export|import [filename.json]");
+                    break;
+                }
                 if (
                     args.Length > 2
                     || mode is not ("on" or "off" or "toggle" or "path" or "reload")
@@ -401,6 +408,7 @@ internal sealed class GoArrowCommands
             + "  /go status - Show current destination\n"
             + "  /go route - Show the current route steps\n"
             + "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n"
+            + "  /go dungeon export|import [filename.json] - Share learned dungeon paths\n"
             + "  /go mark <name> - Save this indoor point as a named location\n"
             + "  /go stop - Stop navigation\n"
             + "  /go resume - Resume after a portal or recall interaction\n"

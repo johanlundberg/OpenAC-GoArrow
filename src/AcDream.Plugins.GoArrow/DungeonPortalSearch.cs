@@ -1,0 +1,407 @@
+using AcDream.Plugin.Abstractions;
+using System.Numerics;
+using System.Diagnostics;
+
+namespace AcDream.Plugins.GoArrow;
+
+// Searches the known floorplan without treating any cell as a route arrival.
+// All host calls and completed task reads happen on the plugin tick thread.
+internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = null)
+{
+    private string _exitKey = "";
+    private bool _checkedRecordedPath;
+    private bool _followingRecordedPath;
+    private readonly Queue<PluginNavigationPosition> _recordedPath = [];
+    private uint _landblock;
+    private readonly HashSet<uint> _attempted = [];
+    private readonly HashSet<uint> _covered = [];
+    private readonly List<PluginNavigationPosition> _branch = [];
+    private bool _returning;
+    private string _lastFailure = string.Empty;
+    private PluginNavigationPosition _target;
+    private Task<PluginNavigationPlan>? _pending;
+    private long _previewStarted;
+    private PluginNavigationPosition? _lastPosition;
+    public string Reason { get; private set; } = string.Empty;
+    public IReadOnlyList<PluginNavigationPosition> RecordedWaypoints => _recordedPath.Take(80).ToArray();
+    public int RemainingRecordedWaypoints => _recordedPath.Count;
+    public PluginNavigationPosition CurrentTarget => _target;
+
+    public void Reset()
+    {
+        _landblock = 0;
+        _attempted.Clear();
+        _covered.Clear();
+        _branch.Clear();
+        _returning = false;
+        _lastFailure = string.Empty;
+        _pending = null;
+        _lastPosition = null;
+        _checkedRecordedPath = false;
+        _followingRecordedPath = false;
+        _recordedPath.Clear();
+    }
+
+    public void UseRecordedExit(string key)
+    {
+        if (_exitKey == key) return;
+        Reset();
+        _exitKey = key;
+    }
+
+    public bool TryGetNextTarget(IAutomationSurface automation, out PluginNavigationPosition target)
+    {
+        target = default;
+        var snapshot = automation.Navigation.Snapshot;
+        uint block = snapshot.Position.CellId & 0xFFFF0000u;
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor)
+            return false;
+        if (_landblock != block)
+        {
+            Reset();
+            _landblock = block;
+        }
+        if (_branch.Count == 0)
+            _branch.Add(snapshot.Position);
+        var portals = automation.Objects.CaptureObjects()
+            .Where(p => p.HasPosition && (p.ObjectClass == PluginObjectClass.Portal
+                || (p.Capabilities & PluginObjectCapabilities.Portal) != 0)
+                && (p.Position.CellId & 0xFFFF0000u) == block).Select(p => p.Position).ToArray();
+        if (_pending is not null)
+        {
+            if (!_pending.IsCompleted)
+            {
+                Reason = $"Checking portal clearance for cell {_target.CellId:X8} ({Stopwatch.GetElapsedTime(_previewStarted).TotalSeconds:0}s).";
+                return false;
+            }
+            var completed = _pending;
+            _pending = null;
+            if (completed.IsCompletedSuccessfully && completed.Result.Status == PluginNavigationPlanStatus.Routed
+                && completed.Result.Path.Count > 0 && !CrossesPortal(completed.Result.Path, portals))
+            {
+                target = _target;
+                _lastPosition = snapshot.Position;
+                SetTargetReason();
+                return true;
+            }
+            if (_followingRecordedPath)
+                CompleteTarget(snapshot.Position, false);
+            else
+                _attempted.Add(_target.CellId);
+            _lastFailure = completed.IsCompletedSuccessfully ? completed.Result.Reason : "Portal clearance check failed.";
+            if (_returning)
+                CompleteTarget(snapshot.Position, false);
+        }
+        if (!_checkedRecordedPath)
+        {
+            _checkedRecordedPath = true;
+            var trail = traversals?.FindPath(snapshot.Position, _exitKey) ?? [];
+            var knownFloorplan = automation.DungeonMap.CaptureFloorplan(block);
+            foreach (var point in SimplifyRecordedPath(trail, knownFloorplan, portals))
+                _recordedPath.Enqueue(point);
+        }
+        while (_recordedPath.TryPeek(out var point)
+            && snapshot.Position.HorizontalDistanceMeters(point) <= 2.5
+            && Math.Abs(snapshot.Position.Elevation - point.Elevation) * 240 <= 2.5)
+            _recordedPath.Dequeue();
+        if (_recordedPath.TryPeek(out var recorded))
+        {
+            _followingRecordedPath = true;
+            _target = recorded;
+            return PrepareTarget(automation, snapshot, portals, out target);
+        }
+        var floorplan = automation.DungeonMap.CaptureFloorplan(block);
+        var cells = floorplan.Cells;
+        var currentCell = cells.FirstOrDefault(c => c.CellId == snapshot.Position.CellId);
+        double currentFloor = currentCell.CellId != 0 ? currentCell.LayerZ : snapshot.Position.Elevation * 240;
+        MarkVisibleCells(snapshot.Position, floorplan);
+        var candidates = cells.Where(c => IsOnFloor(c, floorplan))
+            .Select(c => new { Position = ToPosition(c), Height = c.LayerZ })
+            .Where(c => !_attempted.Contains(c.Position.CellId)
+                && !_branch.Any(p => p.CellId == c.Position.CellId)
+                && c.Position.CellId != snapshot.Position.CellId
+                && (snapshot.Position.HorizontalDistanceMeters(c.Position) > 8
+                    || Math.Abs(currentFloor - c.Height) > 3)
+                && !portals.Any(portal => portal.HorizontalDistanceMeters(c.Position) < 12))
+            .OrderBy(c => snapshot.Position.HorizontalDistanceMeters(c.Position)
+                + Math.Abs(currentFloor - c.Height))
+            .ThenBy(c => c.Position.CellId).Select(c => c.Position).ToArray();
+        // The host exposes floor geometry, but not cell adjacency. Follow
+        // nearby targets as a branch; only successful arrivals become
+        // checkpoints. When the branch ends, return along those checkpoints
+        // before selecting a distant target from the starting area.
+        var nearby = candidates.Where(p => snapshot.Position.HorizontalDistanceMeters(p) <= 40).ToArray();
+        _returning = nearby.Length == 0 && _branch.Count > 1;
+        if (_returning)
+            _target = _branch[^2];
+        else if (candidates.Length == 0)
+        {
+            Reason = cells.Count == 0 ? "Dungeon floorplan is unavailable."
+                : $"No exploration targets remain ({_attempted.Count} attempted, {_covered.Count} covered). {_lastFailure}";
+            return false;
+        }
+        // Prefer areas hidden by walls. Visible cells are a fallback, since
+        // geometric visibility alone does not prove the server sent all objects.
+        else
+        {
+            var available = nearby.Length > 0 ? nearby : candidates;
+            _target = available.FirstOrDefault(p => !_covered.Contains(p.CellId));
+            if (_target.CellId == 0)
+                _target = available.OrderByDescending(p => snapshot.Position.HorizontalDistanceMeters(p)).First();
+        }
+        return PrepareTarget(automation, snapshot, portals, out target);
+    }
+
+    private bool PrepareTarget(IAutomationSurface automation, PluginNavigationSnapshot snapshot,
+        IReadOnlyList<PluginNavigationPosition> portals, out PluginNavigationPosition target)
+    {
+        target = default;
+        if (CrossesPortal([snapshot.Position, _target], portals))
+        {
+            _pending = automation.Navigation.PreviewPathAsync(_target, 2.5f);
+            _previewStarted = Stopwatch.GetTimestamp();
+            Reason = $"Checking portal clearance for cell {_target.CellId:X8}.";
+            return false;
+        }
+        target = _target;
+        _lastPosition = snapshot.Position;
+        SetTargetReason();
+        return true;
+    }
+
+    private void SetTargetReason() => Reason =
+        $"{(_followingRecordedPath ? "Following recorded path to" : _returning ? "Backtracking to" : "Searching")} cell {_target.CellId:X8} "
+        + $"({_attempted.Count} attempted, {_covered.Count} covered, {_branch.Count - 1} branch depth).";
+
+    internal static IReadOnlyList<PluginNavigationPosition> SimplifyRecordedPath(
+        IReadOnlyList<PluginNavigationPosition> path, PluginDungeonFloorplan plan,
+        IReadOnlyList<PluginNavigationPosition> portals)
+    {
+        if (path.Count < 3) return path;
+        var simplified = new List<PluginNavigationPosition> { path[0] };
+        var layers = plan.Cells.ToDictionary(c => c.CellId, c => c.LayerZ);
+        int from = 0;
+        while (from < path.Count - 1)
+        {
+            int farthest = from + 1;
+            layers.TryGetValue(path[from].CellId, out float fromLayer);
+            for (int to = from + 2; to < Math.Min(path.Count, from + 64); to++)
+            {
+                if (!layers.TryGetValue(path[to - 1].CellId, out float middleLayer)
+                    || middleLayer != fromLayer)
+                    break;
+                // A shortcut spans only a modest walk on one floor. The
+                // host still plans each resulting segment against live walls.
+                if (path[from].HorizontalDistanceMeters(path[to]) > 45)
+                    continue;
+                if (CanShortcut(path[from], path[to], plan, portals))
+                    farthest = to;
+            }
+            simplified.Add(path[farthest]);
+            from = farthest;
+        }
+        return simplified;
+    }
+
+    private static bool CanShortcut(PluginNavigationPosition start, PluginNavigationPosition end,
+        PluginDungeonFloorplan plan, IReadOnlyList<PluginNavigationPosition> portals)
+    {
+        if (Math.Abs(start.Elevation - end.Elevation) * 240 > 3
+            || CrossesPortal([start, end], portals))
+            return false;
+        var startCell = plan.Cells.FirstOrDefault(c => c.CellId == start.CellId);
+        var endCell = plan.Cells.FirstOrDefault(c => c.CellId == end.CellId);
+        if (startCell.CellId == 0 || endCell.CellId == 0
+            || Math.Abs(startCell.LayerZ - endCell.LayerZ) > 0.1f)
+            return false;
+        var layer = plan.Layers.FirstOrDefault(l => Math.Abs(l.Z - startCell.LayerZ) < 0.1f);
+        if (layer is null || layer.Floors.Count == 0)
+            return false;
+        var from = PluginDungeonFloorplan.ToLandblockLocal(start);
+        var to = PluginDungeonFloorplan.ToLandblockLocal(end);
+        var a = new Vector2(from.X, from.Y);
+        var b = new Vector2(to.X, to.Y);
+        if (layer.Walls.Any(w => IntersectsWall(a, b, w.Start, w.End)))
+            return false;
+        int samples = Math.Max(1, (int)Math.Ceiling(Vector2.Distance(a, b) / 2));
+        for (int i = 0; i <= samples; i++)
+        {
+            var point = Vector2.Lerp(a, b, i / (float)samples);
+            if (!layer.Floors.Any(polygon => Contains(polygon, point)))
+                return false;
+        }
+        return true;
+    }
+
+    public void CompleteTarget(PluginNavigationPosition position, bool arrived)
+    {
+        if (_followingRecordedPath)
+        {
+            if (arrived && _recordedPath.Count > 0) _recordedPath.Dequeue();
+            else _recordedPath.Clear(); // Fall back to exploration when a saved segment fails.
+            _followingRecordedPath = false;
+            return;
+        }
+        if (_returning)
+        {
+            if (arrived && _branch.Count > 1)
+                _branch.RemoveAt(_branch.Count - 1);
+            else
+                _branch.Clear(); // An obstructed return cannot remain a usable branch.
+        }
+        else if (arrived && !_branch.Any(p => p.CellId == position.CellId))
+            _branch.Add(position);
+        _returning = false;
+    }
+
+    public bool SafeToContinue(IAutomationSurface automation)
+    {
+        var snapshot = automation.Navigation.Snapshot;
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor)
+            return false;
+        var previous = _lastPosition;
+        _lastPosition = snapshot.Position;
+        if (previous is null)
+            return true;
+        foreach (var portal in automation.Objects.CaptureObjects())
+        {
+            if (!portal.HasPosition || (portal.Position.CellId & 0xFFFF0000u) != _landblock
+                || (portal.ObjectClass != PluginObjectClass.Portal
+                    && (portal.Capabilities & PluginObjectCapabilities.Portal) == 0))
+                continue;
+            double distance = snapshot.Position.HorizontalDistanceMeters(portal.Position);
+            if (distance < 8 && distance + 0.05 < previous.Value.HorizontalDistanceMeters(portal.Position)
+                && (!double.IsFinite(portal.Position.Elevation)
+                    || Math.Abs(snapshot.Position.Elevation - portal.Position.Elevation) * 240 <= 6))
+            {
+                Reason = $"Stopped exploration before approaching portal '{portal.Name}'.";
+                return false;
+            }
+        }
+        return true;
+    }
+
+    internal static bool CrossesPortal(IReadOnlyList<PluginNavigationPosition> path,
+        IReadOnlyList<PluginNavigationPosition> portals)
+    {
+        foreach (var portal in portals)
+            for (int i = 1; i < path.Count; i++)
+            {
+                var start = path[i - 1];
+                var end = path[i];
+                double dx = end.EastWest - start.EastWest, dy = end.NorthSouth - start.NorthSouth;
+                double length = dx * dx + dy * dy;
+                double projection = (portal.EastWest - start.EastWest) * dx
+                    + (portal.NorthSouth - start.NorthSouth) * dy;
+                // Leaving a portal is allowed only when this segment heads
+                // away from it; a far endpoint on the other side is unsafe.
+                if (i == 1 && start.HorizontalDistanceMeters(portal) < 8 && projection <= 0)
+                    continue;
+                double t = length > 0 ? Math.Clamp(projection / length, 0, 1) : 0;
+                double px = start.EastWest + t * dx - portal.EastWest;
+                double py = start.NorthSouth + t * dy - portal.NorthSouth;
+                double height = start.Elevation + t * (end.Elevation - start.Elevation);
+                if ((px * px + py * py) * 240 * 240 < 64
+                    && (!double.IsFinite(height) || !double.IsFinite(portal.Elevation)
+                        || Math.Abs(height - portal.Elevation) * 240 <= 6))
+                    return true;
+            }
+        return false;
+    }
+
+    public void TargetAccepted(uint cellId)
+    {
+        if (!_followingRecordedPath) _attempted.Add(cellId);
+    }
+    public void RecordFailure(string? reason) => _lastFailure = reason ?? "The last cell was unreachable.";
+
+    private void MarkVisibleCells(PluginNavigationPosition position, PluginDungeonFloorplan plan)
+    {
+        if (plan.Layers.Count == 0)
+            return;
+        var currentCell = plan.Cells.FirstOrDefault(c => c.CellId == position.CellId);
+        float z = currentCell.CellId != 0 ? currentCell.LayerZ : (float)(position.Elevation * 240);
+        var layer = plan.Layers.OrderBy(l => Math.Abs(l.Z - z)).First();
+        if (Math.Abs(layer.Z - z) > 6 || layer.Floors.Count == 0)
+            return;
+        var local = PluginDungeonFloorplan.ToLandblockLocal(position);
+        var start = new Vector2(local.X, local.Y);
+        foreach (var cell in plan.Cells)
+        {
+            var end = new Vector2(cell.Center.X, cell.Center.Y);
+            // Nearby cells visible from here have already been observed; their
+            // individual centres add no new search coverage. Walls and storeys
+            // separate rooms, even when their centres are close together.
+            if (Math.Abs(cell.LayerZ - layer.Z) < 0.1f
+                && Vector2.Distance(start, end) <= 40
+                && IsOnFloor(cell, plan)
+                && !layer.Walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
+                _covered.Add(cell.CellId);
+        }
+    }
+
+    private static bool IsOnFloor(PluginDungeonCell cell, PluginDungeonFloorplan plan)
+    {
+        var layer = plan.Layers.FirstOrDefault(l => Math.Abs(l.Z - cell.LayerZ) < 0.1f);
+        // Hosts without floor polygons still use the reachability preview.
+        if (layer is null)
+            return true;
+        var point = new Vector2(cell.Center.X, cell.Center.Y);
+        return layer.Floors.Any(polygon => Contains(polygon, point));
+    }
+
+    private static bool Contains(IReadOnlyList<Vector2> polygon, Vector2 point)
+    {
+        bool inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            var a = polygon[j];
+            var b = polygon[i];
+            var edge = b - a;
+            if (edge.LengthSquared() > 0)
+            {
+                float t = Math.Clamp(Vector2.Dot(point - a, edge) / edge.LengthSquared(), 0, 1);
+                if (Vector2.DistanceSquared(point, a + t * edge) < 0.0001f)
+                    return true;
+            }
+            if ((a.Y > point.Y) != (b.Y > point.Y)
+                && point.X < (b.X - a.X) * (point.Y - a.Y) / (b.Y - a.Y) + a.X)
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    private static bool IntersectsWall(Vector2 start, Vector2 end, Vector2 a, Vector2 b)
+    {
+        static float Cross(Vector2 x, Vector2 y) => x.X * y.Y - x.Y * y.X;
+        var direction = end - start;
+        var wall = b - a;
+        float denominator = Cross(direction, wall);
+        if (Math.Abs(denominator) < 0.0001f)
+        {
+            if (Math.Abs(Cross(a - start, direction)) > 0.0001f || direction.LengthSquared() < 0.0001f)
+                return false;
+            float first = Vector2.Dot(a - start, direction) / direction.LengthSquared();
+            float last = Vector2.Dot(b - start, direction) / direction.LengthSquared();
+            return Math.Max(first, last) > 0.001f && Math.Min(first, last) <= 1;
+        }
+        float t = Cross(a - start, wall) / denominator;
+        float u = Cross(a - start, direction) / denominator;
+        return t > 0.001f && t <= 1 && u >= 0 && u <= 1;
+    }
+
+    private static PluginNavigationPosition ToPosition(PluginDungeonCell cell)
+    {
+        int x = (int)(cell.CellId >> 24);
+        int y = (int)((cell.CellId >> 16) & 255);
+        return new PluginNavigationPosition(cell.CellId,
+            ((x - 127) * 192 + cell.Center.X - 84) / 240d,
+            ((y - 127) * 192 + cell.Center.Y - 84) / 240d,
+            // Geometry centres may sit high above a room's floor. The
+            // floorplan layer describes the walkable storey; leaving height
+            // unknown makes the host resolve this point at terrain/current
+            // height and can turn a downstairs goal into an upstairs walk.
+            cell.LayerZ / 240d, 0, false);
+    }
+
+}

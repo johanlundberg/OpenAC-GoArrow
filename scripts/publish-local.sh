@@ -15,6 +15,11 @@ except subprocess.CalledProcessError:
     tag = ""
 base = tag[1:] if re.fullmatch(r"v\d+\.\d+\.\d+", tag) else ET.parse(root / "Directory.Build.props").findtext(".//Version")
 changes = subprocess.check_output(["git", "-C", str(root), "diff", "HEAD"])
+untracked = subprocess.check_output(["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "-z"])
+for name in sorted(filter(None, untracked.split(b"\0"))):
+    path = root / name.decode("utf-8", errors="surrogateescape")
+    content = str(path.readlink()).encode("utf-8", errors="surrogateescape") if path.is_symlink() else path.read_bytes()
+    changes += b"\0untracked\0" + name + b"\0" + hashlib.sha256(content).digest()
 suffix = ".dirty." + hashlib.sha256(changes).hexdigest()[:8] if changes else ""
 print(f"{base}-local.{git('rev-parse', '--short', 'HEAD')}{suffix}")
 PY

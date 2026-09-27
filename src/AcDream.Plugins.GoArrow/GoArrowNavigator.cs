@@ -21,7 +21,18 @@ internal sealed class GoArrowNavigator : IDisposable
     private uint _pendingPortalIdentificationObjectId;
     private readonly HashSet<uint> _portalIdentificationAttempted = [];
     private bool _observedIndoorRoute;
+    private readonly DungeonPortalSearch _dungeonPortalSearch;
+    internal DungeonTraversalStore DungeonTraversals { get; }
+    private double _traversalSaveElapsed;
+    private bool _exploringDungeonExit;
+    private PluginNavigationPosition? _walkingPortalOrigin;
+    private bool _walkingPortalSawTransit;
+    private PluginNavigationPosition? _landscapeWalkPosition;
     private uint _outdoorPortalRetryObjectId;
+    private bool _outdoorDetourActive;
+    private int _outdoorDetourAttempts;
+    private readonly List<PluginNavigationPosition> _outdoorDetourTried = [];
+    private Coordinates _outdoorDetourGoal = Coordinates.NoCoordinates;
     private uint _resolvedIndoorPortalObjectId;
     private PluginNavigationPosition? _resolvedIndoorPortalPosition;
     private double _indoorRetryElapsed;
@@ -83,6 +94,31 @@ internal sealed class GoArrowNavigator : IDisposable
 
     /// <summary>Latest recoverable failure diagnostic for the panel.</summary>
     public string FailureReason => _failureReason;
+    internal IReadOnlyList<(string Label, PluginNavigationPosition Position)> DungeonRouteWaypoints
+    {
+        get
+        {
+            if (_host.Automation.Navigation.Snapshot is not
+                { IsAvailable: true, IsPortalSpace: false, Position.IsOutdoor: false }
+                || _destination.CurrentRoute is not { StepCount: > 0 } route
+                || !NeedsDungeonExit(route.Steps[0]))
+                return [];
+            if (_dungeonPortalSearch.RemainingRecordedWaypoints > 0)
+            {
+                var points = _dungeonPortalSearch.RecordedWaypoints;
+                var rows = points.Select((p, i) =>
+                    ($"Recorded dungeon walk {i + 1}: cell {p.CellId:X8}, floor {p.Elevation * 240:0} m", p))
+                    .ToList();
+                int remaining = _dungeonPortalSearch.RemainingRecordedWaypoints - points.Count;
+                if (remaining > 0)
+                    rows.Add(($"... {remaining} more recorded waypoints", default));
+                return rows;
+            }
+            return _exploringDungeonExit
+                ? [($"Dungeon {_dungeonPortalSearch.Reason}", _dungeonPortalSearch.CurrentTarget)]
+                : [];
+        }
+    }
     public Guid RouteId => _routeId;
     public int LegIndex => _legIndex;
     public long TransitionGeneration => _transitionGeneration;
@@ -96,6 +132,9 @@ internal sealed class GoArrowNavigator : IDisposable
         _host = host;
         _destination = destination;
         _settings = settings;
+        DungeonTraversals = new(host.Storage);
+        DungeonTraversals.Load();
+        _dungeonPortalSearch = new(DungeonTraversals);
     }
 
     /// <summary>
@@ -144,6 +183,25 @@ internal sealed class GoArrowNavigator : IDisposable
         _resolvedIndoorPortalObjectId = 0;
         _resolvedIndoorPortalPosition = null;
         var snapshot = _host.Automation.Navigation.Snapshot;
+        if (snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+            && _destination.CurrentRoute is null)
+            _destination.TryPlanDungeonExit(snapshot.Position.CellId);
+        if (snapshot.Position.IsOutdoor)
+            _dungeonPortalSearch.Reset();
+        if (snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+            && _destination.CurrentRoute?.Steps.FirstOrDefault() is { } pending
+            && NeedsDungeonExit(pending))
+        {
+            _currentNavPosition = snapshot.Position;
+            if (TryResolveRouteDungeonExit(snapshot, pending))
+            {
+                _indoorSurfaceExitLeg = true;
+                return true;
+            }
+            _pausedForOutdoorRoute = true;
+            _failureReason = IndoorPortalSearchReason(snapshot, pending);
+            return false;
+        }
         if (CanNavigateIndoorTarget(snapshot))
         {
             _currentNavPosition = snapshot.Position;
@@ -262,6 +320,13 @@ internal sealed class GoArrowNavigator : IDisposable
     /// </summary>
     public void StopNavigation()
     {
+        _outdoorDetourActive = false;
+        _outdoorDetourAttempts = 0;
+        _outdoorDetourTried.Clear();
+        _outdoorDetourGoal = Coordinates.NoCoordinates;
+        DungeonTraversals.Save();
+        DungeonTraversals.BreakTrace();
+        _exploringDungeonExit = false;
         if (_isNavigating && _host.Automation.IsAvailable)
         {
             _host.Automation.Navigation.StopGoTo();
@@ -276,6 +341,10 @@ internal sealed class GoArrowNavigator : IDisposable
         _pendingPortalIdentificationObjectId = 0;
         _portalIdentificationAttempted.Clear();
         _observedIndoorRoute = false;
+        _landscapeWalkPosition = null;
+        _walkingPortalOrigin = null;
+        _walkingPortalSawTransit = false;
+        _dungeonPortalSearch.Reset();
         _resolvedIndoorPortalObjectId = 0;
         _outdoorPortalRetryObjectId = 0;
         _resolvedIndoorPortalPosition = null;
@@ -307,6 +376,22 @@ internal sealed class GoArrowNavigator : IDisposable
         CheckInteractionPosition();
 
         var live = _host.Automation.Navigation.Snapshot;
+        if (live.IsMoving || ((_exploringDungeonExit || _indoorSurfaceExitLeg)
+            && _host.Automation.Navigation.GoToReport.State == PluginGoToState.Walking))
+            DungeonTraversals.Observe(live);
+        else if (!live.IsAvailable || live.IsPortalSpace || live.Position.IsOutdoor)
+            DungeonTraversals.BreakTrace();
+        _traversalSaveElapsed += Math.Max(0, elapsed);
+        if (_traversalSaveElapsed >= 15)
+        {
+            DungeonTraversals.Save();
+            _traversalSaveElapsed = 0;
+        }
+        if (_walkingPortalOrigin is not null && live.IsPortalSpace)
+            _walkingPortalSawTransit = true;
+        if (TryCompleteWalkingPortal(live))
+            return;
+        UpdateLandscapeWalk(live);
         if (_indoorWalk && (_indoorRouteLeg || _indoorSurfaceExitLeg)
             && live.IsAvailable && live.IsPortalSpace)
         {
@@ -315,7 +400,8 @@ internal sealed class GoArrowNavigator : IDisposable
         }
         if (live.IsAvailable && !live.IsPortalSpace)
         {
-            if (!live.Position.IsOutdoor && IsIndoorPortalStep())
+            if (!live.Position.IsOutdoor && IsIndoorPortalStep() && _outdoorPortalRetryObjectId == 0
+                && _landscapeWalkPosition is null)
                 _observedIndoorRoute = true;
             else if (
                 live.Position.IsOutdoor
@@ -352,6 +438,31 @@ internal sealed class GoArrowNavigator : IDisposable
                     return;
                 }
             }
+        }
+
+        if (_exploringDungeonExit)
+        {
+            var pending = _destination.CurrentRoute?.Steps.FirstOrDefault();
+            if (pending is not null && TryResolveRouteDungeonExit(live, pending))
+            {
+                _exploringDungeonExit = false;
+                _isNavigating = false;
+                _host.Automation.Navigation.StopGoTo();
+                StartCurrentLeg();
+            }
+            else if (!_dungeonPortalSearch.SafeToContinue(_host.Automation))
+            {
+                _dungeonPortalSearch.CompleteTarget(live.Position, false);
+                _exploringDungeonExit = false;
+                _isNavigating = false;
+                _host.Automation.Navigation.StopGoTo();
+                _pausedForOutdoorRoute = true;
+                _indoorRetryElapsed = 0;
+                _failureReason = _dungeonPortalSearch.Reason;
+            }
+            else
+                HandleNavigationReport(_host.Automation.Navigation.GoToReport);
+            return;
         }
 
         if (_pausedForOutdoorRoute)
@@ -425,11 +536,28 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         var snapshot = _host.Automation.Navigation.Snapshot;
+        var report = _host.Automation.Navigation.GoToReport;
+        if (snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+            && report.State == PluginGoToState.Lost
+            && report.Reason?.Contains("portal space", StringComparison.OrdinalIgnoreCase) == true
+            && _destination.CurrentRoute is { Steps.Count: > 1 } interruptedApproach
+            && interruptedApproach.Steps[0].Kind == RouteStepKind.Travel
+            && interruptedApproach.Steps[1].Kind == RouteStepKind.Portal
+            && !interruptedApproach.Steps[0].From.Name.Contains(" arrival (", StringComparison.OrdinalIgnoreCase))
+        {
+            var origin = interruptedApproach.Steps[0].From.Coords;
+            _walkingPortalOrigin = new PluginNavigationPosition(0, origin.EW, origin.NS, double.NaN, 0, true);
+            _walkingPortalSawTransit = true;
+            if (TryCompleteWalkingPortal(snapshot))
+                return;
+        }
         if (
             snapshot.IsAvailable
             && !snapshot.IsPortalSpace
             && !snapshot.Position.IsOutdoor
-            && IsIndoorPortalStep()
+            && (IsIndoorPortalStep()
+                || (_destination.CurrentRoute?.Steps.FirstOrDefault() is { } pending
+                    && NeedsDungeonExit(pending)))
         )
         {
             var route = _destination.CurrentRoute!;
@@ -516,14 +644,33 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        if (snapshot.IsAvailable && !snapshot.Position.IsOutdoor)
+        UpdateLandscapeWalk(snapshot);
+        if (snapshot.IsAvailable && !snapshot.Position.IsOutdoor && _landscapeWalkPosition is null)
         {
+            // An envcell can be a cave or room connected to the landscape.
+            // Continue to the nearby Atlas entrance using its live object.
+            if (step.Kind == RouteStepKind.Travel
+                && !step.To.Name.StartsWith("Town Network (", StringComparison.OrdinalIgnoreCase)
+                && TryStartOutdoorPortalWalk())
+                return;
+            if (step.Kind == RouteStepKind.Portal && IsNearRouteEntrance(snapshot, step.From))
+            {
+                var entrance = FindRouteEntrancePortal(step.From, snapshot, false);
+                if (entrance.ObjectId != 0)
+                {
+                    _outdoorPortalRetryObjectId = entrance.ObjectId;
+                    _pausedForOutdoorRoute = false;
+                    TryStartInteraction(step);
+                    return;
+                }
+            }
             if (_routeId != Guid.Empty
                 && step.Kind == RouteStepKind.Portal
-                && step.Via.StartsWith("Town Network Portal(", StringComparison.OrdinalIgnoreCase))
+                && step.Via.StartsWith("Town Network Portal(", StringComparison.OrdinalIgnoreCase)
+                && !IsNearRouteEntrance(snapshot, step.From))
             {
                 // These Atlas records lead from a town into Town Network.
-                // Being indoors means the entry has completed, even if the
+                // Being indoors away from the entrance means entry completed,
                 // transition notification was missed or Stop cleared it.
                 _destination.AdvanceStep();
                 WaitingForInteraction = false;
@@ -565,11 +712,7 @@ internal sealed class GoArrowNavigator : IDisposable
                 TryStartInteraction(step);
                 return;
             }
-            if (step.Kind == RouteStepKind.Travel
-                && step.From.Name.Contains(" arrival (", StringComparison.OrdinalIgnoreCase)
-                && (_destination.CurrentRoute?.StepCount < 2
-                    || _destination.CurrentRoute?.Steps[1].Kind != RouteStepKind.Portal)
-                && TryResolveSurfaceExit(snapshot, step.To.Name))
+            if (NeedsDungeonExit(step) && TryResolveRouteDungeonExit(snapshot, step))
             {
                 _indoorSurfaceExitLeg = true;
                 _pausedForOutdoorRoute = false;
@@ -579,6 +722,34 @@ internal sealed class GoArrowNavigator : IDisposable
                     _indoorSurfaceExitLeg = false;
                     _pausedForOutdoorRoute = true;
                 }
+                return;
+            }
+            if (NeedsDungeonExit(step))
+            {
+                _dungeonPortalSearch.UseRecordedExit(DungeonExitKey(step));
+                DungeonTraversals.Observe(snapshot);
+                string exit = RouteDungeonExitName(step) ?? $"exit near {step.From.Coords}";
+                _isNavigating = false;
+                _pausedForOutdoorRoute = true;
+                if (_dungeonPortalSearch.TryGetNextTarget(_host.Automation, out var explorationTarget))
+                {
+                    var explorationStatus = _host.Automation.Navigation.GoTo(explorationTarget, 2.5f);
+                    if (explorationStatus == PluginNavigationCommandStatus.Accepted)
+                    {
+                        _dungeonPortalSearch.TargetAccepted(explorationTarget.CellId);
+                        _exploringDungeonExit = true;
+                        _pausedForOutdoorRoute = false;
+                        _isNavigating = true;
+                        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
+                        _lastHandledReportRevision = 0;
+                        _failureReason = $"Exploring dungeon for portal '{exit}'. {_dungeonPortalSearch.Reason}";
+                        return;
+                    }
+                    _failureReason = $"Dungeon exploration request was {explorationStatus}.";
+                    return;
+                }
+                _failureReason = IndoorPortalSearchReason(snapshot, step)
+                    + " " + _dungeonPortalSearch.Reason;
                 return;
             }
             _isNavigating = false;
@@ -598,6 +769,9 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         var immediateTarget = step.To;
+        _walkingPortalOrigin = _destination.CurrentRoute is { Steps.Count: > 1 } walkingRoute
+            && walkingRoute.Steps[1].Kind == RouteStepKind.Portal ? snapshot.Position : null;
+        _walkingPortalSawTransit = false;
         _outdoorPortalRetryObjectId = 0;
         _isNavigating = true;
         if (TryStartOutdoorPortalWalk())
@@ -627,9 +801,35 @@ internal sealed class GoArrowNavigator : IDisposable
         );
     }
 
+    // IsOutdoor describes a cell, not whether the character took a portal.
+    // A short walk into an envcell in the same landscape block retains the
+    // outdoor route. Portal space, interaction, and discontinuous moves end it.
+    private void UpdateLandscapeWalk(PluginNavigationSnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || WaitingForInteraction
+            || _indoorWalk || _indoorRouteLeg || _indoorSurfaceExitLeg)
+        {
+            _landscapeWalkPosition = null;
+            return;
+        }
+        if (snapshot.Position.IsOutdoor)
+        {
+            _landscapeWalkPosition = snapshot.Position;
+            return;
+        }
+        if (_landscapeWalkPosition is { } previous
+            && (previous.CellId >> 16) == (snapshot.Position.CellId >> 16)
+            && previous.HorizontalDistanceMeters(snapshot.Position) <= 60)
+            _landscapeWalkPosition = snapshot.Position;
+        else
+            _landscapeWalkPosition = null;
+    }
+
     private string IndoorPortalSearchReason(PluginNavigationSnapshot snapshot, RouteStep step)
     {
-        string expected = step.Kind == RouteStepKind.Portal ? step.Via : step.To.Name;
+        string expected = RouteDungeonExitName(step)
+            ?? (NeedsDungeonExit(step) ? $"exit near {step.From.Coords} toward {step.To.Name}" : null)
+            ?? (step.Kind == RouteStepKind.Portal ? step.Via : step.To.Name);
         var portals = _host.Automation.Objects.CaptureObjects()
             .Where(obj => obj.ObjectClass == PluginObjectClass.Portal
                 || (obj.Capabilities & PluginObjectCapabilities.Portal) != 0)
@@ -647,16 +847,107 @@ internal sealed class GoArrowNavigator : IDisposable
     {
         var snapshot = _host.Automation.Navigation.Snapshot;
         if (_outdoorPortalRetryObjectId != 0 || !snapshot.IsAvailable
-            || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor
+            || snapshot.IsPortalSpace
             || _destination.CurrentRoute is not { Steps.Count: > 1 } route
             || route.Steps[0].Kind != RouteStepKind.Travel
             || route.Steps[1].Kind != RouteStepKind.Portal)
             return false;
         var target = route.Steps[0].To;
+        if (!snapshot.Position.IsOutdoor && !IsNearRouteEntrance(snapshot, target))
+            return false;
+        var portal = FindRouteEntrancePortal(target, snapshot, coordinateFailed);
+        if (portal.ObjectId == 0)
+            return false;
+        _outdoorPortalRetryObjectId = portal.ObjectId;
+        var status = _host.Automation.Navigation.GoTo(
+            portal.ObjectId, (float)Math.Max(2.5, _settings.ArrivalDistance));
+        if (status != PluginNavigationCommandStatus.Accepted)
+            return false;
+        _isNavigating = true;
+        _observedIndoorRoute = false;
+        _pausedForOutdoorRoute = false;
+        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
+        _lastHandledReportRevision = 0;
+        _failureReason = string.Empty;
+        _host.Log.Info($"GoArrow: Approaching live portal '{portal.Name}' (0x{portal.ObjectId:X8}).");
+        return true;
+    }
+
+    // A distant goal can fail because every currently reachable point is
+    // farther from it. Try a bounded sideways/backward step, then let the
+    // client plan the full route again from the reached position.
+    private bool TryStartOutdoorDetour()
+    {
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor
+            || _destination.CurrentRoute is not { StepCount: > 0 } route
+            || route.Steps[0].Kind != RouteStepKind.Travel)
+            return false;
+        var goal = route.Steps[0].To.Coords;
+        if (!_outdoorDetourGoal.Equals(goal))
+        {
+            _outdoorDetourGoal = goal;
+            _outdoorDetourAttempts = 0;
+            _outdoorDetourTried.Clear();
+        }
+        if (_outdoorDetourAttempts >= 12)
+            return false;
+        var here = snapshot.Position;
+        double dx = (goal.EW - here.EastWest) * 240;
+        double dy = (goal.NS - here.NorthSouth) * 240;
+        double length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 100 || !double.IsFinite(length))
+            return false;
+        double forwardX = dx / length, forwardY = dy / length;
+        double sideX = -forwardY, sideY = forwardX;
+        // Sideways first; a retreat is used only if the nearby side routes
+        // are unavailable. Alternating sides avoids a fixed turning bias.
+        (double forward, double side)[] offsets =
+            [(0, 80), (0, -80), (50, 80), (50, -80), (-50, 80), (-50, -80),
+             (0, 150), (0, -150), (-80, 0), (80, 0)];
+        var portals = _host.Automation.Objects.CaptureObjects()
+            .Where(p => p.HasPosition && (p.ObjectClass == PluginObjectClass.Portal
+                || (p.Capabilities & PluginObjectCapabilities.Portal) != 0))
+            .Select(p => p.Position).ToArray();
+        foreach (var offset in offsets)
+        {
+            if (_outdoorDetourAttempts >= 12)
+                break;
+            var candidate = new PluginNavigationPosition(0,
+                here.EastWest + (forwardX * offset.forward + sideX * offset.side) / 240,
+                here.NorthSouth + (forwardY * offset.forward + sideY * offset.side) / 240,
+                double.NaN, 0, true);
+            if (_outdoorDetourTried.Any(p => p.HorizontalDistanceMeters(candidate) < 25)
+                || portals.Any(p => p.HorizontalDistanceMeters(candidate) < 20))
+                continue;
+            _outdoorDetourTried.Add(candidate);
+            _outdoorDetourAttempts++;
+            var status = _host.Automation.Navigation.GoTo(candidate, 4);
+            if (status != PluginNavigationCommandStatus.Accepted)
+                continue;
+            _outdoorDetourActive = true;
+            _isNavigating = true;
+            _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
+            _lastHandledReportRevision = 0;
+            _failureReason = $"Trying outdoor detour {_outdoorDetourAttempts}/12 toward "
+                + $"{candidate.NorthSouth:0.00}, {candidate.EastWest:0.00}.";
+            return true;
+        }
+        return false;
+    }
+
+    private static bool IsNearRouteEntrance(PluginNavigationSnapshot snapshot, Location target) =>
+        new Coordinates(snapshot.Position.NorthSouth, snapshot.Position.EastWest)
+            .DistanceTo(target.Coords) * 240 <= 60;
+
+    private PluginWorldObject FindRouteEntrancePortal(
+        Location target, PluginNavigationSnapshot snapshot, bool coordinateFailed)
+    {
         string expected = target.Name.StartsWith("Town Network Portal(", StringComparison.OrdinalIgnoreCase)
             ? "Town Network" : PortalDestinationName(target.Name);
-        var portal = _host.Automation.Objects.CaptureObjects()
-            .Where(obj => obj.HasPosition && obj.Position.IsOutdoor && obj.CanActivate
+        return _host.Automation.Objects.CaptureObjects()
+            .Where(obj => obj.HasPosition && obj.CanActivate
+                && !IsUnknownSurfacePortal(obj)
                 && (obj.Capabilities & PluginObjectCapabilities.Portal) != 0
                 && (coordinateFailed || snapshot.Position.HorizontalDistanceMeters(obj.Position) <= 60))
             .Select(obj => new
@@ -670,18 +961,6 @@ internal sealed class GoArrowNavigator : IDisposable
             .ThenBy(candidate => candidate.Distance)
             .Select(candidate => candidate.Object)
             .FirstOrDefault();
-        if (portal.ObjectId == 0)
-            return false;
-        _outdoorPortalRetryObjectId = portal.ObjectId;
-        var status = _host.Automation.Navigation.GoTo(
-            portal.ObjectId, (float)Math.Max(2.5, _settings.ArrivalDistance));
-        if (status != PluginNavigationCommandStatus.Accepted)
-            return false;
-        _activeSequence = _host.Automation.Navigation.GoToReport.Sequence;
-        _lastHandledReportRevision = 0;
-        _failureReason = string.Empty;
-        _host.Log.Info($"GoArrow: Approaching live portal '{portal.Name}' (0x{portal.ObjectId:X8}).");
-        return true;
     }
 
     private bool IsIndoorPortalStep()
@@ -845,6 +1124,7 @@ internal sealed class GoArrowNavigator : IDisposable
                 obj.ObjectId != 0
                 && obj.HasPosition
                 && obj.CanActivate
+                && !IsUnknownSurfacePortal(obj)
                 && (obj.Capabilities & PluginObjectCapabilities.Portal) != 0
                 && !obj.Position.IsOutdoor
                 && obj.Position.CellId != 0
@@ -856,6 +1136,57 @@ internal sealed class GoArrowNavigator : IDisposable
             .FirstOrDefault();
     }
 
+    private static string? RouteDungeonExitName(RouteStep step)
+    {
+        if (step.Kind != RouteStepKind.Travel)
+            return null;
+        string origin = step.From.Name;
+        int arrival = origin.LastIndexOf(" arrival (", StringComparison.OrdinalIgnoreCase);
+        if (arrival < 0)
+            return null;
+        origin = origin[..arrival];
+        int destination = origin.LastIndexOf(" to ", StringComparison.OrdinalIgnoreCase);
+        if (destination < 0)
+            return null;
+        string name = PortalDestinationName(origin[(destination + 4)..]);
+        return name.Length > 0 ? name : null;
+    }
+
+    private bool NeedsDungeonExit(RouteStep step) => step.Kind == RouteStepKind.Travel
+        && step.From.Name.Contains(" arrival (", StringComparison.OrdinalIgnoreCase)
+        && (RouteDungeonExitName(step) is not null
+            || _destination.CurrentRoute is not { Steps.Count: > 1 } route
+            || route.Steps[1].Kind != RouteStepKind.Portal);
+
+    private bool TryResolveRouteDungeonExit(PluginNavigationSnapshot snapshot, RouteStep step)
+    {
+        var portals = _host.Automation.Objects.CaptureObjects()
+            .Where(p => p.HasPosition && p.CanActivate && !p.Position.IsOutdoor
+                && (p.Capabilities & PluginObjectCapabilities.Portal) != 0
+                && AreNearbyIndoorLandblocks(snapshot.Position.CellId, p.Position.CellId)).ToArray();
+        RequestPortalDestination(portals);
+        string? exitName = RouteDungeonExitName(step);
+        var matches = portals.Where(p =>
+        {
+            if (string.IsNullOrWhiteSpace(p.PortalDestination))
+                return false;
+            // Arrival labels often contain rounded outdoor coordinates. A
+            // reported coordinate takes precedence over an object's name.
+            if (Coordinates.TryParse(p.PortalDestination, out var arrival))
+                return arrival.DistanceTo(step.From.Coords) * 240 <= 30;
+            return PortalMatchesDestination(p, exitName ?? PortalDestinationName(step.To.Name));
+        }).Take(2).ToArray();
+        if (matches.Length != 1)
+            return false;
+        _resolvedIndoorPortalObjectId = matches[0].ObjectId;
+        _resolvedIndoorPortalPosition = matches[0].Position;
+        DungeonTraversals.RememberExit(DungeonExitKey(step), matches[0], snapshot);
+        return true;
+    }
+
+    private static string DungeonExitKey(RouteStep step) => FormattableString.Invariant(
+        $"{RouteDungeonExitName(step)?.ToUpperInvariant()}|{step.From.Coords.NS:R}|{step.From.Coords.EW:R}");
+
     private bool TryResolveSurfaceExit(
         PluginNavigationSnapshot snapshot,
         string? expectedDestination = null
@@ -865,7 +1196,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return false;
         // Atlas routes can place an outdoor portal at the same map coordinates
         // as a dungeon exit. The live exit is often just named "Surface Portal".
-        // Prefer a known destination label; otherwise use a unique Surface Portal.
+        // Prefer a matching destination. A unique Surface Portal is eligible
+        // only after identification has supplied its destination.
         var portals = _host.Automation.Objects.CaptureObjects()
             .Where(obj =>
                 obj.ObjectId != 0
@@ -898,10 +1230,9 @@ internal sealed class GoArrowNavigator : IDisposable
             var surfaces = portals.Where(obj =>
                 obj.Name.Equals("Surface Portal", StringComparison.OrdinalIgnoreCase)
             ).Take(2).ToArray();
-            if (surfaces.Length == 1)
+            RequestPortalDestination(surfaces);
+            if (surfaces.Length == 1 && !string.IsNullOrWhiteSpace(surfaces[0].PortalDestination))
                 chosen = surfaces[0];
-            else if (surfaces.Length > 1 && expectedDestination is not null)
-                RequestPortalDestination(surfaces);
         }
         if (chosen.ObjectId == 0)
             return false;
@@ -925,13 +1256,31 @@ internal sealed class GoArrowNavigator : IDisposable
             ));
     }
 
+    private static bool IsUnknownSurfacePortal(PluginWorldObject portal) =>
+        portal.Name.Equals("Surface Portal", StringComparison.OrdinalIgnoreCase)
+        && string.IsNullOrWhiteSpace(portal.PortalDestination);
+
+    private bool EnsurePortalDestinationKnown(uint objectId)
+    {
+        if (!_host.Automation.Objects.TryGet(objectId, out var portal)
+            || !portal.Name.Equals("Surface Portal", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(portal.PortalDestination))
+            return true;
+        RequestPortalDestination([portal]);
+        _waitingForSurfaceExit = false;
+        WaitingForInteraction = false;
+        _pausedForOutdoorRoute = true;
+        _failureReason = "Waiting for Surface Portal identification; destination is unknown.";
+        return false;
+    }
+
     private void RequestPortalDestination(PluginWorldObject[] portals)
     {
         if (_pendingPortalIdentificationObjectId != 0)
             return;
         foreach (PluginWorldObject portal in portals)
         {
-            if (portal.PortalDestination is not null
+            if (!string.IsNullOrWhiteSpace(portal.PortalDestination)
                 || _portalIdentificationAttempted.Contains(portal.ObjectId))
                 continue;
             if (_host.Automation.Objects.Identify(portal.ObjectId).Accepted)
@@ -1024,6 +1373,41 @@ internal sealed class GoArrowNavigator : IDisposable
         if (report.Revision != 0 && report.Revision == _lastHandledReportRevision)
             return;
 
+        if (report.State == PluginGoToState.Lost && _walkingPortalOrigin is not null
+            && (_host.Automation.Navigation.Snapshot.IsPortalSpace
+                || report.Reason?.Contains("portal space", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            _walkingPortalSawTransit = true;
+            _lastHandledReportRevision = report.Revision;
+            PauseForPortalExit();
+            TryCompleteWalkingPortal(_host.Automation.Navigation.Snapshot);
+            return;
+        }
+
+        if (_exploringDungeonExit)
+        {
+            if (report.State is PluginGoToState.Arrived or PluginGoToState.ArrivedWithoutSight
+                or PluginGoToState.NoRoute or PluginGoToState.Lost)
+            {
+                _lastHandledReportRevision = report.Revision;
+                bool arrived = report.State is PluginGoToState.Arrived or PluginGoToState.ArrivedWithoutSight;
+                _dungeonPortalSearch.CompleteTarget(_host.Automation.Navigation.Snapshot.Position, arrived);
+                if (!arrived)
+                    _dungeonPortalSearch.RecordFailure(report.Reason);
+                _exploringDungeonExit = false;
+                _isNavigating = false;
+                _pausedForOutdoorRoute = true;
+                _indoorRetryElapsed = 0;
+            }
+            else if (report.State is PluginGoToState.Blocked or PluginGoToState.Interrupted
+                or PluginGoToState.Stopped)
+            {
+                StopNavigation();
+                _failureReason = report.Reason ?? report.State.ToString();
+            }
+            return;
+        }
+
         if (_indoorWalk && report.State == PluginGoToState.ArrivedWithoutSight)
         {
             _lastHandledReportRevision = report.Revision;
@@ -1056,6 +1440,20 @@ internal sealed class GoArrowNavigator : IDisposable
         if (report.State == PluginGoToState.Arrived)
         {
             _lastHandledReportRevision = report.Revision;
+            if (_outdoorDetourActive)
+            {
+                _outdoorDetourActive = false;
+                _isNavigating = false;
+                var snapshot = _host.Automation.Navigation.Snapshot;
+                if (snapshot.IsAvailable && !snapshot.IsPortalSpace && snapshot.Position.IsOutdoor
+                    && PlanRoute())
+                {
+                    StartCurrentLeg();
+                    return;
+                }
+                _failureReason = "Outdoor detour ended without a usable outdoor route.";
+                return;
+            }
             if (_indoorWalk)
             {
                 _isNavigating = false;
@@ -1093,6 +1491,13 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             if (report.State == PluginGoToState.NoRoute && !_indoorWalk && TryStartOutdoorPortalWalk(coordinateFailed: true))
                 return;
+            if (report.State == PluginGoToState.NoRoute && !_indoorWalk
+                && (_outdoorDetourActive || (report.Reason?.Contains("no clear path leads any nearer the goal",
+                    StringComparison.OrdinalIgnoreCase) ?? false))
+                && TryStartOutdoorDetour())
+                return;
+            bool detourExhausted = _outdoorDetourActive && report.State == PluginGoToState.NoRoute;
+            _outdoorDetourActive = false;
             _lastHandledReportRevision = report.Revision;
             if (
                 report.State == PluginGoToState.Lost
@@ -1129,7 +1534,8 @@ internal sealed class GoArrowNavigator : IDisposable
             _isNavigating = false;
             _indoorWalk = false;
             _indoorRouteLeg = false;
-            _failureReason = report.Reason ?? report.State.ToString();
+            _failureReason = (report.Reason ?? report.State.ToString())
+                + (detourExhausted ? $" after {_outdoorDetourAttempts} outdoor detour attempts." : "");
             _host.Log.Warn(
                 $"GoArrow: Navigation stopped with state {report.State}: {_failureReason}."
             );
@@ -1152,6 +1558,8 @@ internal sealed class GoArrowNavigator : IDisposable
     private void StartSurfaceExitInteraction()
     {
         _activeInteractionObjectId = _resolvedIndoorPortalObjectId;
+        if (!EnsurePortalDestinationKnown(_activeInteractionObjectId))
+            return;
         _waitingForSurfaceExit = true;
         _pausedForOutdoorRoute = true;
         WaitingForInteraction = true;
@@ -1176,6 +1584,8 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         // Advance to next step
+        _walkingPortalOrigin = null;
+        _walkingPortalSawTransit = false;
         _destination.AdvanceStep();
         _legIndex++;
         if (_destination.CurrentRoute == null || _destination.CurrentRoute.StepCount == 0)
@@ -1249,6 +1659,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
+        if (!EnsurePortalDestinationKnown(_activeInteractionObjectId))
+            return;
         WaitingForInteraction = true;
         var result = _host.Automation.Objects.Activate(_activeInteractionObjectId);
         if (!result.Accepted)
@@ -1339,8 +1751,52 @@ internal sealed class GoArrowNavigator : IDisposable
         _destination.UpdateObject(current);
     }
 
+    private bool TryCompleteWalkingPortal(PluginNavigationSnapshot snapshot)
+    {
+        if (!_walkingPortalSawTransit || _walkingPortalOrigin is not { } origin
+            || !snapshot.IsAvailable || snapshot.IsPortalSpace
+            || _destination.CurrentRoute is not { Steps.Count: > 1 } route
+            || route.Steps[0].Kind != RouteStepKind.Travel
+            || route.Steps[1].Kind != RouteStepKind.Portal)
+            return false;
+        bool changedWorld = snapshot.Position.IsOutdoor != origin.IsOutdoor
+            || (origin.CellId != 0 && snapshot.Position.CellId != 0
+                && (origin.CellId >> 16) != (snapshot.Position.CellId >> 16));
+        if (!changedWorld && snapshot.Position.HorizontalDistanceMeters(origin) <= 20)
+            return false;
+        // Walking into a portal can teleport before GoTo reports arrival.
+        // Complete the approach and crossing together, without activating again.
+        _walkingPortalOrigin = null;
+        _walkingPortalSawTransit = false;
+        _destination.AdvanceStep();
+        _destination.AdvanceStep();
+        _legIndex += 2;
+        _isNavigating = false;
+        _pausedForOutdoorRoute = false;
+        WaitingForInteraction = false;
+        _activeSequence = 0;
+        _outdoorPortalRetryObjectId = 0;
+        _resolvedIndoorPortalObjectId = 0;
+        _resolvedIndoorPortalPosition = null;
+        _landscapeWalkPosition = null;
+        _failureReason = string.Empty;
+        if (_destination.CurrentRoute?.StepCount == 0)
+            HasArrived = true;
+        else
+            StartCurrentLeg();
+        return true;
+    }
+
     private void OnPortalTransition(PluginPortalTransition transition)
     {
+        DungeonTraversals.BreakTrace();
+        if (_walkingPortalOrigin is not null && transition.IsCompleted
+            && transition.Kind != PluginPortalTransitionKind.Login)
+        {
+            _walkingPortalSawTransit = true;
+            if (TryCompleteWalkingPortal(_host.Automation.Navigation.Snapshot))
+                return;
+        }
         if (
             !WaitingForInteraction
             || !transition.IsCompleted

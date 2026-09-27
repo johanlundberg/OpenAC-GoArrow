@@ -582,8 +582,11 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
     internal IReadOnlyList<string> GetCurrentRouteSteps()
     {
-        return _destination?.CurrentRoute?.Steps.Select(step => step.ToString()).ToArray()
-            ?? Array.Empty<string>();
+        var steps = _destination?.CurrentRoute?.Steps.Select(step => step.ToString()).ToList()
+            ?? [];
+        if (_navigator is not null)
+            steps.AddRange(_navigator.DungeonRouteWaypoints.Select(waypoint => waypoint.Label));
+        return steps;
     }
 
     internal IReadOnlyList<Location> SearchLocations(string query)
@@ -920,6 +923,32 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     }
 
     internal bool DungeonMapVisible => _settings?.DungeonMapVisible ?? false;
+
+    internal string ShareDungeonTraversals(string action, string? filename)
+    {
+        if (_host is null || _navigator is null || !_host.Storage.IsAvailable)
+            return "GoArrow: Dungeon traversal storage is unavailable.";
+        filename ??= "dungeon-traversals-share.json";
+        if (filename.Length == 0 || filename.Contains('/') || filename.Contains('\\')
+            || filename is "." or ".." || !filename.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            return "GoArrow: Use a JSON filename in the plugin storage folder.";
+        try
+        {
+            var records = _navigator.DungeonTraversals;
+            if (action == "export")
+            {
+                _host.Storage.WriteText(filename, records.Export());
+                return $"GoArrow: Exported dungeon traversals to '{filename}'. Storage folder: {_host.Storage.RootPath ?? "host managed storage"}.";
+            }
+            string json = _host.Storage.ReadText(filename) ?? throw new ArgumentException("File not found.");
+            records.Import(json);
+            return records.Error.Length == 0 ? $"GoArrow: Merged dungeon traversals from '{filename}'."
+                : $"GoArrow: Imported in memory. {records.Error}";
+        }
+        catch (Exception e) when (e is ArgumentException or System.Text.Json.JsonException
+            or IOException or UnauthorizedAccessException or NotSupportedException)
+        { return $"GoArrow: Dungeon traversal {action} failed: {e.Message}"; }
+    }
 
     internal async Task UpdateDungeonMapsAsync()
     {

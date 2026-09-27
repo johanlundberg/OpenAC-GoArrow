@@ -25,6 +25,7 @@ internal sealed class GoArrowPanel
     private bool _showDetails;
     private Route? _selectedRoute;
     private int _selectedRouteStep;
+    private int _selectedDungeonWaypoint = -1;
     private Location? _notesLocation;
     private IReadOnlyList<string> _notesLines = [];
     private string _locationUrlStatus = string.Empty;
@@ -119,7 +120,7 @@ internal sealed class GoArrowPanel
             var route = _destination.CurrentRoute;
             if (route == null)
                 return "0 steps";
-            return $"{route.StepCount} steps";
+            return $"{route.StepCount + _navigator.DungeonRouteWaypoints.Count} steps";
         }
     }
 
@@ -314,20 +315,22 @@ internal sealed class GoArrowPanel
     public string SearchResultsLabel => _searchingFrom ? "From matches" : "Destination matches";
 
     public IReadOnlyList<string> RouteSteps =>
-        _destination
+        (_destination
             .CurrentRoute?.Steps.Select(step =>
                 string.IsNullOrWhiteSpace(StepDetailsLocation(step).Notes)
                     ? step.ToString()
                     : $"{step} [notes]"
             )
             .ToArray()
-        ?? [];
+        ?? []).Concat(_navigator.DungeonRouteWaypoints.Select(waypoint => waypoint.Label)).ToArray();
 
     private RouteStep? SelectedStep
     {
         get
         {
             Route? route = _destination.CurrentRoute;
+            if (_selectedDungeonWaypoint >= 0)
+                return null;
             if (route is not { StepCount: > 0 })
             {
                 _selectedRoute = null;
@@ -344,14 +347,27 @@ internal sealed class GoArrowPanel
         }
     }
 
-    public int SelectedRouteStep => SelectedStep is null ? -1 : _selectedRouteStep;
+    public int SelectedRouteStep => _selectedDungeonWaypoint >= 0
+        && _selectedDungeonWaypoint < _navigator.DungeonRouteWaypoints.Count
+            ? (_destination.CurrentRoute?.StepCount ?? 0) + _selectedDungeonWaypoint
+            : SelectedStep is null ? -1 : _selectedRouteStep;
 
     public Action<int> SelectRouteStepAction =>
         index =>
         {
             Route? route = _destination.CurrentRoute;
-            if (route is null || index < 0 || index >= route.StepCount)
+            if (route is null || index < 0)
                 return;
+            if (index >= route.StepCount)
+            {
+                int waypoint = index - route.StepCount;
+                if (waypoint >= _navigator.DungeonRouteWaypoints.Count)
+                    return;
+                _selectedDungeonWaypoint = waypoint;
+                ShowDetailsTab();
+                return;
+            }
+            _selectedDungeonWaypoint = -1;
             _selectedRoute = route;
             _selectedRouteStep = index;
             ShowDetailsTab();
@@ -363,19 +379,32 @@ internal sealed class GoArrowPanel
     private Location? DetailsLocation =>
         SelectedStep is { } step ? StepDetailsLocation(step) : null;
 
+    private (string Label, PluginNavigationPosition Position)? SelectedDungeonWaypoint =>
+        _selectedDungeonWaypoint >= 0 && _selectedDungeonWaypoint < _navigator.DungeonRouteWaypoints.Count
+            ? _navigator.DungeonRouteWaypoints[_selectedDungeonWaypoint]
+            : null;
+
     public string DetailsStepNumberText =>
-        SelectedStep is null
+        SelectedDungeonWaypoint is not null
+            ? $"Dungeon waypoint {_selectedDungeonWaypoint + 1} of {_navigator.DungeonRouteWaypoints.Count}"
+            : SelectedStep is null
             ? "Select a route step to see details."
             : $"Step {_selectedRouteStep + 1} of {_selectedRoute!.StepCount}";
 
-    public string DetailsInstructionText => SelectedStep?.ToString() ?? string.Empty;
-    public string DetailsLocationName => DetailsLocation?.Name ?? string.Empty;
+    public string DetailsInstructionText => SelectedDungeonWaypoint?.Label
+        ?? SelectedStep?.ToString() ?? string.Empty;
+    public string DetailsLocationName => SelectedDungeonWaypoint is not null
+        ? "Dungeon traversal" : DetailsLocation?.Name ?? string.Empty;
     public string DetailsLocationType =>
-        DetailsLocation is { Type: not LocationType.Unknown } location
+        SelectedDungeonWaypoint is not null ? "Walk"
+        : DetailsLocation is { Type: not LocationType.Unknown } location
             ? location.Type.ToString()
             : "Unknown";
     public string DetailsCoordinates =>
-        DetailsLocation is { HasCoordinates: true } location
+        SelectedDungeonWaypoint is { Position.CellId: not 0 } waypoint
+            ? $"{new Coordinates(waypoint.Position.NorthSouth, waypoint.Position.EastWest)}, "
+                + $"floor {waypoint.Position.Elevation * 240:0} m"
+        : DetailsLocation is { HasCoordinates: true } location
             ? location.Coords.ToString()
             : "Unknown";
     public bool DetailsArrivalVisible =>

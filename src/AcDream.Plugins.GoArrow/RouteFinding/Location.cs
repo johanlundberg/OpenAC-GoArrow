@@ -486,6 +486,6 @@ public enum LocationType : uint
     UndergroundPortal = 1u << 13,
     Vendor = 1u << 14,
     WildernessPortal = 1u << 15,
-    AnyPortal = Portal | SettlementPortal | TownPortal | UndergroundPortal | WildernessPortal,
+    AnyPortal = Portal | PortalHub | SettlementPortal | TownPortal | UndergroundPortal | WildernessPortal,
     Any = uint.MaxValue,
 }
