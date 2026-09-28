@@ -22,6 +22,10 @@ internal sealed class GoArrowDestination
     private readonly GoArrowSettings _settings;
     private readonly RouteFinder _routeFinder;
     private readonly LocationDatabase _database;
+    private IReadOnlyList<Route> _alternatives = [];
+    private RouteFinding.Location? _routeOrigin;
+    private int _alternativeIndex;
+    private bool _alternativesExhausted;
 
     /// <summary>The current destination location, if set.</summary>
     public RouteFinding.Location? TargetLocation { get; private set; }
@@ -92,6 +96,7 @@ internal sealed class GoArrowDestination
         TargetUnavailable = false;
         _settings.DestinationName = loc.Name;
         CurrentRoute = null;
+        ResetAlternatives();
         return true;
     }
 
@@ -109,6 +114,7 @@ internal sealed class GoArrowDestination
         TargetUnavailable = false;
         _settings.DestinationName = location.Name;
         CurrentRoute = null;
+        ResetAlternatives();
     }
 
     /// <summary>Sets a destination at an arbitrary coordinate.</summary>
@@ -125,6 +131,7 @@ internal sealed class GoArrowDestination
         TargetUnavailable = false;
         _settings.DestinationName = CoordinateText;
         CurrentRoute = null;
+        ResetAlternatives();
     }
 
     /// <summary>Sets a destination from a selected world object snapshot.</summary>
@@ -145,6 +152,7 @@ internal sealed class GoArrowDestination
         CoordinateText = string.Empty;
         _settings.DestinationName = TargetLocation.Name;
         CurrentRoute = null;
+        ResetAlternatives();
         return true;
     }
 
@@ -173,6 +181,7 @@ internal sealed class GoArrowDestination
         TargetObjectPosition = obj.Position;
         TargetUnavailable = false;
         CurrentRoute = null;
+        ResetAlternatives();
     }
 
     /// <summary>
@@ -189,12 +198,58 @@ internal sealed class GoArrowDestination
         TargetUnavailable = false;
         _settings.DestinationName = string.Empty;
         CurrentRoute = null;
+        ResetAlternatives();
         EstimatedDistance = double.NaN;
         BearingDegrees = double.NaN;
         GuidanceDistance = double.NaN;
     }
 
-    public void ClearRoute() => CurrentRoute = null;
+    public void ClearRoute() { CurrentRoute = null; ResetAlternatives(); }
+
+    private void ResetAlternatives()
+    {
+        _alternatives = [];
+        _routeOrigin = null;
+        _alternativeIndex = 0;
+        _alternativesExhausted = false;
+    }
+
+    public int AlternativeIndex => _alternativeIndex;
+    public int AlternativeCount => _alternatives.Count;
+    public bool AlternativeHasMore => !_alternativesExhausted && _alternatives.Count < 8;
+
+    public bool CanKeepSelectedAlternative(PluginNavigationPosition position) =>
+        _alternativeIndex > 0 && CurrentRoute is { StepCount: > 0 }
+        && _routeOrigin is not null && position.IsOutdoor
+        && new RouteFinding.Coordinates(position.NorthSouth, position.EastWest)
+            .DistanceTo(_routeOrigin.Coords) * 240 <= 20;
+
+    public bool CycleAlternative(int direction, RouteFinding.Location origin)
+    {
+        if (TargetLocation is null || CurrentRoute is null || direction is not (-1 or 1))
+            return false;
+        if (_routeOrigin is null || origin.DistanceTo(_routeOrigin) * 240 > 20)
+        {
+            _alternatives = [];
+            _routeOrigin = origin;
+            _alternativeIndex = 0;
+            _alternativesExhausted = false;
+        }
+        int next = _alternativeIndex + direction;
+        if (next >= _alternatives.Count && !_alternativesExhausted && _alternatives.Count < 8)
+        {
+            int requested = Math.Max(2, _alternatives.Count + 1);
+            _alternatives = _routeFinder.FindRouteAlternatives(origin, TargetLocation,
+                _settings.RouteCostProfile, requested);
+            _alternativesExhausted = _alternatives.Count < requested || requested >= 8;
+        }
+        if (next < 0 || next >= _alternatives.Count)
+            return false;
+        _alternativeIndex = next;
+        CurrentRoute = _alternatives[next];
+        UpdateGuidance(origin);
+        return true;
+    }
 
     /// <summary>
     /// Calculate or recalculate the route from the current position.
@@ -233,6 +288,7 @@ internal sealed class GoArrowDestination
 
     public void CalculateRoute(RouteFinding.Location currentPosition)
     {
+        ResetAlternatives();
         if (TargetLocation == null)
         {
             CurrentRoute = null;
@@ -244,6 +300,7 @@ internal sealed class GoArrowDestination
             TargetLocation,
             _settings.RouteCostProfile
         );
+        _routeOrigin = currentPosition;
 
         UpdateGuidance(currentPosition);
     }

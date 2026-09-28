@@ -1,5 +1,6 @@
 using AcDream.Plugin.Abstractions;
 using AcDream.Plugins.GoArrow.RouteFinding;
+using System.Diagnostics;
 
 namespace AcDream.Plugins.GoArrow;
 
@@ -19,6 +20,7 @@ internal sealed class GoArrowNavigator : IDisposable
     private bool _indoorSurfaceExitLeg;
     private bool _waitingForSurfaceExit;
     private uint _pendingPortalIdentificationObjectId;
+    private long _pendingPortalIdentificationStarted;
     private readonly HashSet<uint> _portalIdentificationAttempted = [];
     private bool _observedIndoorRoute;
     private readonly DungeonPortalSearch _dungeonPortalSearch;
@@ -291,8 +293,13 @@ internal sealed class GoArrowNavigator : IDisposable
         _indoorSurfaceExitLeg = false;
         _waitingForSurfaceExit = false;
         _observedIndoorRoute = false;
-        if (!PlanRoute())
+        var startSnapshot = _host.Automation.Navigation.Snapshot;
+        bool keepChosenRoute = startSnapshot.IsAvailable && !startSnapshot.IsPortalSpace
+            && _destination.CanKeepSelectedAlternative(startSnapshot.Position);
+        if (!keepChosenRoute && !PlanRoute())
             return;
+        if (keepChosenRoute)
+            _currentNavPosition = startSnapshot.Position;
 
         _isNavigating = false;
         HasArrived = false;
@@ -339,6 +346,7 @@ internal sealed class GoArrowNavigator : IDisposable
         _indoorSurfaceExitLeg = false;
         _waitingForSurfaceExit = false;
         _pendingPortalIdentificationObjectId = 0;
+        _pendingPortalIdentificationStarted = 0;
         _portalIdentificationAttempted.Clear();
         _observedIndoorRoute = false;
         _landscapeWalkPosition = null;
@@ -835,12 +843,13 @@ internal sealed class GoArrowNavigator : IDisposable
                 || (obj.Capabilities & PluginObjectCapabilities.Portal) != 0)
             .OrderBy(obj => obj.ObjectId)
             .Take(8)
-            .Select(obj => $"'{obj.Name}' destination='{obj.PortalDestination ?? "unknown"}' "
+            .Select(obj => $"'{obj.Name}' destination='{obj.PortalDestination ?? (obj.HasAppraisalData ? "not provided" : "unknown")}' "
                 + $"cell={obj.Position.CellId:X8} position={obj.HasPosition} "
                 + $"outdoor={obj.Position.IsOutdoor} activate={obj.CanActivate}")
             .ToArray();
         return $"Waiting for indoor portal '{expected}'; player cell={snapshot.Position.CellId:X8}. "
-            + $"Visible portals: {(portals.Length == 0 ? "none" : string.Join("; ", portals))}";
+            + $"Visible portals: {(portals.Length == 0 ? "none" : string.Join("; ", portals))}. "
+            + $"Identification pending: {(_pendingPortalIdentificationObjectId == 0 ? "none" : $"{_pendingPortalIdentificationObjectId:X8}")}.";
     }
 
     private bool TryStartOutdoorPortalWalk(bool coordinateFailed = false)
@@ -1164,8 +1173,8 @@ internal sealed class GoArrowNavigator : IDisposable
             .Where(p => p.HasPosition && p.CanActivate && !p.Position.IsOutdoor
                 && (p.Capabilities & PluginObjectCapabilities.Portal) != 0
                 && AreNearbyIndoorLandblocks(snapshot.Position.CellId, p.Position.CellId)).ToArray();
-        RequestPortalDestination(portals);
         string? exitName = RouteDungeonExitName(step);
+        RequestPortalDestination(portals, exitName);
         var matches = portals.Where(p =>
         {
             if (string.IsNullOrWhiteSpace(p.PortalDestination))
@@ -1274,19 +1283,31 @@ internal sealed class GoArrowNavigator : IDisposable
         return false;
     }
 
-    private void RequestPortalDestination(PluginWorldObject[] portals)
+    private void RequestPortalDestination(PluginWorldObject[] portals, string? preferredDestination = null)
     {
         if (_pendingPortalIdentificationObjectId != 0)
-            return;
-        foreach (PluginWorldObject portal in portals)
+        {
+            // A missing appraisal response must not block every later portal.
+            // A late response still updates the object and can be used on the next tick.
+            if (Stopwatch.GetElapsedTime(_pendingPortalIdentificationStarted).TotalSeconds < 5)
+                return;
+            _pendingPortalIdentificationObjectId = 0;
+            _pendingPortalIdentificationStarted = 0;
+        }
+        foreach (PluginWorldObject portal in portals
+            .OrderByDescending(p => preferredDestination is not null
+                && PortalDestinationName(p.Name).Equals(preferredDestination,
+                    StringComparison.OrdinalIgnoreCase)))
         {
             if (!string.IsNullOrWhiteSpace(portal.PortalDestination)
+                || portal.HasAppraisalData
                 || _portalIdentificationAttempted.Contains(portal.ObjectId))
                 continue;
             if (_host.Automation.Objects.Identify(portal.ObjectId).Accepted)
             {
                 _portalIdentificationAttempted.Add(portal.ObjectId);
                 _pendingPortalIdentificationObjectId = portal.ObjectId;
+                _pendingPortalIdentificationStarted = Stopwatch.GetTimestamp();
             }
             return;
         }
@@ -1724,7 +1745,10 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             _portalIdentificationAttempted.Remove(change.ObjectId);
             if (change.ObjectId == _pendingPortalIdentificationObjectId)
+            {
                 _pendingPortalIdentificationObjectId = 0;
+                _pendingPortalIdentificationStarted = 0;
+            }
         }
         if (
             change.Kind == PluginObjectChangeKind.IdentReceived
@@ -1732,6 +1756,7 @@ internal sealed class GoArrowNavigator : IDisposable
         )
         {
             _pendingPortalIdentificationObjectId = 0;
+            _pendingPortalIdentificationStarted = 0;
             if (_pausedForOutdoorRoute && _destination.CurrentRoute is { StepCount: > 0 })
                 StartCurrentLeg();
             else if (!_isNavigating && !WaitingForInteraction && _destination.HasDestination)

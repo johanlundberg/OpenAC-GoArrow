@@ -245,7 +245,8 @@ public sealed class RouteGraph
         Location position,
         int toIndex,
         double maxConnectionDistance,
-        Func<RouteGraphEdge, double>? costSelector = null
+        Func<RouteGraphEdge, double>? costSelector = null,
+        IReadOnlySet<RouteGraphEdge>? excludedEdges = null
     )
     {
         EnsureBuilt();
@@ -266,7 +267,70 @@ public sealed class RouteGraph
             if (double.IsFinite(cost) && cost >= 0)
                 seeds.Add(new RouteSeed(i, connection, cost));
         }
-        return FindShortestPathCore(seeds, toIndex, costSelector);
+        return FindShortestPathCore(seeds, toIndex, costSelector, excludedEdges);
+    }
+
+    /// <summary>The cheapest route that uses at least one portal or recall.</summary>
+    public List<RouteGraphEdge>? FindShortestPathUsingInteraction(Location position, int toIndex,
+        double maxConnectionDistance, Func<RouteGraphEdge, double>? costSelector = null)
+    {
+        EnsureBuilt();
+        if (toIndex < 0 || toIndex >= _locations.Count) return null;
+        int count = _locations.Count * 2;
+        var scores = new double[count];
+        var parents = new int[count];
+        var parentEdges = new RouteGraphEdge?[count];
+        var firstEdges = new RouteGraphEdge?[count];
+        var closed = new bool[count];
+        Array.Fill(scores, double.PositiveInfinity);
+        Array.Fill(parents, -1);
+        var queue = new PriorityQueue<int, double>();
+        for (int node = 0; node < _locations.Count; node++)
+        {
+            double distance = position.DistanceTo(_locations[node]);
+            if (!double.IsFinite(distance) || distance > maxConnectionDistance) continue;
+            var connection = new RouteGraphEdge(-1, node, RouteEdgeKind.Walk, distance, "Walk to start");
+            double cost = costSelector?.Invoke(connection) ?? distance;
+            if (!double.IsFinite(cost) || cost < 0) continue;
+            int state = node * 2;
+            scores[state] = cost;
+            firstEdges[state] = connection;
+            queue.Enqueue(state, cost);
+        }
+        while (queue.TryDequeue(out int state, out double score))
+        {
+            if (closed[state] || score > scores[state]) continue;
+            closed[state] = true;
+            int node = state / 2;
+            if (node == toIndex && state % 2 == 1)
+            {
+                var path = new List<RouteGraphEdge>();
+                for (int at = state; parents[at] >= 0; at = parents[at])
+                    path.Add(parentEdges[at]!);
+                path.Reverse();
+                path.Insert(0, firstEdges[state]!);
+                return path;
+            }
+            if (node == toIndex)
+                continue; // Do not pass through the destination to manufacture an alternative.
+            foreach (var edge in _adjacency[node])
+            {
+                if ((_locations[node].Type & LocationType.Dungeon) != 0
+                    && edge.Kind == RouteEdgeKind.Walk)
+                    continue;
+                double edgeCost = costSelector?.Invoke(edge) ?? edge.Cost;
+                if (!double.IsFinite(edgeCost) || edgeCost < 0) continue;
+                int next = edge.ToIndex * 2 + (state % 2 == 1 || edge.Kind != RouteEdgeKind.Walk ? 1 : 0);
+                double total = score + edgeCost;
+                if (total >= scores[next]) continue;
+                scores[next] = total;
+                parents[next] = state;
+                parentEdges[next] = edge;
+                firstEdges[next] = firstEdges[state];
+                queue.Enqueue(next, total);
+            }
+        }
+        return null;
     }
 
     private readonly record struct RouteSeed(int Index, RouteGraphEdge? Connection, double Cost);
@@ -274,7 +338,8 @@ public sealed class RouteGraph
     private List<RouteGraphEdge>? FindShortestPathCore(
         IReadOnlyList<RouteSeed> seeds,
         int toIndex,
-        Func<RouteGraphEdge, double>? costSelector
+        Func<RouteGraphEdge, double>? costSelector,
+        IReadOnlySet<RouteGraphEdge>? excludedEdges = null
     )
     {
         if (toIndex < 0 || toIndex >= _locations.Count || seeds.Count == 0)
@@ -325,6 +390,8 @@ public sealed class RouteGraph
 
             foreach (var edge in _adjacency[current])
             {
+                if (excludedEdges?.Contains(edge) == true)
+                    continue;
                 // Dungeon coordinates identify an entrance, not an outdoor
                 // transit waypoint. Reaching one does not establish a walk
                 // through it; only a recorded interaction can continue there.

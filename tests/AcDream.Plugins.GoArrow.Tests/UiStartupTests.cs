@@ -8,6 +8,41 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class UiStartupTests
 {
     [Fact]
+    public void RouteWindowButtonsCyclePortalChoicesThroughPlugin()
+    {
+        var host = new FakePluginHost();
+        host.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        host.PluginStorage.WriteText("GoArrow/routes.xml", """
+            <locations>
+              <loc name="Portal A" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="99" />
+              <loc name="Portal B" type="WildernessPortal" NS="0" EW="2" exitNS="0" exitEW="98" />
+              <loc name="End" type="Town" NS="0" EW="100" />
+            </locations>
+            """);
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        Assert.True(plugin.LoadDataFile("routes.xml"));
+        Assert.True(plugin.SetDestination("End"));
+        plugin.Go();
+        var panel = plugin.Panel!;
+        Assert.True(panel.CanNextRoute);
+        panel.NextRoute();
+        Assert.Contains(panel.RouteSteps, step => step.Contains("Portal B"));
+        Assert.True(panel.CanPreviousRoute);
+        panel.PreviousRoute();
+        Assert.Contains(panel.RouteSteps, step => step.Contains("Portal A"));
+        var markup = XDocument.Load(Path.Combine(Path.GetDirectoryName(
+            typeof(GoArrowPlugin).Assembly.Location)!, "goarrow-panel.xml"));
+        Assert.Equal(new[] { "Go", "Stop", "Resume", "Clear" }, markup.Descendants("button")
+            .Where(button => (int?)button.Attribute("y") == 8 && (int?)button.Attribute("x") is >= 8 and <= 256)
+            .Select(button => (string?)button.Attribute("text")));
+        Assert.Equal(new[] { "Previous", "Next" }, markup.Descendants("button")
+            .Where(button => (int?)button.Attribute("y") == 40 && (int?)button.Attribute("x") is 8 or 104)
+            .Select(button => (string?)button.Attribute("text")));
+    }
+
+    [Fact]
     public void SaveKeepsSettingsInOneJsonFileAndPreservesCachedData()
     {
         var storage = new FakePluginStorage();

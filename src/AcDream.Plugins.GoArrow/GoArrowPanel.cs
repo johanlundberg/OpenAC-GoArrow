@@ -120,7 +120,11 @@ internal sealed class GoArrowPanel
             var route = _destination.CurrentRoute;
             if (route == null)
                 return "0 steps";
-            return $"{route.StepCount + _navigator.DungeonRouteWaypoints.Count} steps";
+            string option = _destination.AlternativeCount > 0
+                ? $" · {_destination.AlternativeIndex + 1}/{_destination.AlternativeCount}"
+                    + (_destination.AlternativeHasMore ? "+" : "")
+                : string.Empty;
+            return $"{route.StepCount + _navigator.DungeonRouteWaypoints.Count} steps{option}";
         }
     }
 
@@ -147,6 +151,15 @@ internal sealed class GoArrowPanel
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
 
     public bool CanResumeNavigation => _navigator.CanResumeNavigation && !_plugin.IsComputingRoute;
+
+    public bool CanCycleRoutes => HasDestination && _destination.CurrentRoute is not null
+        && !_navigator.IsNavigating && !_navigator.WaitingForInteraction && !_plugin.IsComputingRoute;
+    public bool CanPreviousRoute => CanCycleRoutes && _destination.AlternativeIndex > 0;
+    public bool CanNextRoute => CanCycleRoutes && (_destination.AlternativeCount == 0
+        || _destination.AlternativeIndex + 1 < _destination.AlternativeCount
+        || _destination.AlternativeHasMore);
+    public Action PreviousRoute => () => _plugin.CycleRouteAlternative(-1);
+    public Action NextRoute => () => _plugin.CycleRouteAlternative(1);
 
     /// <summary>Editable destination input used by panel hosts that support text controls.</summary>
     public string DestinationInput { get; set; } = string.Empty;

@@ -61,7 +61,28 @@ has been reproduced or verified in a live client.
 
 ## Remaining work, in priority order
 
-### 1. Restore and scope destination state
+### 1. Establish reliable recall availability and destinations
+
+GoArrow currently counts recall destinations that OpenAC reports as known and
+saves coordinates per character/world after a successful GoArrow recall. It
+does not check which recall spells the character has learned, automatically
+capture every lifestone binding or portal tie, or exclude unusable recall edges
+from route planning. `LastPortalRecall` currently stores a lifestone coordinate;
+it is not a record of learned portal recall spells.
+
+1. Use supported OpenAC host signals to determine which recall actions the
+   character can use. Request a public host API for learned recall spells and
+   primary/secondary portal ties if the current contract cannot provide them.
+2. Save the bound lifestone and each portal recall destination per character
+   and world when the host reports a change, including changes made outside
+   GoArrow. Keep unknown, stale, and unavailable states distinct; do not infer
+   a destination from a route-data record or another character's settings.
+3. Add recall route-start edges only when both the action and its destination
+   are known and usable. Show availability and saved destinations in
+   `/go status` and the panel. Test character switching, rebinding, and
+   missing spells. Correlate completed GoArrow recalls with their request revision.
+
+### 2. Restore and scope destination state
 
 Settings currently save `DestinationName`. On startup the plugin resolves that
 string only as a database location. A coordinate destination saves its display
@@ -79,7 +100,7 @@ reliably returns after restart.
 4. Test restart, character/world switch, missing location, and vanished object
    behavior through the plugin lifecycle.
 
-### 2. Make multi-leg navigation and interactions predictable
+### 3. Make multi-leg navigation and interactions predictable
 
 Walking reports already filter foreign owners and stale sequence/revision
 values. Portal activation and transition recovery work for supported routes,
@@ -98,7 +119,7 @@ with manual resume when an interaction cannot be identified.
    named live portal matching, Town Network continuation, stale indoor targets,
    and the pause/resume boundary between indoor and outdoor routing.
 
-### 3. Make data replacement and provenance explicit
+### 4. Make data replacement and provenance explicit
 
 The plugin loads embedded data, cached Atlas data, resource-catalog files,
 and saved indoor locations. Database loads replace base location collections;
@@ -122,21 +143,13 @@ database-plus-graph snapshot.
 6. Record external data source and license/attribution requirements before
    redistributing downloaded XML, dungeon images, or copied original assets.
 
-### 4. Finish recall and route policy
+### 5. Finish route policy
 
-Semantic recall requests and successful-transition learning exist. A known
-recall location is not the same as a currently usable recall action.
+Expose the existing cost profiles in the UI, and test deterministic edge
+selection with unavailable actions, portal restrictions, and alternate routes.
+Add route explanations where needed.
 
-1. Track primary/secondary portal ties, lifestone bind, house/mansion, and
-   allegiance state only through supported host signals. Label unknown,
-   stale, and unavailable values distinctly in `/go status` and the panel.
-2. Add recall route-start edges only when both destination and action are
-   usable. Correlate completion with the request revision before learning.
-3. Expose the existing cost profiles in the UI, and test deterministic edge
-   selection with unavailable actions, portal restrictions, and alternate
-   routes. Add route explanations or alternatives if needed for parity.
-
-### 5. Complete command, panel, and map workflows
+### 6. Complete command, panel, and map workflows
 
 1. Decide and document the intended semantics of `/go from`, `/go start`,
    `/go to here`, `/go end`, and `/go reset`; make command help, completion,
@@ -152,7 +165,7 @@ recall location is not the same as a currently usable recall action.
 4. Decide which original arrow/toolbar artwork, tooltips, and actions are
    worth reproducing through public canvas/resource APIs.
 
-### 6. Verify the released plugin
+### 7. Verify the released plugin
 
 1. Keep deterministic fake-host tests for lifecycle, commands, destinations,
    route data, walking, interactions, recall, maps, storage, and headless mode.

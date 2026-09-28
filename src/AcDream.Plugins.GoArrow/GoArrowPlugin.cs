@@ -307,7 +307,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             if (_routeFromOverride is { } from)
             {
                 _navigator.StopNavigation();
-                _destination?.CalculateRoute(from);
+                if (_destination is { } destination
+                    && (destination.AlternativeIndex == 0 || destination.CurrentRoute is null))
+                    destination.CalculateRoute(from);
                 return;
             }
             if (_destination?.TargetName == "Current Location")
@@ -323,6 +325,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
 
             if (_navigator.IsNavigating)
                 _navigator.StopNavigation();
+            var live = _host?.Automation.Navigation.Snapshot;
+            if (_destination?.AlternativeIndex > 0 && live is { IsAvailable: true, IsPortalSpace: false }
+                && _destination.CanKeepSelectedAlternative(live.Value.Position))
+                return;
             _navigator.PlanRoute();
         }
         finally
@@ -363,6 +369,36 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _navigator?.StopNavigation();
         _routeFromOverride = location;
         _destination?.ClearRoute();
+        return true;
+    }
+
+    internal bool CycleRouteAlternative(int direction)
+    {
+        if (_destination is null || _navigator is null || _host is null
+            || _navigator.IsNavigating || _navigator.WaitingForInteraction || IsComputingRoute)
+            return false;
+        Location origin;
+        if (_routeFromOverride is { } chosenOrigin)
+            origin = chosenOrigin;
+        else
+        {
+            var snapshot = _host.Automation.Navigation.Snapshot;
+            if (!snapshot.IsAvailable || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor)
+                return false;
+            origin = new Location("Current Position", snapshot.Position.NorthSouth,
+                snapshot.Position.EastWest);
+        }
+        if (_destination.CurrentRoute is null)
+            _destination.CalculateRoute(origin);
+        if (!_destination.CycleAlternative(direction, origin))
+            return false;
+        _navigator.StopNavigation();
+        var live = _host.Automation.Navigation.Snapshot;
+        if (live.IsAvailable)
+        {
+            _lastPreviewPosition = live.Position;
+            _lastPreviewAt = Stopwatch.GetTimestamp();
+        }
         return true;
     }
 

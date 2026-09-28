@@ -7,6 +7,45 @@ namespace AcDream.Plugins.GoArrow.Tests;
 public sealed class PortalNavigationTests
 {
     [Fact]
+    public void RouteButtonsCycleChoicesAndGoKeepsTheSelectedPortal()
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(true, false, 1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Portal A" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="99" />
+              <loc name="Portal B" type="WildernessPortal" NS="0" EW="2" exitNS="0" exitEW="98" />
+              <loc name="Portal C" type="WildernessPortal" NS="0" EW="3" exitNS="0" exitEW="97" />
+              <loc name="End" type="Town" NS="0" EW="100" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        destination.CalculateRoute(new Location("Current Position", 0, 0));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        var origin = new Location("Current Position", 0, 0);
+        Assert.True(destination.CycleAlternative(1, origin));
+        Assert.Equal("Portal B", destination.CurrentRoute!.Steps.First(s => s.Kind == RouteStepKind.Portal).Via);
+        Assert.True(destination.CycleAlternative(1, origin));
+        Assert.False(destination.CycleAlternative(1, origin));
+        Assert.True(destination.CycleAlternative(-1, origin));
+        Assert.Equal(1, destination.AlternativeIndex);
+        var panel = new GoArrowPanel(host, new GoArrowPlugin(), settings, destination, navigator);
+        Assert.True(panel.CanPreviousRoute);
+        Assert.True(panel.CanNextRoute);
+        Assert.Contains("2/3", panel.RouteStepsText);
+
+        navigator.StartNavigation();
+        Assert.Equal("Portal B", destination.CurrentRoute!.Steps.First(s => s.Kind == RouteStepKind.Portal).Via);
+        Assert.Equal(2, Assert.Single(host.Inner.PluginNavigation.GoToPositionCalls).Position.EastWest);
+        Assert.False(panel.CanNextRoute);
+    }
+
+    [Fact]
     public void OutdoorNoProgressTriesSideDetoursThenReplansFromReachedPoint()
     {
         var host = new NavigationHost();
@@ -228,6 +267,65 @@ public sealed class PortalNavigationTests
         host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
             navigation.GoToReport.Sequence, PluginGoToState.Arrived, 44, 0, 0, null) { Revision = 2 });
         Assert.Equal(new uint[] { 44 }, objects.Activated);
+    }
+
+    [Fact]
+    public void DungeonExitIdentifiesNamedPortalBeforeOtherVisiblePortals()
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Desert March to Bandit Castle Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0, -28.8, -22.9, 0, 0, true),
+        });
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x02AA0101, 49.3, -65, 0, 0, false),
+        });
+        objects.Objects.Add(new PluginWorldObject(44, 0, "Bandit Castle Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0x02AA0124, 49.4, -65, 0, 0, false),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation, Chat = host.Inner.PluginChat, Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0, -28.8, -22.9, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Desert March to Bandit Castle Portal" type="UndergroundPortal"
+                   NS="-22.9" EW="-28.8" exitNS="-65" exitEW="49.3" />
+              <loc name="Bandit Castle Lifestone" type="Lifestone" NS="-65.4" EW="49" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("Bandit Castle Lifestone"));
+        destination.CalculateRoute(new Location("Current Position", -22.9, -28.8));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0x02AA0100, 49.3, -65, 0, 0, false),
+        };
+        host.EventsValue.RaisePortalTransition(new PluginPortalTransition(
+            0, 1, 0x02AA0100, true, true, true, false) { Kind = PluginPortalTransitionKind.Portal });
+
+        Assert.True(objects.Identified.SequenceEqual(new uint[] { 44 }),
+            $"Identified {string.Join(", ", objects.Identified)}; route {string.Join(" | ", destination.CurrentRoute!.Steps)}; reason {navigator.FailureReason}");
+        Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+        objects.Objects[2] = objects.Objects[2] with { PortalDestination = "Bandit Castle" };
+        host.EventsValue.RaiseObjectChanged(new PluginObjectChange(44, PluginObjectChangeKind.IdentReceived));
+        Assert.Equal((uint)44, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
     }
 
     [Fact]
@@ -617,7 +715,7 @@ public sealed class PortalNavigationTests
             HasPosition = true,
             Position = new PluginNavigationPosition(0x12340122, 95.5, 0, 0, 0, false),
             PortalDestination = destinationKnown ? "Direlands South Landbridge" : null,
-            HasAppraisalData = true,
+            HasAppraisalData = destinationKnown,
         });
         objects.Objects.Add(new PluginWorldObject(44, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
         {

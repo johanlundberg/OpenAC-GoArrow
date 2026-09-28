@@ -143,6 +143,86 @@ public class RouteFinder
     }
 
     /// <summary>
+    /// Distinct route choices in increasing graph cost. Routes that differ
+    /// only in incidental walk nodes count as one choice; an interaction
+    /// sequence identifies a meaningful alternative. Searches are bounded
+    /// so the Route window cannot spend unbounded time expanding choices.
+    /// </summary>
+    public IReadOnlyList<Route> FindRouteAlternatives(Location origin, Location destination,
+        RouteCostProfile profile = RouteCostProfile.ShortestWalk, int maximum = 8)
+    {
+        if (maximum <= 0) return [];
+        EnsureGraphBuilt();
+        int toIndex = _graph.GetNodeIndex(destination);
+        if (toIndex < 0) return [FindRoute(origin, destination, profile)];
+        Func<RouteGraphEdge, double> cost = edge => profile switch
+        {
+            RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk ? 1 : 0.1,
+            RouteCostProfile.PreferRecall => edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone
+                ? edge.Cost * 0.1 : edge.Cost,
+            RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk
+                ? edge.Cost : edge.Cost * 1000,
+            _ => edge.Cost,
+        };
+        var first = _graph.FindShortestPathFromPosition(origin, toIndex, _maxWalkDistance, cost);
+        if (first is null) return [FindRoute(origin, destination, profile)];
+
+        var choices = new List<Route>();
+        var signatures = new HashSet<string>(StringComparer.Ordinal);
+        var seenBans = new HashSet<string>(StringComparer.Ordinal) { "" };
+        var queue = new PriorityQueue<(HashSet<RouteGraphEdge> Bans, List<RouteGraphEdge> Path), double>();
+        queue.Enqueue(([], first), first.Sum(cost));
+        int expanded = 0;
+        while (queue.TryDequeue(out var candidate, out _) && choices.Count < maximum && expanded++ < 64)
+        {
+            string signature = string.Join("|", candidate.Path
+                .Where(e => e.Kind != RouteEdgeKind.Walk)
+                .Select(e => $"{e.FromIndex}:{e.ToIndex}:{e.Kind}:{e.Via}"));
+            if (signatures.Add(signature))
+                choices.Add(RouteFromPath(origin, destination, candidate.Path));
+
+            if (signature.Length == 0)
+            {
+                var interactive = _graph.FindShortestPathUsingInteraction(origin, toIndex,
+                    _maxWalkDistance, cost);
+                if (interactive is not null)
+                    queue.Enqueue(([], interactive), interactive.Sum(cost));
+            }
+
+            foreach (var edge in candidate.Path.Where(e => e.Kind != RouteEdgeKind.Walk))
+            {
+                var bans = new HashSet<RouteGraphEdge>(candidate.Bans) { edge };
+                string key = string.Join("|", bans.Select(e =>
+                    $"{e.FromIndex}:{e.ToIndex}:{e.Kind}:{e.Via}").OrderBy(s => s, StringComparer.Ordinal));
+                if (!seenBans.Add(key)) continue;
+                var path = _graph.FindShortestPathFromPosition(origin, toIndex, _maxWalkDistance, cost, bans);
+                if (path is not null)
+                    queue.Enqueue((bans, path), path.Sum(cost));
+            }
+        }
+        return choices;
+    }
+
+    private Route RouteFromPath(Location origin, Location destination, List<RouteGraphEdge> path)
+    {
+        var connection = path[0];
+        var entry = _graph.GetLocation(connection.ToIndex);
+        if (path.Count == 1)
+        {
+            var direct = new Route(destination.Name);
+            direct.AddTravelStep(origin, entry, connection.Cost == 0 ? "Arrived" : "Walk");
+            return direct;
+        }
+        var route = _graph.ToRoute(path.Skip(1).ToList(), destination.Name);
+        if (connection.Cost > 0)
+            route.PrependStep(new RouteStep(RouteStepKind.Travel, origin, entry,
+                connection.Cost, "Walk to start"));
+        else
+            route.SetFirstStepOrigin(origin);
+        return route;
+    }
+
+    /// <summary>
     /// Find the nearest eligible named location for graph routing.
     /// </summary>
     public Location? FindNearestNamedLocation(Location position)

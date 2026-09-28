@@ -4,6 +4,44 @@ namespace AcDream.Plugins.GoArrow.Tests;
 
 public class RouteFinderTests
 {
+    [Fact]
+    public void AlternativeRoutesUseDistinctPortalsInShortestWalkOrder()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Portal A" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="99" />
+              <loc name="Portal B" type="WildernessPortal" NS="0" EW="2" exitNS="0" exitEW="98" />
+              <loc name="Portal C" type="WildernessPortal" NS="0" EW="3" exitNS="0" exitEW="97" />
+              <loc name="End" type="Town" NS="0" EW="100" />
+            </locations>
+            """);
+        var finder = new RouteFinder(db);
+        var routes = finder.FindRouteAlternatives(new Location("Player", 0, 0), db.FindLocation("End")!);
+        Assert.Equal(new[] { "Portal A", "Portal B", "Portal C" }, routes.Take(3)
+            .Select(route => route.Steps.First(step => step.Kind == RouteStepKind.Portal).Via));
+        Assert.Equal(3, routes.Count);
+        Assert.True(routes[0].TotalDistance < routes[1].TotalDistance);
+        Assert.True(routes[1].TotalDistance < routes[2].TotalDistance);
+    }
+
+    [Fact]
+    public void DirectWalkCanBeFollowedByLongerPortalAlternative()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Long Portal" type="WildernessPortal" NS="0" EW="9" exitNS="0" exitEW="9.5" />
+              <loc name="End" type="Town" NS="0" EW="8" />
+            </locations>
+            """);
+        var routes = new RouteFinder(db).FindRouteAlternatives(new Location("Player", 0, 0),
+            db.FindLocation("End")!);
+        Assert.Equal(2, routes.Count);
+        Assert.Equal(0, routes[0].PortalCount);
+        Assert.Equal("Long Portal", routes[1].Steps.Single(s => s.Kind == RouteStepKind.Portal).Via);
+    }
+
     private static (LocationDatabase, RouteFinder) CreateTestDb()
     {
         var db = new LocationDatabase();

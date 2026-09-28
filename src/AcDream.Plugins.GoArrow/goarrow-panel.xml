@@ -165,12 +165,30 @@
       enabled="{HasDestination}"
       onclick="{ClearDestination}"
     />
-    <label x="8" y="40" text="Route:" />
-    <label x="52" y="40" text="{RouteStepsText}" />
-    <label x="120" y="40" text="{FromText}" />
-    <toggle
+    <button
       x="8"
-      y="72"
+      y="40"
+      w="88"
+      h="22"
+      text="Previous"
+      enabled="{CanPreviousRoute}"
+      onclick="{PreviousRoute}"
+    />
+    <button
+      x="104"
+      y="40"
+      w="88"
+      h="22"
+      text="Next"
+      enabled="{CanNextRoute}"
+      onclick="{NextRoute}"
+    />
+    <label x="8" y="72" text="Route:" />
+    <label x="52" y="72" text="{RouteStepsText}" />
+    <label x="240" y="72" text="{FromText}" />
+    <toggle
+      x="208"
+      y="40"
       w="150"
       h="20"
       text="Auto-Navigate"
@@ -178,8 +196,8 @@
       onclick="{ToggleAutoNavigate}"
     />
     <toggle
-      x="170"
-      y="72"
+      x="374"
+      y="40"
       w="150"
       h="20"
       text="Recalculate"

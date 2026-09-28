@@ -219,6 +219,17 @@ After the plugin is enabled:
 
 The **Route** tab has searchable **From** and **Destination** fields. Type part of a location name and choose it from the matches. Both fields accept **Current Location**; From defaults to it. When From is Current Location, routing starts at the character's exact coordinates and considers nearby graph connections. The destination may also be entered as coordinates. With Auto-Navigate off, **Go** computes and displays a scrollable route list without moving the character. The arrow points to the first waypoint and updates relative to the character's heading. With Auto-Navigate on, Go also starts walking when From is Current Location. A named From location produces a route preview without moving the character. The panel displays the destination, estimated distance, bearing, route status, and steps. Steps with notes end in **[notes]**; select a step to read them in Details. Route status shows **Computing route...** while GoArrow builds the location route and **Client planning path...** while OpenAC plans the walk.
 
+**Previous** and **Next**, beside Clear, cycle through route choices while
+navigation is stopped. The initial choice is the shortest for the selected
+route cost profile. Next searches for the next route with a different portal
+or recall sequence; small differences in incidental walk waypoints do not
+count as another choice. Up to eight choices are shown, one additional choice
+per Next press. The route count displays the current choice; a `+` means more
+choices may be available. **Go** follows the selected choice if the character
+has not moved more than 20 metres from its planned start. Recalculation after
+moving, changing the destination, or changing From starts again at the
+shortest choice.
+
 The **Config** tab lets you save the location-data XML URL and dungeon-map ZIP URL, then download either source on demand. Both URLs start empty; enter a direct XML or ZIP URL before downloading. A dungeon-map download is checked before it replaces the previous ZIP; it is loaded into the current session when the download completes. Neither download starts automatically.
 
 Dungeon maps are optional and are not included in the plugin package. You can download the archive from the Config tab or obtain it from [Darktorizo's GoArrow Data CoD](https://github.com/Darktorizo/GoArrow_Data_CoD). Run `/go dungeon path` to find the persistent map folder. Place a `Dungeon_Map_Cache.zip` archive there, or extract its images and `dungeons.txt` under that folder (the archive's `Dungeon Map Cache/` subfolder can remain). Run `/go dungeon reload` after adding or changing files manually. Extracted images take precedence if both forms are present. PNG and GIF images named by four-digit hexadecimal dungeon ID are supported; `dungeons.txt` supplies display names. OpenAC currently limits plugin images to 2048 pixels on each side, so larger maps need resizing before they can display.
