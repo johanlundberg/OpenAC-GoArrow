@@ -343,6 +343,8 @@ internal sealed class GoArrowCommands
             _host.Automation.Chat.PostSystemMessage(
                 $"GoArrow: Reason: {_plugin.NavigationFailureReason}"
             );
+        foreach (string line in _plugin.DungeonPortalDiagnostics)
+            _host.Automation.Chat.PostSystemMessage($"GoArrow: {line}");
         if (_host.Automation.Recalls.IsAvailable)
         {
             int known = _host

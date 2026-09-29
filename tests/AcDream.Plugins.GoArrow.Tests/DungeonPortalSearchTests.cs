@@ -56,14 +56,14 @@ public sealed class DungeonPortalSearchTests
     }
 
     [Fact]
-    public void SearchFinishesLocalBranchThenBacktracksToItsOtherBranchBeforeDistantCells()
+    public void SearchFollowsDistantForwardTargetBeforeBacktrackingToNearbySideBranch()
     {
         var navigation = new DungeonSearchNavigation();
         var automation = new DungeonSearchAutomation(navigation);
         navigation.Inner.SnapshotValue = new(true, false, 1, Position(0), false, false);
         automation.Map.Cells = [new(0x02AA0101, new Vector3(20, 0, 0), 0),
             new(0x02AA0102, new Vector3(40, 0, 0), 0),
-            new(0x02AA0103, new Vector3(0, 30, 0), 0),
+            new(0x02AA0103, new Vector3(30, 30, 0), 0),
             new(0x02AA0104, new Vector3(100, 0, 0), 0)];
         var search = new DungeonPortalSearch();
 
@@ -80,11 +80,11 @@ public sealed class DungeonPortalSearchTests
 
         Arrive(0x02AA0101);
         Arrive(0x02AA0102);
+        Arrive(0x02AA0104);
+        Arrive(0x02AA0102, true);
         Arrive(0x02AA0101, true);
         Arrive(0x02AA0103);
         Arrive(0x02AA0101, true);
-        Arrive(0x02AA022F, true);
-        Arrive(0x02AA0104);
         Arrive(0x02AA022F, true);
         Assert.False(search.TryGetNextTarget(automation, out _));
         Assert.Empty(navigation.PreviewTargets);
@@ -163,10 +163,78 @@ public sealed class DungeonPortalSearchTests
         Assert.Equal(0x02AA0105u, second.CellId);
         search.TargetAccepted(second.CellId);
         Assert.Empty(navigation.PreviewTargets);
-        // When hidden areas are exhausted, revisit one visible cell rather
-        // than assume that visibility guaranteed server object discovery.
-        Assert.True(search.TryGetNextTarget(automation, out var fallback));
-        Assert.Equal(0x02AA0102u, fallback.CellId);
+        Assert.False(search.TryGetNextTarget(automation, out _));
+    }
+
+    [Fact]
+    public void SearchVisitsNextRoomOnceInsteadOfWalkingThroughItsCells()
+    {
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        navigation.Inner.SnapshotValue = new(true, false, 1, Position(0), false, false);
+        automation.Map.Cells = [
+            new(0x02AA0101, new Vector3(12, 0, 0), 0),
+            new(0x02AA0102, new Vector3(16, 0, 0), 0),
+            new(0x02AA0103, new Vector3(30, 5, 0), 0),
+            new(0x02AA0104, new Vector3(32, 7, 0), 0),
+        ];
+        IReadOnlyList<Vector2> floor = [new(-5, -10), new(40, -10), new(40, 10), new(-5, 10)];
+        automation.Map.Layers = [new(0, [floor],
+            [new(new Vector2(20, -10), new Vector2(20, 10))])];
+        var search = new DungeonPortalSearch();
+
+        Assert.True(search.TryGetNextTarget(automation, out var nextRoom));
+        Assert.Equal(0x02AA0103u, nextRoom.CellId);
+        search.TargetAccepted(nextRoom.CellId);
+        navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with { Position = nextRoom };
+        search.CompleteTarget(nextRoom, true);
+
+        Assert.True(search.TryGetNextTarget(automation, out var returnTarget));
+        Assert.Equal(Position(0).CellId, returnTarget.CellId);
+        Assert.Contains("Backtracking", search.Reason);
+        search.TargetAccepted(returnTarget.CellId);
+        navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with { Position = Position(0) };
+        search.CompleteTarget(Position(0), true);
+        Assert.False(search.TryGetNextTarget(automation, out _));
+    }
+
+    [Theory]
+    [InlineData(1, false, false)]
+    [InlineData(2, false, false)]
+    [InlineData(4, false, true)]
+    [InlineData(2, true, true)]
+    public void SearchSkipsShallowDeadEndButKeepsLongPassageAndPortals(
+        int hallwayCells, bool portalInHallway, bool shouldExplore)
+    {
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        navigation.Inner.SnapshotValue = new(true, false, 1,
+            Position(0) with { NorthSouth = Position(0).NorthSouth + 10 / 240d }, false, false);
+        var cells = new List<PluginDungeonCell>
+        {
+            new(0x02AA0101, new Vector3(15, 0, 0), 0),
+            new(0x02AA0102, new Vector3(26, 0, 0), 0),
+        };
+        for (int i = 1; i < hallwayCells; i++)
+            cells.Add(new(0x02AA0102u + (uint)i, new Vector3(26 + i * 12, 0, 0), 0));
+        automation.Map.Cells = cells;
+        if (portalInHallway)
+            automation.Inner.Objects = new SearchPortals([new PluginWorldObject(43, 0, "Dungeon Portal",
+                PluginObjectClass.Portal, 0, 0, 0)
+                { HasPosition = true, Position = Position(50) }]);
+        int end = 26 + (hallwayCells - 1) * 12 + 7;
+        IReadOnlyList<Vector2> floor = [new(-5, -12), new(80, -12), new(80, 15), new(-5, 15)];
+        automation.Map.Layers = [new(0, [floor],
+            [new(new Vector2(20, -12), new Vector2(20, -2)),
+             new(new Vector2(20, 2), new Vector2(20, 15)),
+             new(new Vector2(20, -5), new Vector2(end, -5)),
+             new(new Vector2(20, 5), new Vector2(end, 5)),
+             new(new Vector2(end, -5), new Vector2(end, 5))])];
+        var search = new DungeonPortalSearch();
+
+        Assert.Equal(shouldExplore, search.TryGetNextTarget(automation, out var target));
+        if (shouldExplore)
+            Assert.Equal(0x02AA0102u, target.CellId);
     }
 
     [Fact]

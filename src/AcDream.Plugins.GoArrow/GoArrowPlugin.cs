@@ -74,6 +74,8 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     /// </summary>
     internal string CurrentDestinationName => _destination?.TargetName ?? string.Empty;
     internal string NavigationFailureReason => _navigator?.FailureReason ?? string.Empty;
+    internal IReadOnlyList<string> DungeonPortalDiagnostics =>
+        _navigator?.GetDungeonPortalDiagnostics() ?? [];
     internal GoArrowPanel? Panel => _panel;
     internal string LocationDownloadStatus { get; private set; } = string.Empty;
     internal string DungeonDownloadStatus { get; private set; } = string.Empty;

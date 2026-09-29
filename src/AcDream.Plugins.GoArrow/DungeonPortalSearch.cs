@@ -15,6 +15,8 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
     private uint _landblock;
     private readonly HashSet<uint> _attempted = [];
     private readonly HashSet<uint> _covered = [];
+    private readonly HashSet<uint> _shallowDeadEndCells = [];
+    private PluginDungeonFloorplan? _recessPlan;
     private readonly List<PluginNavigationPosition> _branch = [];
     private bool _returning;
     private string _lastFailure = string.Empty;
@@ -32,6 +34,8 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         _landblock = 0;
         _attempted.Clear();
         _covered.Clear();
+        _shallowDeadEndCells.Clear();
+        _recessPlan = null;
         _branch.Clear();
         _returning = false;
         _lastFailure = string.Empty;
@@ -111,6 +115,7 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
             return PrepareTarget(automation, snapshot, portals, out target);
         }
         var floorplan = automation.DungeonMap.CaptureFloorplan(block);
+        UpdateShallowRecesses(floorplan);
         var cells = floorplan.Cells;
         var currentCell = cells.FirstOrDefault(c => c.CellId == snapshot.Position.CellId);
         double currentFloor = currentCell.CellId != 0 ? currentCell.LayerZ : snapshot.Position.Elevation * 240;
@@ -118,6 +123,10 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         var candidates = cells.Where(c => IsOnFloor(c, floorplan))
             .Select(c => new { Position = ToPosition(c), Height = c.LayerZ })
             .Where(c => !_attempted.Contains(c.Position.CellId)
+                && !_covered.Contains(c.Position.CellId)
+                && (!_shallowDeadEndCells.Contains(c.Position.CellId)
+                    || portals.Any(portal => Math.Abs(portal.Elevation - c.Position.Elevation) * 240 <= 6
+                        && portal.HorizontalDistanceMeters(c.Position) <= 36))
                 && !_branch.Any(p => p.CellId == c.Position.CellId)
                 && c.Position.CellId != snapshot.Position.CellId
                 && (snapshot.Position.HorizontalDistanceMeters(c.Position) > 8
@@ -126,12 +135,15 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
             .OrderBy(c => snapshot.Position.HorizontalDistanceMeters(c.Position)
                 + Math.Abs(currentFloor - c.Height))
             .ThenBy(c => c.Position.CellId).Select(c => c.Position).ToArray();
-        // The host exposes floor geometry, but not cell adjacency. Follow
-        // nearby targets as a branch; only successful arrivals become
-        // checkpoints. When the branch ends, return along those checkpoints
-        // before selecting a distant target from the starting area.
-        var nearby = candidates.Where(p => snapshot.Position.HorizontalDistanceMeters(p) <= 40).ToArray();
-        _returning = nearby.Length == 0 && _branch.Count > 1;
+        // The host exposes floor geometry, but not cell adjacency. A target
+        // closer from here than from the previous checkpoint continues this
+        // branch, even when it is farther than the usual nearby preference.
+        // Return only after that direction has no unexplored targets.
+        var forward = _branch.Count > 1
+            ? candidates.Where(p => SearchDistance(snapshot.Position, p)
+                + 0.5 < SearchDistance(_branch[^2], p)).ToArray()
+            : candidates;
+        _returning = forward.Length == 0 && _branch.Count > 1;
         if (_returning)
             _target = _branch[^2];
         else if (candidates.Length == 0)
@@ -140,17 +152,17 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
                 : $"No exploration targets remain ({_attempted.Count} attempted, {_covered.Count} covered). {_lastFailure}";
             return false;
         }
-        // Prefer areas hidden by walls. Visible cells are a fallback, since
-        // geometric visibility alone does not prove the server sent all objects.
         else
         {
-            var available = nearby.Length > 0 ? nearby : candidates;
-            _target = available.FirstOrDefault(p => !_covered.Contains(p.CellId));
-            if (_target.CellId == 0)
-                _target = available.OrderByDescending(p => snapshot.Position.HorizontalDistanceMeters(p)).First();
+            var nearby = forward.Where(p => snapshot.Position.HorizontalDistanceMeters(p) <= 40).ToArray();
+            var available = nearby.Length > 0 ? nearby : forward;
+            _target = available[0];
         }
         return PrepareTarget(automation, snapshot, portals, out target);
     }
+
+    private static double SearchDistance(PluginNavigationPosition from, PluginNavigationPosition to) =>
+        from.HorizontalDistanceMeters(to) + Math.Abs(from.Elevation - to.Elevation) * 240;
 
     private bool PrepareTarget(IAutomationSurface automation, PluginNavigationSnapshot snapshot,
         IReadOnlyList<PluginNavigationPosition> portals, out PluginNavigationPosition target)
@@ -254,6 +266,18 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         _returning = false;
     }
 
+    public void PauseTarget()
+    {
+        if (!_followingRecordedPath && !_returning)
+            _attempted.Remove(_target.CellId);
+        _returning = false;
+    }
+
+    public bool IsApproachingPortal(PluginNavigationPosition position, PluginNavigationPosition portal) =>
+        _lastPosition is { } previous
+        && position.HorizontalDistanceMeters(portal) + 0.05
+            < previous.HorizontalDistanceMeters(portal);
+
     public bool SafeToContinue(IAutomationSurface automation)
     {
         var snapshot = automation.Navigation.Snapshot;
@@ -338,6 +362,97 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
                 && !layer.Walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
                 _covered.Add(cell.CellId);
         }
+    }
+
+    private void UpdateShallowRecesses(PluginDungeonFloorplan plan)
+    {
+        if (ReferenceEquals(_recessPlan, plan))
+            return;
+        _recessPlan = plan;
+        _shallowDeadEndCells.Clear();
+        foreach (var layer in plan.Layers)
+        {
+            if (layer.Floors.Count == 0 || layer.Walls.Count < 3)
+                continue;
+            var cells = plan.Cells.Where(c => Math.Abs(c.LayerZ - layer.Z) < 0.1f
+                && IsOnFloor(c, plan)).ToArray();
+            var neighbors = new Dictionary<uint, List<(uint CellId, float Distance)>>();
+            foreach (var cell in cells)
+            {
+                var start = new Vector2(cell.Center.X, cell.Center.Y);
+                var visible = cells.Where(other => other.CellId != cell.CellId)
+                    .Select(other => (Cell: other, Delta: new Vector2(other.Center.X, other.Center.Y) - start))
+                    .Where(p => p.Delta.Length() is >= 2 and <= 24
+                        && !layer.Walls.Any(w => IntersectsWall(start, start + p.Delta, w.Start, w.End)))
+                    .OrderBy(p => p.Delta.LengthSquared()).ToArray();
+                var directions = new List<Vector2>();
+                var links = new List<(uint CellId, float Distance)>();
+                foreach (var (other, delta) in visible)
+                {
+                    var direction = Vector2.Normalize(delta);
+                    // Several cell centres along one straight corridor are
+                    // one way out, not separate branches.
+                    if (directions.Any(known => Vector2.Dot(known, direction) > 0.8f))
+                        continue;
+                    directions.Add(direction);
+                    links.Add((other.CellId, delta.Length()));
+                }
+                neighbors[cell.CellId] = links;
+            }
+            var byId = cells.ToDictionary(c => c.CellId);
+            foreach (var leaf in cells)
+            {
+                if (neighbors[leaf.CellId].Count != 1
+                    || !IsEnclosedRecess(leaf.Center, neighbors[leaf.CellId][0].Distance, layer.Walls))
+                    continue;
+                var branch = new List<uint>();
+                uint previous = 0;
+                uint current = leaf.CellId;
+                float depth = 0;
+                while (true)
+                {
+                    var links = neighbors[current];
+                    var onward = links.Where(n => n.CellId != previous).ToArray();
+                    float radius = links.Count == 0 ? 8 : links.Min(n => n.Distance);
+                    if (!IsEnclosedRecess(byId[current].Center, radius, layer.Walls)
+                        || onward.Length != 1)
+                        break;
+                    branch.Add(current);
+                    depth += onward[0].Distance;
+                    if (depth > 32 || branch.Count > 3)
+                    {
+                        branch.Clear();
+                        break;
+                    }
+                    previous = current;
+                    current = onward[0].CellId;
+                    if (branch.Contains(current))
+                    {
+                        branch.Clear();
+                        break;
+                    }
+                }
+                if (branch.Count > 0 && depth <= 32 && current != leaf.CellId)
+                    foreach (uint cellId in branch)
+                        _shallowDeadEndCells.Add(cellId);
+            }
+        }
+    }
+
+    private static bool IsEnclosedRecess(Vector3 center, float entryDistance,
+        IReadOnlyList<PluginDungeonWall> walls)
+    {
+        var start = new Vector2(center.X, center.Y);
+        float radius = Math.Clamp(entryDistance, 6, 16);
+        int blocked = 0;
+        for (int direction = 0; direction < 8; direction++)
+        {
+            float angle = direction * MathF.PI / 4;
+            var end = start + radius * new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            if (walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
+                blocked++;
+        }
+        return blocked >= 5;
     }
 
     private static bool IsOnFloor(PluginDungeonCell cell, PluginDungeonFloorplan plan)
