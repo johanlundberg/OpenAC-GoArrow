@@ -162,6 +162,9 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             new PluginPanelDescriptor("main", DisplayTitle)
             {
                 IconText = "GA",
+                // The arrow icon from the game data; IconText is the fallback
+                // if this id is ever absent.
+                IconSurfaceId = 0x06001C74u,
                 StartVisible = _settings?.PanelVisible ?? true,
                 ShowInSidePanel = true,
             },
