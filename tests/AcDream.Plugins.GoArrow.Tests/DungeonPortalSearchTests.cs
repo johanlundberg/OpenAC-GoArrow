@@ -304,6 +304,8 @@ internal sealed class DungeonSearchMap : IDungeonMapAutomation
 {
     public IReadOnlyList<PluginDungeonCell> Cells { get; set; } = [];
     public IReadOnlyList<PluginDungeonLayer> Layers { get; set; } = [];
+    public bool SealedDungeon { get; set; }
+    public bool IsSealedDungeon(uint cellId) => SealedDungeon;
     public PluginDungeonFloorplan CaptureFloorplan(uint block) => new(block, Layers, Cells, Vector3.Zero, Vector3.One);
 }
 

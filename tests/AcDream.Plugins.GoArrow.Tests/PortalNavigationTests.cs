@@ -748,13 +748,13 @@ public sealed class PortalNavigationTests
         );
         var db = new LocationDatabase();
         db.LoadLocationsXml($"<locations><loc name='{targetName}' type='Town' NS='80' EW='80' /></locations>");
-        var settings = new GoArrowSettings { AutoNavigate = true };
+        var settings = new GoArrowSettings { AutoNavigate = true, ArrivalDistance = 2.5 };
         var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
         Assert.True(destination.SetDestination(targetName));
         using var navigator = new GoArrowNavigator(host, destination, settings);
         navigator.StartNavigation();
 
-        Assert.Equal((uint)43, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+        Assert.Equal(((uint)43, 0.25f), Assert.Single(host.Inner.PluginNavigation.GoToCalls));
     }
 
     [Theory]
@@ -1341,6 +1341,297 @@ public sealed class PortalNavigationTests
         }
         Assert.Equal(96, host.Inner.PluginNavigation.GoToPositionCalls[1].Position.EastWest);
         Assert.Equal(RouteStepKind.Travel, destination.CurrentRoute.Steps[0].Kind);
+    }
+
+    [Fact]
+    public void BlockedPortalActivationKeepsStepAndAllowsRetry()
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Portal to End", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0, 2, 0, 0, 0, true),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0, 1, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("<locations><loc name='Portal to End' type='WildernessPortal' NS='0' EW='2' exitNS='0' exitEW='95' /><loc name='End' type='Town' NS='0' EW='96' /></locations>");
+        var settings = new GoArrowSettings { AutoNavigate = false };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1,
+            PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
+        Assert.True(navigator.WaitingForInteraction);
+
+        host.EventsValue.RaiseActivationCompleted(
+            new PluginActivationCompletion(1, 42, PluginActivationOutcome.Blocked, 0));
+
+        Assert.False(navigator.WaitingForInteraction);
+        Assert.True(navigator.CanResumeNavigation);
+        Assert.Equal(RouteStepKind.Portal, destination.CurrentRoute!.Steps[0].Kind);
+        Assert.Contains("failed (Blocked)", navigator.FailureReason);
+    }
+
+    [Theory]
+    [InlineData(94.9)]
+    [InlineData(95.0)]
+    public void FacilityHubCellCompletesMissedIndoorPortalCrossing(double routeStartEastWest)
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0, routeStartEastWest, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
+                NS="0" EW="95" exitNS="0" exitEW="200" />
+              <loc name="Facility Hub to End" type="UndergroundPortal"
+                NS="0" EW="200" exitNS="0" exitEW="300" />
+              <loc name="End" type="Town" NS="0" EW="301" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.StartNavigation();
+        Assert.Contains(destination.CurrentRoute!.Steps,
+            step => step.Via == "Town Network (S R) to Facility Hub");
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0x8A020212, 200, 0, 0, 0, false),
+        };
+
+        navigator.OnTick(0.1);
+
+        Assert.DoesNotContain(destination.CurrentRoute!.Steps,
+            step => step.Via == "Town Network (S R) to Facility Hub");
+        Assert.Contains(destination.CurrentRoute.Steps,
+            step => step.Via == "Facility Hub to End");
+    }
+
+    [Fact]
+    public void StartingInFacilityHubPlansFromItsAtlasArrival()
+    {
+        var host = new NavigationHost();
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0x8A020212, 200, 0, 0, 0, false), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
+                NS="0" EW="95" exitNS="0" exitEW="200" />
+              <loc name="Facility Hub to End" type="UndergroundPortal"
+                NS="0" EW="200" exitNS="0" exitEW="300" />
+              <loc name="End" type="Town" NS="0" EW="301" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+
+        navigator.StartNavigation();
+
+        Assert.NotNull(destination.CurrentRoute);
+        Assert.DoesNotContain(destination.CurrentRoute.Steps,
+            step => step.Via == "Town Network (S R) to Facility Hub");
+        Assert.Contains(destination.CurrentRoute.Steps,
+            step => step.Via == "Facility Hub to End");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void FacilityHubWalkTargetsVisibleFolthidEstatePortal(int portalArrivalMode)
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(44, 0, "Folthid Estate", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            PortalDestination = "Folthid Estate (8.8S, 53.5E).",
+            Position = new PluginNavigationPosition(0x8A0201E3, 200.1, 0, 0, 0, false),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        if (portalArrivalMode != 0)
+        {
+            objects.Objects.Clear();
+            objects.Objects.Add(new PluginWorldObject(50, 0, "Al-Jalima Portal", PluginObjectClass.Portal, 0, 0, 0)
+            {
+                Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+                HasPosition = true,
+                Position = new PluginNavigationPosition(0x0007010A, 0, 0, 0, 0, false),
+            });
+        }
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0x8A020211, 200, 0, 0, 0, false), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
+                NS="0" EW="95" exitNS="0" exitEW="200" />
+              <loc name="Facility Hub (E)(R 1 (10) C) to Folthid Estate" type="UndergroundPortal"
+                NS="0" EW="200.1" exitNS="0" exitEW="300" />
+              <loc name="End" type="Town" NS="0" EW="301" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+
+        navigator.StartNavigation();
+
+        if (portalArrivalMode != 0)
+        {
+            Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+            Assert.Contains("Waiting for indoor portal 'Folthid Estate'", navigator.FailureReason);
+            Assert.Contains("Portals in current dungeon: 0", navigator.FailureReason);
+            objects.Objects.Add(new PluginWorldObject(44, 0, "Folthid Estate", PluginObjectClass.Portal, 0, 0, 0)
+            {
+                Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+                HasPosition = true,
+                PortalDestination = "Folthid Estate (8.8S, 53.5E).",
+                Position = new PluginNavigationPosition(0x8A0201E3, 200.1, 0, 0, 0, false),
+            });
+            if (portalArrivalMode == 1)
+                navigator.OnTick(0.6);
+            else
+            {
+                navigator.Enable();
+                host.EventsValue.RaiseObjectChanged(new PluginObjectChange(44,
+                    PluginObjectChangeKind.Created) { Current = objects.Objects[^1] });
+            }
+        }
+
+        Assert.Equal((uint)44, Assert.Single(host.Inner.PluginNavigation.GoToCalls).ObjectId);
+        Assert.True(navigator.IsNavigating);
+        Assert.DoesNotContain("Waiting for indoor portal 'Facility Hub'", navigator.FailureReason);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IndoorPortalWaitReportsNamedPortalEligibility(bool tracked)
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        if (tracked)
+            objects.Objects.Add(new PluginWorldObject(0x78A020AA, 0, "Folthid Estate",
+                PluginObjectClass.Unknown, 0, 0, 0)
+            {
+                HasPosition = true,
+                Position = new PluginNavigationPosition(0x8A0201E3, 200.1, 0, 0, 0, false),
+            });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0x8A020212, 200, 0, 0, 0, false), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
+                NS="0" EW="95" exitNS="0" exitEW="200" />
+              <loc name="Facility Hub (E)(L 1 (10) C) to Folthid Estate" type="UndergroundPortal"
+                NS="0" EW="200.1" exitNS="0" exitEW="300" />
+              <loc name="End" type="Town" NS="0" EW="301" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+
+        navigator.StartNavigation();
+
+        Assert.Empty(host.Inner.PluginNavigation.GoToCalls);
+        Assert.Contains(tracked
+                ? "'Folthid Estate' 78A020AA class=Unknown"
+                : "Objects named 'Folthid Estate': none tracked by client.",
+            navigator.FailureReason);
+        if (tracked)
+            Assert.Contains("eligible=not activatable", navigator.FailureReason);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UntrackedIndoorPortalIsExploredForOnlyInSealedDungeon(bool sealedDungeon)
+    {
+        static PluginNavigationPosition Hub(float x, uint cell = 0x8A020212) =>
+            new(cell, (11 * 192 + x - 84) / 240d, (-125 * 192 + 10 - 84) / 240d, 0, 0, false);
+        var host = new NavigationHost();
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        var objects = new TestWorldObjects();
+        automation.Inner.Objects = objects;
+        host.Inner.AutomationValue = automation;
+        navigation.Inner.SnapshotValue = new(true, false, 1, Hub(10), false, false);
+        automation.Map.Cells = [new(0x8A0201E0, new System.Numerics.Vector3(40, 10, 0), 0),
+            new(0x8A0201E3, new System.Numerics.Vector3(80, 10, 0), 0)];
+        automation.Map.SealedDungeon = sealedDungeon;
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
+                NS="0" EW="95" exitNS="-100.31" exitEW="8.49" />
+              <loc name="Facility Hub (E)(L 1 (10) C) to Folthid Estate" type="UndergroundPortal"
+                NS="-100.31" EW="8.5" exitNS="-8.8" exitEW="53.5" />
+              <loc name="End" type="Town" NS="-8.8" EW="53.6" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+
+        navigator.StartNavigation();
+
+        Assert.Empty(navigation.Inner.GoToCalls);
+        if (!sealedDungeon)
+        {
+            // A building's rooms see the landscape; its portals are outside.
+            Assert.Empty(navigation.Inner.GoToPositionCalls);
+            Assert.DoesNotContain("Exploring dungeon", navigator.FailureReason);
+            return;
+        }
+        Assert.Single(navigation.Inner.GoToPositionCalls);
+        Assert.Contains("Exploring dungeon for portal 'Folthid Estate'", navigator.FailureReason);
+
+        objects.Objects.Add(new PluginWorldObject(0x78A020AA, 0, "Folthid Estate", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = Hub(80, 0x8A0201E3),
+        });
+        navigator.OnTick(0.1);
+
+        Assert.Equal(0x78A020AAu, Assert.Single(navigation.Inner.GoToCalls).ObjectId);
+        Assert.True(navigator.IsNavigating);
     }
 
     private sealed class TestWorldObjects : IWorldObjectAutomation

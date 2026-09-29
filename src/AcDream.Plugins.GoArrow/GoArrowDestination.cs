@@ -305,6 +305,16 @@ internal sealed class GoArrowDestination
         UpdateGuidance(currentPosition);
     }
 
+    internal bool TryPlanFromPortalArrival(string portalName)
+    {
+        var portal = _database.FindLocation(portalName);
+        if (TargetLocation is null || portal is null || !portal.HasExitCoords)
+            return false;
+        CalculateRoute(new RouteFinding.Location(
+            $"{portal.Name} arrival ({portal.Id})", portal.ExitCoords));
+        return CurrentRoute is { StepCount: > 0 };
+    }
+
     /// <summary>
     /// Update distance to the final destination and guidance to the next step.
     /// </summary>
