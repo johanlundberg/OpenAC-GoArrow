@@ -583,9 +583,9 @@ public sealed class PortalNavigationTests
         navigator.OnTick(0.1);
         host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
             host.Inner.PluginNavigation.GoToReport.Sequence, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
-        // The next leg is the entrance activation. A surface cave uses normal
-        // portal searching; a portal transit still uses indoor resolution.
-        Assert.Equal(portalTransit, navigator.WaitingForIndoorPortal);
+        // The next leg is the entrance activation. Inside at the entrance
+        // with no live portal, both cases search for the portal indoors.
+        Assert.Equal(portalTransit || !nextIsDistantWalk, navigator.WaitingForIndoorPortal);
         if (nextIsDistantWalk && !portalTransit)
         {
             Assert.True(navigator.IsNavigating);
@@ -1599,7 +1599,7 @@ public sealed class PortalNavigationTests
               <loc name="Town Network (S R) to Facility Hub" type="UndergroundPortal"
                 NS="0" EW="95" exitNS="-100.31" exitEW="8.49" />
               <loc name="Facility Hub (E)(L 1 (10) C) to Folthid Estate" type="UndergroundPortal"
-                NS="-100.31" EW="8.5" exitNS="-8.8" exitEW="53.5" />
+                NS="-100.31" EW="8.9" exitNS="-8.8" exitEW="53.5" />
               <loc name="End" type="Town" NS="-8.8" EW="53.6" />
             </locations>
             """);
@@ -1614,7 +1614,8 @@ public sealed class PortalNavigationTests
         Assert.Empty(navigation.Inner.GoToCalls);
         if (!sealedDungeon)
         {
-            // A building's rooms see the landscape; its portals are outside.
+            // A building's rooms see the landscape; away from the portal's
+            // Atlas location there is nothing to search for.
             Assert.Empty(navigation.Inner.GoToPositionCalls);
             Assert.DoesNotContain("Exploring dungeon", navigator.FailureReason);
             return;
@@ -1632,6 +1633,140 @@ public sealed class PortalNavigationTests
 
         Assert.Equal(0x78A020AAu, Assert.Single(navigation.Inner.GoToCalls).ObjectId);
         Assert.True(navigator.IsNavigating);
+    }
+
+    [Fact]
+    public void PortalInsideSurfaceRuinIsFoundByExploringAtItsAtlasLocation()
+    {
+        // Imuth Maer Doquin: the Halls of Metos portal is in the ruin's
+        // lower rooms, which see the landscape and so are not sealed.
+        static PluginNavigationPosition Ruin(float x, float y, uint cell) =>
+            new(cell, (72 * 192 + x - 84) / 240d, (-15 * 192 + y - 84) / 240d, 0, 0,
+                (cell & 0xFFFFu) < 0x100);
+        var host = new NavigationHost();
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        var objects = new TestWorldObjects();
+        automation.Inner.Objects = objects;
+        host.Inner.AutomationValue = automation;
+        navigation.Inner.SnapshotValue = new(true, false, 1, Ruin(100, 155, 0xC7700031), false, false);
+        automation.Map.Cells = [new(0xC7700111, new System.Numerics.Vector3(180, 185, 0), 0),
+            new(0xC7700112, new System.Numerics.Vector3(150, 185, 0), 0)];
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Halls of Metos (Imuth Maer Doquin)" type="WildernessPortal"
+                NS="-11.7" EW="58.0" exitNS="61.4" exitEW="-46.6" />
+              <loc name="End" type="Town" NS="61.4" EW="-46.5" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        int walks = navigation.Inner.GoToPositionCalls.Count;
+        Assert.True(walks > 0);
+
+        navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with
+        {
+            Position = Ruin(180, 155, 0xC7700110),
+        };
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(
+            navigation.Inner.GoToReport.Sequence, PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
+
+        Assert.Empty(objects.Activated);
+        Assert.False(navigator.WaitingForInteraction);
+        Assert.Contains("Exploring dungeon for portal 'Halls of Metos (Imuth Maer Doquin)'",
+            navigator.FailureReason);
+        Assert.Equal(walks + 1, navigation.Inner.GoToPositionCalls.Count);
+        uint firstTarget = navigation.Inner.GoToPositionCalls[^1].Position.CellId;
+
+        // The route to the next room leaves through the entrance and comes
+        // back in; stepping outside is not leaving the ruin.
+        navigation.Inner.GoToReportValue = navigation.Inner.GoToReportValue with
+        {
+            State = PluginGoToState.Walking,
+        };
+        navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with
+        {
+            Position = Ruin(178, 150, 0xC770003F),
+        };
+        navigator.OnTick(0.6);
+        navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with
+        {
+            Position = Ruin(180, 160, 0xC7700110),
+        };
+        navigator.OnTick(0.6);
+        Assert.Equal(0, navigation.Inner.StopGoToCount);
+        Assert.Equal(walks + 1, navigation.Inner.GoToPositionCalls.Count);
+        Assert.Contains("Exploring dungeon", navigator.FailureReason);
+
+        // A target the client keeps planning for is abandoned for another cell.
+        navigation.Inner.GoToReportValue = navigation.Inner.GoToReportValue with
+        {
+            State = PluginGoToState.Planning,
+            Reason = "planning",
+        };
+        for (int i = 0; i < 16; i++)
+            navigator.OnTick(1);
+        navigator.OnTick(0.6);
+        Assert.Equal(1, navigation.Inner.StopGoToCount);
+        Assert.Equal(walks + 2, navigation.Inner.GoToPositionCalls.Count);
+        Assert.NotEqual(firstTarget, navigation.Inner.GoToPositionCalls[^1].Position.CellId);
+
+        objects.Objects.Add(new PluginWorldObject(0x7C770042, 0, "Halls of Metos", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = Ruin(185, 160, 0xC7700113),
+        });
+        navigator.OnTick(0.1);
+
+        Assert.Equal(0x7C770042u, Assert.Single(objects.Activated));
+    }
+
+    [Fact]
+    public void GatewayPortalMatchesQualifiedAtlasName()
+    {
+        // Imuth Maer Doquin: the live portal stands 28 m from the Atlas spot,
+        // beyond the distance an unrelated name is trusted at.
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(0x7C770042, 0, "Gateway to the Halls of Metos",
+            PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0xC770003F, 58.0 + 28 / 240d, -11.7, 0, 0, true),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0xC770003F, 58.0, -11.7, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Halls of Metos (Imuth Maer Doquin)" type="WildernessPortal"
+                NS="-11.7" EW="58.0" exitNS="61.4" exitEW="-46.6" />
+              <loc name="End" type="Town" NS="61.4" EW="-46.5" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+
+        navigator.StartNavigation();
+
+        Assert.Equal(0x7C770042u, Assert.Single(objects.Activated));
+        Assert.DoesNotContain("Could not identify", navigator.FailureReason);
     }
 
     private sealed class TestWorldObjects : IWorldObjectAutomation

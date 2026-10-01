@@ -90,6 +90,29 @@ public sealed class DungeonPortalSearchTests
         Assert.Empty(navigation.PreviewTargets);
     }
 
+    [Theory]
+    [InlineData(43.5f, 43.5)]
+    [InlineData(80f, 42.0)]
+    [InlineData(float.NaN, 42.0)]
+    public void TargetStandsOnTheCellFloorNotTheLayerBand(float origin, double expected)
+    {
+        // Imuth Maer Doquin: a ruin floor at 43.5 m is drawn in the 42 m
+        // layer. Outside a sealed dungeon the host cannot route to a goal
+        // 1.5 m under that floor and searches until its limit.
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        navigation.Inner.SnapshotValue = new(true, false, 1, Position(0), false, false);
+        automation.Map.Cells = [new(0x02AA0101, new Vector3(20, 0, 44), 42)];
+        if (!float.IsNaN(origin))
+            automation.Map.IndoorCells = [new(0x02AA0101, 0, 0, new Vector3(20, 0, origin),
+                Quaternion.Identity, true)];
+        var search = new DungeonPortalSearch();
+
+        Assert.True(search.TryGetNextTarget(automation, out var target));
+
+        Assert.Equal(expected, target.Elevation * 240, 3);
+    }
+
     [Fact]
     public void FailedTargetDoesNotBecomeABacktrackingCheckpoint()
     {
@@ -304,6 +327,8 @@ internal sealed class DungeonSearchMap : IDungeonMapAutomation
 {
     public IReadOnlyList<PluginDungeonCell> Cells { get; set; } = [];
     public IReadOnlyList<PluginDungeonLayer> Layers { get; set; } = [];
+    public IReadOnlyList<PluginIndoorCell> IndoorCells { get; set; } = [];
+    public IReadOnlyList<PluginIndoorCell> CaptureIndoorCells(uint landblockId) => IndoorCells;
     public bool SealedDungeon { get; set; }
     public bool IsSealedDungeon(uint cellId) => SealedDungeon;
     public PluginDungeonFloorplan CaptureFloorplan(uint block) => new(block, Layers, Cells, Vector3.Zero, Vector3.One);

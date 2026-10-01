@@ -120,8 +120,10 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         var currentCell = cells.FirstOrDefault(c => c.CellId == snapshot.Position.CellId);
         double currentFloor = currentCell.CellId != 0 ? currentCell.LayerZ : snapshot.Position.Elevation * 240;
         MarkVisibleCells(snapshot.Position, floorplan);
+        var floors = automation.DungeonMap.CaptureIndoorCells(block)
+            .ToDictionary(c => c.CellId, c => c.Origin.Z);
         var candidates = cells.Where(c => IsOnFloor(c, floorplan))
-            .Select(c => new { Position = ToPosition(c), Height = c.LayerZ })
+            .Select(c => new { Position = ToPosition(c, floors), Height = c.LayerZ })
             .Where(c => !_attempted.Contains(c.Position.CellId)
                 && !_covered.Contains(c.Position.CellId)
                 && (!_shallowDeadEndCells.Contains(c.Position.CellId)
@@ -278,10 +280,11 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         && position.HorizontalDistanceMeters(portal) + 0.05
             < previous.HorizontalDistanceMeters(portal);
 
-    public bool SafeToContinue(IAutomationSurface automation)
+    public bool SafeToContinue(IAutomationSurface automation, bool mayPassOutdoors = false)
     {
         var snapshot = automation.Navigation.Snapshot;
-        if (!snapshot.IsAvailable || snapshot.IsPortalSpace || snapshot.Position.IsOutdoor)
+        if (!snapshot.IsAvailable || snapshot.IsPortalSpace
+            || (snapshot.Position.IsOutdoor && !mayPassOutdoors))
             return false;
         var previous = _lastPosition;
         _lastPosition = snapshot.Position;
@@ -505,18 +508,23 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         return t > 0.001f && t <= 1 && u >= 0 && u <= 1;
     }
 
-    private static PluginNavigationPosition ToPosition(PluginDungeonCell cell)
+    internal static PluginNavigationPosition ToPosition(PluginDungeonCell cell,
+        IReadOnlyDictionary<uint, float> floors)
     {
         int x = (int)(cell.CellId >> 24);
         int y = (int)((cell.CellId >> 16) & 255);
+        // Geometry centres may sit high above a room's floor, and leaving
+        // height unknown makes the host resolve this point at terrain or
+        // current height, which can turn a downstairs goal into an upstairs
+        // walk. A cell's origin is where its piece's floor is built; the
+        // layer only bounds the storey and can lie metres below the floor,
+        // which the host cannot route to outside a sealed dungeon.
+        float height = floors.TryGetValue(cell.CellId, out float origin)
+            && Math.Abs(origin - cell.LayerZ) <= 6f ? origin : cell.LayerZ;
         return new PluginNavigationPosition(cell.CellId,
             ((x - 127) * 192 + cell.Center.X - 84) / 240d,
             ((y - 127) * 192 + cell.Center.Y - 84) / 240d,
-            // Geometry centres may sit high above a room's floor. The
-            // floorplan layer describes the walkable storey; leaving height
-            // unknown makes the host resolve this point at terrain/current
-            // height and can turn a downstairs goal into an upstairs walk.
-            cell.LayerZ / 240d, 0, false);
+            height / 240d, 0, false);
     }
 
 }

@@ -29,6 +29,9 @@ internal sealed class GoArrowNavigator : IDisposable
     internal DungeonTraversalStore DungeonTraversals { get; }
     private double _traversalSaveElapsed;
     private bool _exploringDungeonExit;
+    // A surface ruin's rooms are reached through the landscape, so a route
+    // between them can step outside without leaving the place searched.
+    private bool _explorationMayPassOutdoors;
     private bool _waitingForDungeonPortalIdentification;
     private PluginNavigationPosition? _walkingPortalOrigin;
     private bool _walkingPortalSawTransit;
@@ -41,6 +44,10 @@ internal sealed class GoArrowNavigator : IDisposable
     private uint _resolvedIndoorPortalObjectId;
     private PluginNavigationPosition? _resolvedIndoorPortalPosition;
     private double _indoorRetryElapsed;
+    private double _explorationPlanningElapsed;
+    // The host can stay in Planning for a goal it cannot settle, such as a
+    // cell centre inside geometry. Treat such a target as unreachable.
+    private const double ExplorationPlanningTimeoutSeconds = 15;
     private PluginNavigationPosition? _currentNavPosition;
     private long _activeSequence;
     private long _lastHandledReportRevision;
@@ -482,6 +489,7 @@ internal sealed class GoArrowNavigator : IDisposable
                 _observedIndoorRoute = true;
             else if (
                 live.Position.IsOutdoor
+                && !(_exploringDungeonExit && _explorationMayPassOutdoors)
                 && (
                     _indoorRouteLeg
                     || _indoorSurfaceExitLeg
@@ -520,8 +528,8 @@ internal sealed class GoArrowNavigator : IDisposable
         if (_exploringDungeonExit)
         {
             var pending = _destination.CurrentRoute?.Steps.FirstOrDefault();
-            if (pending is not null && (IsWalkToIndoorPortal(pending)
-                    ? FindIndoorPortal(live, pending.To.Name).ObjectId != 0
+            if (pending is not null && (RoutePortalName(pending) is not null
+                    ? IsRoutePortalVisible(live, pending)
                     : TryResolveRouteDungeonExit(live, pending)))
             {
                 _exploringDungeonExit = false;
@@ -541,7 +549,20 @@ internal sealed class GoArrowNavigator : IDisposable
                 _indoorRetryElapsed = 0;
                 _failureReason = "Identifying nearby dungeon portal.";
             }
-            else if (!_dungeonPortalSearch.SafeToContinue(_host.Automation))
+            else if (ExplorationPlanningTimedOut(elapsed))
+            {
+                var report = _host.Automation.Navigation.GoToReport;
+                _host.Automation.Navigation.StopGoTo();
+                _dungeonPortalSearch.CompleteTarget(live.Position, false);
+                _dungeonPortalSearch.RecordFailure(
+                    $"Planning to cell {_dungeonPortalSearch.CurrentTarget.CellId:X8} did not finish"
+                    + $" ({report.Reason ?? "no reason given"}).");
+                _exploringDungeonExit = false;
+                _isNavigating = false;
+                _pausedForOutdoorRoute = true;
+                _indoorRetryElapsed = 0;
+            }
+            else if (!_dungeonPortalSearch.SafeToContinue(_host.Automation, _explorationMayPassOutdoors))
             {
                 _dungeonPortalSearch.CompleteTarget(live.Position, false);
                 _exploringDungeonExit = false;
@@ -839,18 +860,9 @@ internal sealed class GoArrowNavigator : IDisposable
             }
             _isNavigating = false;
             _pausedForOutdoorRoute = true;
-            if (IsWalkToIndoorPortal(step)
-                && _host.Automation.DungeonMap.IsSealedDungeon(snapshot.Position.CellId))
+            if (ShouldExploreForPortal(snapshot, step))
             {
-                // Dungeon objects reach the client only as their cells come
-                // into view, so a portal in another wing needs a search.
-                // Buildings are indoor cells too; their portals are outside.
-                string portalName = PortalDestinationName(step.To.Name);
-                _dungeonPortalSearch.UseRecordedExit($"PORTAL|{portalName.ToUpperInvariant()}");
-                DungeonTraversals.Observe(snapshot);
-                if (!TryStartDungeonExploration(portalName))
-                    _failureReason = IndoorPortalSearchReason(snapshot, step)
-                        + " " + _dungeonPortalSearch.Reason;
+                ExploreForPortal(snapshot, step);
                 return;
             }
             string reason = IndoorPortalSearchReason(snapshot, step);
@@ -928,7 +940,62 @@ internal sealed class GoArrowNavigator : IDisposable
         && _destination.CurrentRoute is { Steps.Count: > 1 } route
         && route.Steps[1].Kind == RouteStepKind.Portal;
 
-    private bool TryStartDungeonExploration(string portalName)
+    // The live portal a route step leads to: the portal at the end of a walk,
+    // or the portal a Portal step uses.
+    private string? RoutePortalName(RouteStep step) =>
+        IsWalkToIndoorPortal(step) ? step.To.Name
+        : step.Kind == RouteStepKind.Portal ? step.Via
+        : null;
+
+    // Indoor objects reach the client only as their cells come into view, so
+    // a portal in another room needs a search. Search a sealed dungeon
+    // anywhere; elsewhere search only at the portal's Atlas location, so a
+    // building passed on the way is not explored.
+    private bool ShouldExploreForPortal(PluginNavigationSnapshot snapshot, RouteStep step) =>
+        RoutePortalName(step) is not null
+        && snapshot.IsAvailable && !snapshot.IsPortalSpace && !snapshot.Position.IsOutdoor
+        && (_host.Automation.DungeonMap.IsSealedDungeon(snapshot.Position.CellId)
+            || IsNearRouteEntrance(snapshot, step.Kind == RouteStepKind.Portal ? step.From : step.To));
+
+    // Mirrors how StartCurrentLeg resolves the portal: by exact name, or as
+    // the live portal at the Atlas entrance whatever its name.
+    private bool IsRoutePortalVisible(PluginNavigationSnapshot snapshot, RouteStep step)
+    {
+        if (RoutePortalName(step) is not { } name)
+            return false;
+        if (FindIndoorPortal(snapshot, name).ObjectId != 0)
+            return true;
+        var entrance = step.Kind == RouteStepKind.Portal ? step.From : step.To;
+        return IsNearRouteEntrance(snapshot, entrance)
+            && FindRouteEntrancePortal(entrance, snapshot, false).ObjectId != 0;
+    }
+
+    private bool ExplorationPlanningTimedOut(double elapsed)
+    {
+        if (_host.Automation.Navigation.GoToReport.State != PluginGoToState.Planning)
+        {
+            _explorationPlanningElapsed = 0;
+            return false;
+        }
+        _explorationPlanningElapsed += Math.Max(0, elapsed);
+        return _explorationPlanningElapsed >= ExplorationPlanningTimeoutSeconds;
+    }
+
+    private void ExploreForPortal(PluginNavigationSnapshot snapshot, RouteStep step)
+    {
+        string portalName = PortalDestinationName(RoutePortalName(step)!);
+        _dungeonPortalSearch.UseRecordedExit($"PORTAL|{portalName.ToUpperInvariant()}");
+        DungeonTraversals.Observe(snapshot);
+        _isNavigating = false;
+        _pausedForOutdoorRoute = true;
+        WaitingForInteraction = false;
+        if (!TryStartDungeonExploration(portalName,
+                mayPassOutdoors: !_host.Automation.DungeonMap.IsSealedDungeon(snapshot.Position.CellId)))
+            _failureReason = IndoorPortalSearchReason(snapshot, step)
+                + " " + _dungeonPortalSearch.Reason;
+    }
+
+    private bool TryStartDungeonExploration(string portalName, bool mayPassOutdoors = false)
     {
         if (!_dungeonPortalSearch.TryGetNextTarget(_host.Automation, out var explorationTarget))
             return false;
@@ -939,6 +1006,8 @@ internal sealed class GoArrowNavigator : IDisposable
             return true;
         }
         _dungeonPortalSearch.TargetAccepted(explorationTarget.CellId);
+        _explorationPlanningElapsed = 0;
+        _explorationMayPassOutdoors = mayPassOutdoors;
         _exploringDungeonExit = true;
         _pausedForOutdoorRoute = false;
         _isNavigating = true;
@@ -1450,15 +1519,27 @@ internal sealed class GoArrowNavigator : IDisposable
     {
         // Appraisal destinations are display labels and can include coordinates
         // or other text. They must not suppress a matching live portal name.
-        return PortalDestinationName(portal.Name).Equals(
-                destination,
-                StringComparison.OrdinalIgnoreCase
-            )
+        string live = PortalDestinationName(portal.Name);
+        return live.Equals(destination, StringComparison.OrdinalIgnoreCase)
             || (portal.PortalDestination is { } known
                 && PortalDestinationLabel(known).Equals(
                 destination,
                 StringComparison.OrdinalIgnoreCase
-            ));
+            ))
+            // Atlas names tell same-named places apart, as in "Halls of
+            // Metos (Imuth Maer Doquin)"; the live portal is "Gateway to the
+            // Halls of Metos". Callers bound the distance, which separates them.
+            || LooseName(live).Equals(LooseName(destination), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string LooseName(string name)
+    {
+        string value = name.Trim();
+        if (value.StartsWith("the ", StringComparison.OrdinalIgnoreCase))
+            value = value["the ".Length..];
+        if (value.EndsWith(')') && value.LastIndexOf(" (", StringComparison.Ordinal) is var open and > 0)
+            value = value[..open];
+        return value.Trim();
     }
 
     private static string PortalDestinationLabel(string label)
@@ -1545,6 +1626,8 @@ internal sealed class GoArrowNavigator : IDisposable
             value = value["Portal to ".Length..];
         else if (value.StartsWith("Portal for ", StringComparison.OrdinalIgnoreCase))
             value = value["Portal for ".Length..];
+        else if (value.StartsWith("Gateway to ", StringComparison.OrdinalIgnoreCase))
+            value = value["Gateway to ".Length..];
         else if (
             (value.StartsWith("Town Network ", StringComparison.OrdinalIgnoreCase)
                 || value.StartsWith("Facility Hub ", StringComparison.OrdinalIgnoreCase))
@@ -1922,6 +2005,11 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (_activeInteractionObjectId == 0)
         {
+            if (ShouldExploreForPortal(snapshot, step))
+            {
+                ExploreForPortal(snapshot, step);
+                return;
+            }
             WaitingForInteraction = true;
             if (step.Kind == RouteStepKind.Portal)
             {

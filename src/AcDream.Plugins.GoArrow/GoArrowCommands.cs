@@ -335,9 +335,12 @@ internal sealed class GoArrowCommands
             : snapshot.Position.IsOutdoor ? "outdoors"
             : "indoors";
         string step = _plugin.GetCurrentRouteSteps().FirstOrDefault() ?? "no active step";
+        var report = _host.Automation.Navigation.GoToReport;
+        string client = string.IsNullOrWhiteSpace(report.Reason)
+            ? report.State.ToString() : $"{report.State} ({report.Reason})";
         _host.Automation.Chat.PostSystemMessage(
             $"{GoArrowPlugin.DisplayTitle}: {_plugin.Panel?.NavStatusText ?? "Idle"}; {place}; "
-                + $"client {_host.Automation.Navigation.GoToReport.State}; next {step}."
+                + $"client {client}; next {step}."
         );
         if (_plugin.NavigationFailureReason.Length > 0)
             _host.Automation.Chat.PostSystemMessage(
