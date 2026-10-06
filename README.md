@@ -173,6 +173,11 @@ with the number from `/go route`. Each end matches a location by Atlas id when
 `FromId`/`ToId` is positive, otherwise by name. A blocked walk is blocked in
 both directions. Marking a step rewrites the file, which drops any comments.
 
+When a portal lands outdoors more than 5 map units from its listed arrival,
+GoArrow reports where it landed, avoids that portal until the plugin is next
+loaded, and recalculates from the live position. This is not saved; add an
+arrival correction to fix the portal permanently.
+
 ### Learned dungeon traversals
 
 GoArrow records indoor movement while enabled, including cell IDs and floor

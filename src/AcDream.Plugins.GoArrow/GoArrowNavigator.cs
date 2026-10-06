@@ -73,6 +73,10 @@ internal sealed class GoArrowNavigator : IDisposable
     // that radius so Activate does not start a separate walk.
     private const float PortalApproachDistance = 0.25f;
 
+    // Map units (1.2 km). Atlas arrivals are estimates, usually within one unit;
+    // the wrong arrivals this catches are typos tens of units away.
+    private const double WrongArrivalDistance = 5;
+
     /// <summary>Whether the current route is paused for a portal or recall action.</summary>
     public bool WaitingForInteraction { get; private set; }
 
@@ -726,6 +730,7 @@ internal sealed class GoArrowNavigator : IDisposable
         )
             return;
 
+        RouteStep completed = route.Steps[0];
         _destination.AdvanceStep();
         WaitingForInteraction = false;
         _activeInteractionObjectId = 0;
@@ -735,6 +740,8 @@ internal sealed class GoArrowNavigator : IDisposable
         _resolvedIndoorPortalObjectId = 0;
         _resolvedIndoorPortalPosition = null;
         _legIndex++;
+        if (startNextLeg && ReplanAfterWrongArrival(completed))
+            return;
         if (_destination.CurrentRoute.StepCount == 0)
         {
             HasArrived = true;
@@ -2178,6 +2185,7 @@ internal sealed class GoArrowNavigator : IDisposable
         // Complete the approach and crossing together, without activating again.
         _walkingPortalOrigin = null;
         _walkingPortalSawTransit = false;
+        RouteStep portal = route.Steps[1];
         _destination.AdvanceStep();
         _destination.AdvanceStep();
         _legIndex += 2;
@@ -2190,10 +2198,48 @@ internal sealed class GoArrowNavigator : IDisposable
         _resolvedIndoorPortalPosition = null;
         _landscapeWalkPosition = null;
         _failureReason = string.Empty;
+        if (ReplanAfterWrongArrival(portal))
+            return true;
         if (_destination.CurrentRoute?.StepCount == 0)
             HasArrived = true;
         else
             StartCurrentLeg();
+        return true;
+    }
+
+    /// <summary>
+    /// Atlas arrivals can be wrong. The rest of the route walks on from the
+    /// listed arrival, and every re-plan from where the character really is
+    /// would choose the same portal again. A portal that lands far from its
+    /// listed arrival is avoided until the plugin is next loaded.
+    /// </summary>
+    private bool ReplanAfterWrongArrival(RouteStep step)
+    {
+        var snapshot = _host.Automation.Navigation.Snapshot;
+        // Indoor positions have no reliable map coordinates to compare.
+        if (step.Kind != RouteStepKind.Portal || !step.To.HasCoordinates
+            || !snapshot.IsAvailable || snapshot.IsPortalSpace || !snapshot.Position.IsOutdoor)
+            return false;
+        var landed = new Coordinates(snapshot.Position.NorthSouth, snapshot.Position.EastWest);
+        if (landed.DistanceTo(step.To.Coords) <= WrongArrivalDistance)
+            return false;
+
+        _destination.AvoidStepForSession(step, $"Arrived at {landed}");
+        string message = $"GoArrow: '{step.Via}' arrived at {landed}, not {step.To.Coords}. "
+            + "Avoiding it until the plugin is reloaded and recalculating; "
+            + "add an arrival correction with /go corrections to fix it permanently.";
+        _host.Log.Warn(message);
+        _host.Automation.Chat.PostSystemMessage(message);
+        _isNavigating = false;
+        _pausedForOutdoorRoute = false;
+        _destination.ClearRoute();
+        if (PlanRoute())
+        {
+            _failureReason = string.Empty;
+            StartCurrentLeg();
+        }
+        else
+            _failureReason = $"No route avoids '{step.Via}', whose arrival is wrong.";
         return true;
     }
 

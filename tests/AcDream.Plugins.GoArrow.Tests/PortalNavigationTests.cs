@@ -1393,6 +1393,58 @@ public sealed class PortalNavigationTests
     }
 
     [Fact]
+    public void PortalLandingFarFromItsListedArrivalIsAvoidedAndReplanned()
+    {
+        var host = new NavigationHost();
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(42, 0, "Bad Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = new PluginNavigationPosition(0, 1, 0, 0, 0, true),
+        });
+        host.Inner.AutomationValue = new FakeAutomationSurface
+        {
+            Navigation = host.Inner.PluginNavigation,
+            Chat = host.Inner.PluginChat,
+            Objects = objects,
+        };
+        host.Inner.PluginNavigation.SnapshotValue = new(true, false, 1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Bad Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="99" />
+              <loc name="Good Portal" type="WildernessPortal" NS="0" EW="52" exitNS="0" exitEW="99" />
+              <loc name="End" type="Town" NS="0" EW="100" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+        navigator.StartNavigation();
+        host.EventsValue.RaiseNavigationChanged(new PluginGoToReport(1,
+            PluginGoToState.Arrived, 0, 0, 0, null) { Revision = 1 });
+        Assert.True(navigator.WaitingForInteraction);
+        Assert.Equal("Bad Portal", destination.CurrentRoute!.Steps[0].Via);
+
+        // The portal really lands 49 units short of its listed arrival.
+        host.Inner.PluginNavigation.SnapshotValue = host.Inner.PluginNavigation.SnapshotValue with
+        {
+            Position = new PluginNavigationPosition(0, 50, 0, 0, 0, true),
+        };
+        navigator.ResumeAfterInteraction();
+
+        Assert.False(navigator.HasArrived);
+        Assert.Contains(destination.CurrentRoute!.Steps, step => step.Via == "Good Portal");
+        Assert.DoesNotContain(destination.CurrentRoute.Steps, step => step.Via == "Bad Portal");
+        Assert.Contains(host.Inner.PluginChat.SystemMessages, message => message.Contains("'Bad Portal' arrived at"));
+        Assert.Equal(52, host.Inner.PluginNavigation.GoToPositionCalls[^1].Position.EastWest);
+    }
+
+    [Fact]
     public void BlockedPortalActivationKeepsStepAndAllowsRetry()
     {
         var host = new NavigationHost();

@@ -23,6 +23,7 @@ public class LocationDatabase
     private IReadOnlyDictionary<int, Coordinates> _atlasArrivalCorrections =
         new Dictionary<int, Coordinates>();
     private IReadOnlyList<AtlasCorrections.BlockedStep> _blockedSteps = [];
+    private readonly List<AtlasCorrections.BlockedStep> _sessionBlockedSteps = [];
     private bool _atlasLoaded;
 
     /// <summary>
@@ -103,7 +104,21 @@ public class LocationDatabase
     }
 
     /// <summary>Route steps that route searches must not use.</summary>
-    public IReadOnlyList<AtlasCorrections.BlockedStep> BlockedSteps => _blockedSteps;
+    public IReadOnlyList<AtlasCorrections.BlockedStep> BlockedSteps
+    {
+        get
+        {
+            lock (_lock)
+                return [.. _blockedSteps, .. _sessionBlockedSteps];
+        }
+    }
+
+    /// <summary>Blocks a step until the plugin is next loaded; nothing is saved.</summary>
+    public void AddSessionBlockedStep(AtlasCorrections.BlockedStep step)
+    {
+        lock (_lock)
+            _sessionBlockedSteps.Add(step);
+    }
 
     /// <summary>
     /// Arrival coordinates, by Atlas id, that replace the Atlas values in the

@@ -368,6 +368,13 @@ internal sealed class GoArrowDestination
             EstimatedDistance = 0;
     }
 
+    /// <summary>Keeps route searches off a step until the plugin is next loaded.</summary>
+    internal void AvoidStepForSession(RouteStep step, string note)
+    {
+        _database.AddSessionBlockedStep(AtlasCorrections.BlockedStep.FromRoute(step, note));
+        _routeFinder.InvalidateGraph();
+    }
+
     public bool RemoveRouteStep(int index) => CurrentRoute?.RemoveStep(index) == true;
 
     public bool MoveRouteStep(int fromIndex, int toIndex) =>
