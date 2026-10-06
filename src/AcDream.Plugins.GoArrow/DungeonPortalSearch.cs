@@ -17,6 +17,8 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
     private readonly HashSet<uint> _covered = [];
     private readonly HashSet<uint> _shallowDeadEndCells = [];
     private PluginDungeonFloorplan? _recessPlan;
+    private PluginDungeonFloorplan? _walkPlan;
+    private readonly Dictionary<uint, List<(uint CellId, float Distance)>> _walkLinks = [];
     private readonly List<PluginNavigationPosition> _branch = [];
     private bool _returning;
     private string _lastFailure = string.Empty;
@@ -123,7 +125,7 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         var floors = automation.DungeonMap.CaptureIndoorCells(block)
             .ToDictionary(c => c.CellId, c => c.Origin.Z);
         var candidates = cells.Where(c => IsOnFloor(c, floorplan))
-            .Select(c => new { Position = ToPosition(c, floors), Height = c.LayerZ })
+            .Select(c => new Candidate(ToPosition(c, floors), c.LayerZ))
             .Where(c => !_attempted.Contains(c.Position.CellId)
                 && !_covered.Contains(c.Position.CellId)
                 && (!_shallowDeadEndCells.Contains(c.Position.CellId)
@@ -134,16 +136,27 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
                 && (snapshot.Position.HorizontalDistanceMeters(c.Position) > 8
                     || Math.Abs(currentFloor - c.Height) > 3)
                 && !portals.Any(portal => portal.HorizontalDistanceMeters(c.Position) < 12))
-            .OrderBy(c => snapshot.Position.HorizontalDistanceMeters(c.Position)
-                + Math.Abs(currentFloor - c.Height))
-            .ThenBy(c => c.Position.CellId).Select(c => c.Position).ToArray();
-        // The host exposes floor geometry, but not cell adjacency. A target
-        // closer from here than from the previous checkpoint continues this
-        // branch, even when it is farther than the usual nearby preference.
+            .ToArray();
+        // Distances follow the floorplan's open floor, so a corridor that
+        // bends back still reads as leading on from here, not as a side
+        // branch of the previous checkpoint.
+        UpdateWalkGraph(floorplan);
+        var fromHere = WalkDistances(snapshot.Position, floorplan);
+        var fromPrevious = _branch.Count > 1 ? WalkDistances(_branch[^2], floorplan) : null;
+        double Walk(IReadOnlyDictionary<uint, float> walks, PluginNavigationPosition from,
+            PluginNavigationPosition to, IReadOnlyDictionary<uint, float>? other) =>
+            walks.TryGetValue(to.CellId, out float walk) && (other is null || other.ContainsKey(to.CellId))
+                ? walk : SearchDistance(from, to);
+        // A target a shorter walk from here than from the previous
+        // checkpoint continues this branch, even when it is farther than the usual nearby preference.
         // Return only after that direction has no unexplored targets.
+        // Exits lie deeper far more often than higher, so a nearby way down
+        // always continues the branch.
         var forward = _branch.Count > 1
-            ? candidates.Where(p => SearchDistance(snapshot.Position, p)
-                + 0.5 < SearchDistance(_branch[^2], p)).ToArray()
+            ? candidates.Where(c => IsBelow(c, currentFloor)
+                    && snapshot.Position.HorizontalDistanceMeters(c.Position) <= NearbyMeters
+                || Walk(fromHere, snapshot.Position, c.Position, fromPrevious) + 0.5
+                    < Walk(fromPrevious!, _branch[^2], c.Position, fromHere)).ToArray()
             : candidates;
         _returning = forward.Length == 0 && _branch.Count > 1;
         if (_returning)
@@ -156,12 +169,28 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
         }
         else
         {
-            var nearby = forward.Where(p => snapshot.Position.HorizontalDistanceMeters(p) <= 40).ToArray();
-            var available = nearby.Length > 0 ? nearby : forward;
-            _target = available[0];
+            var ranked = forward.Select(c => (c.Position, c.Height,
+                    Walk: Walk(fromHere, snapshot.Position, c.Position, null)))
+                .ToArray();
+            var nearby = ranked.Where(c => c.Walk <= NearbyMeters).ToArray();
+            // Lower storeys first, then the shortest walk; climbing costs
+            // extra so a level route is taken over going back upstairs.
+            _target = (nearby.Length > 0 ? nearby : ranked)
+                .OrderBy(c => c.Height < currentFloor - 3 ? 0 : c.Height <= currentFloor + 3 ? 1 : 2)
+                .ThenBy(c => c.Walk + Math.Max(0, c.Height - currentFloor) * 2)
+                .ThenBy(c => c.Position.CellId).First().Position;
         }
         return PrepareTarget(automation, snapshot, portals, out target);
     }
+
+    private const double NearbyMeters = 40;
+    // Neighbouring cells further apart than this are joined through the
+    // cells between them, which keeps each link short enough to trust.
+    private const float WalkLinkMeters = 30;
+
+    private readonly record struct Candidate(PluginNavigationPosition Position, float Height);
+
+    private static bool IsBelow(Candidate candidate, double floor) => candidate.Height < floor - 3;
 
     private static double SearchDistance(PluginNavigationPosition from, PluginNavigationPosition to) =>
         from.HorizontalDistanceMeters(to) + Math.Abs(from.Elevation - to.Elevation) * 240;
@@ -365,6 +394,91 @@ internal sealed class DungeonPortalSearch(DungeonTraversalStore? traversals = nu
                 && !layer.Walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
                 _covered.Add(cell.CellId);
         }
+    }
+
+    // Links cells that can see each other across open floor, and cells on
+    // neighbouring storeys that stand nearly over each other, where stairs
+    // and ramps join them. Hosts without walls get no graph, since every
+    // straight line would look open.
+    private void UpdateWalkGraph(PluginDungeonFloorplan plan)
+    {
+        if (ReferenceEquals(_walkPlan, plan))
+            return;
+        _walkPlan = plan;
+        _walkLinks.Clear();
+        if (plan.Layers.Count == 0)
+            return;
+        var cells = plan.Cells.Where(c => IsOnFloor(c, plan)).ToArray();
+        foreach (var cell in cells)
+            _walkLinks[cell.CellId] = [];
+        for (int i = 0; i < cells.Length; i++)
+            for (int j = i + 1; j < cells.Length; j++)
+            {
+                var a = cells[i];
+                var b = cells[j];
+                var start = new Vector2(a.Center.X, a.Center.Y);
+                var end = new Vector2(b.Center.X, b.Center.Y);
+                float across = Vector2.Distance(start, end);
+                float rise = Math.Abs(a.LayerZ - b.LayerZ);
+                float distance;
+                if (rise < 0.1f)
+                {
+                    if (across > WalkLinkMeters
+                        || plan.Layers.FirstOrDefault(l => Math.Abs(l.Z - a.LayerZ) < 0.1f) is not { } layer
+                        || layer.Walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
+                        continue;
+                    distance = across;
+                }
+                else if (rise <= 6.5f && across <= 12)
+                    distance = across + rise;
+                else
+                    continue;
+                _walkLinks[a.CellId].Add((b.CellId, distance));
+                _walkLinks[b.CellId].Add((a.CellId, distance));
+            }
+    }
+
+    // Walking distance from a position to every cell the graph reaches.
+    private Dictionary<uint, float> WalkDistances(PluginNavigationPosition position,
+        PluginDungeonFloorplan plan)
+    {
+        var distances = new Dictionary<uint, float>();
+        if (_walkLinks.Count == 0)
+            return distances;
+        var queue = new PriorityQueue<uint, float>();
+        void Seed(uint cellId, float distance)
+        {
+            if (distances.TryGetValue(cellId, out float known) && known <= distance)
+                return;
+            distances[cellId] = distance;
+            queue.Enqueue(cellId, distance);
+        }
+        if (_walkLinks.ContainsKey(position.CellId))
+            Seed(position.CellId, 0);
+        else
+        {
+            float z = (float)(position.Elevation * 240);
+            var layer = plan.Layers.OrderBy(l => Math.Abs(l.Z - z)).First();
+            var local = PluginDungeonFloorplan.ToLandblockLocal(position);
+            var start = new Vector2(local.X, local.Y);
+            foreach (var cell in plan.Cells)
+            {
+                var end = new Vector2(cell.Center.X, cell.Center.Y);
+                float distance = Vector2.Distance(start, end);
+                if (Math.Abs(cell.LayerZ - layer.Z) < 0.1f && distance <= WalkLinkMeters
+                    && _walkLinks.ContainsKey(cell.CellId)
+                    && !layer.Walls.Any(w => IntersectsWall(start, end, w.Start, w.End)))
+                    Seed(cell.CellId, distance);
+            }
+        }
+        while (queue.TryDequeue(out uint cellId, out float distance))
+        {
+            if (distance > distances[cellId])
+                continue;
+            foreach (var (next, step) in _walkLinks[cellId])
+                Seed(next, distance + step);
+        }
+        return distances;
     }
 
     private void UpdateShallowRecesses(PluginDungeonFloorplan plan)

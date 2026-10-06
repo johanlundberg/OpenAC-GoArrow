@@ -90,6 +90,62 @@ public sealed class DungeonPortalSearchTests
         Assert.Empty(navigation.PreviewTargets);
     }
 
+    [Fact]
+    public void SearchTakesTheWayDownEvenWhenItLeadsBackPastTheLastCheckpoint()
+    {
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        navigation.Inner.SnapshotValue = new(true, false, 1, Position(0), false, false);
+        automation.Map.Cells = [new(0x02AA0101, new Vector3(15, 0, 0), 0),
+            new(0x02AA0102, new Vector3(30, 0, -6), -6)];
+        var search = new DungeonPortalSearch();
+        uint Visit()
+        {
+            Assert.True(search.TryGetNextTarget(automation, out var target));
+            search.TargetAccepted(target.CellId);
+            navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with { Position = target };
+            search.CompleteTarget(target, true);
+            return target.CellId;
+        }
+        // The level cell is nearer, but the way down comes first.
+        Assert.Equal(0x02AA0102u, Visit());
+        // The next flight switches back past the start. It is still deeper,
+        // so it continues this branch rather than waiting for a backtrack.
+        automation.Map.Cells = [.. automation.Map.Cells, new(0x02AA0103, new Vector3(-5, 0, -12), -12)];
+        Assert.Equal(0x02AA0103u, Visit());
+        Assert.DoesNotContain("Backtracking", search.Reason);
+    }
+
+    [Fact]
+    public void SearchFollowsBentCorridorToItsEndBeforeTheSideBranch()
+    {
+        // A long hall turns back on itself around a dividing wall. Its far
+        // end lies right behind the start, so straight-line distance would
+        // send the search there through the wall and then sideways.
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        var start = Position(0) with { NorthSouth = Position(0).NorthSouth + 5 / 240d };
+        navigation.Inner.SnapshotValue = new(true, false, 1, start, false, false);
+        static PluginDungeonCell Cell(uint id, float x, float y) => new(0x02AA0100 + id, new Vector3(x, y, 0), 0);
+        automation.Map.Cells = [Cell(1, 20, 5), Cell(2, 40, 5), Cell(3, 55, 5), Cell(4, 78, 18),
+            Cell(5, 55, 25), Cell(6, 30, 25), Cell(7, 5, 25),
+            Cell(8, -30, 5), Cell(9, -60, 5)];
+        IReadOnlyList<Vector2> floor = [new(-70, -5), new(90, -5), new(90, 35), new(-70, 35)];
+        automation.Map.Layers = [new(0, [floor], [new(new Vector2(-70, 12), new Vector2(65, 12))])];
+        var search = new DungeonPortalSearch();
+        var explored = new List<uint>();
+        for (int i = 0; i < 20 && search.TryGetNextTarget(automation, out var target); i++)
+        {
+            if (!search.Reason.StartsWith("Backtracking"))
+                explored.Add(target.CellId);
+            search.TargetAccepted(target.CellId);
+            navigation.Inner.SnapshotValue = navigation.Inner.SnapshotValue with { Position = target };
+            search.CompleteTarget(target, true);
+        }
+        Assert.Equal(new uint[] { 0x02AA0103, 0x02AA0105, 0x02AA0107, 0x02AA0109 },
+            explored);
+    }
+
     [Theory]
     [InlineData(43.5f, 43.5)]
     [InlineData(80f, 42.0)]
