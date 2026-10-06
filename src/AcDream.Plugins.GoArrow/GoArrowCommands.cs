@@ -196,7 +196,8 @@ internal sealed class GoArrowCommands
                     {
                         "reload" => _plugin.LoadCorrections(),
                         "path" => _plugin.CorrectionsPath,
-                        _ => "GoArrow: Usage: /go corrections [path|reload]",
+                        "save" => _plugin.SaveObservedArrival(),
+                        _ => "GoArrow: Usage: /go corrections [path|reload|save]",
                     }
                 );
                 break;
@@ -438,7 +439,7 @@ internal sealed class GoArrowCommands
             + "  /go status - Show current destination\n"
             + "  /go route - Show the current route steps\n"
             + "  /go block <step> [note] - Never use a faulty route step again\n"
-            + "  /go corrections [path|reload] - Show or reload route corrections\n"
+            + "  /go corrections [path|reload|save] - Show, reload or save route corrections\n"
             + "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n"
             + "  /go dungeon export|import [filename.json] - Share learned dungeon paths\n"
             + "  /go mark <name> - Save this indoor point as a named location\n"

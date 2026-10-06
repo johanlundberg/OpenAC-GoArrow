@@ -175,8 +175,10 @@ both directions. Marking a step rewrites the file, which drops any comments.
 
 When a portal lands outdoors more than 5 map units from its listed arrival,
 GoArrow reports where it landed, avoids that portal until the plugin is next
-loaded, and recalculates from the live position. This is not saved; add an
-arrival correction to fix the portal permanently.
+loaded, and recalculates from the live position. For an Atlas portal, run
+`/go corrections save` to confirm that it was the right portal and save where
+it landed as its arrival correction; the portal can then be used again.
+Nothing is saved without that confirmation.
 
 ### Learned dungeon traversals
 

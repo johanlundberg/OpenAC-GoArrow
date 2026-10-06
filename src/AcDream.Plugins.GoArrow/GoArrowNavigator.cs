@@ -2208,6 +2208,12 @@ internal sealed class GoArrowNavigator : IDisposable
     }
 
     /// <summary>
+    /// The arrival observed for the last portal that landed far from its
+    /// listed arrival, waiting for the user to confirm saving it.
+    /// </summary>
+    public AtlasCorrections.ArrivalCorrection? PendingArrivalCorrection { get; set; }
+
+    /// <summary>
     /// Atlas arrivals can be wrong. The rest of the route walks on from the
     /// listed arrival, and every re-plan from where the character really is
     /// would choose the same portal again. A portal that lands far from its
@@ -2225,9 +2231,21 @@ internal sealed class GoArrowNavigator : IDisposable
             return false;
 
         _destination.AvoidStepForSession(step, $"Arrived at {landed}");
+        // Only an Atlas portal has an id an arrival correction can name.
+        PendingArrivalCorrection = step.GraphFrom is { Id: > 0, HasExitCoords: true } portal
+            ? new AtlasCorrections.ArrivalCorrection
+            {
+                Id = portal.Id,
+                Name = portal.Name,
+                Arrival = Coordinates.Round(landed, 1).ToString(),
+                Note = $"Observed arrival; Atlas lists {step.To.Coords}.",
+            }
+            : null;
         string message = $"GoArrow: '{step.Via}' arrived at {landed}, not {step.To.Coords}. "
-            + "Avoiding it until the plugin is reloaded and recalculating; "
-            + "add an arrival correction with /go corrections to fix it permanently.";
+            + "Avoiding it until the plugin is reloaded and recalculating. "
+            + (PendingArrivalCorrection is not null
+                ? "If this was the right portal, run /go corrections save to keep this arrival."
+                : "Use /go corrections to fix it permanently.");
         _host.Log.Warn(message);
         _host.Automation.Chat.PostSystemMessage(message);
         _isNavigating = false;

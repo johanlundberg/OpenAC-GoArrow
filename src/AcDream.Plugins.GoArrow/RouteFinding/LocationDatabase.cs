@@ -113,6 +113,13 @@ public class LocationDatabase
         }
     }
 
+    /// <summary>Unblocks session-blocked steps that leave from an Atlas location.</summary>
+    public void RemoveSessionBlockedSteps(int fromId)
+    {
+        lock (_lock)
+            _sessionBlockedSteps.RemoveAll(step => step.FromId == fromId);
+    }
+
     /// <summary>Blocks a step until the plugin is next loaded; nothing is saved.</summary>
     public void AddSessionBlockedStep(AtlasCorrections.BlockedStep step)
     {

@@ -78,6 +78,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     internal IReadOnlyList<string> DungeonPortalDiagnostics =>
         _navigator?.GetDungeonPortalDiagnostics() ?? [];
     internal GoArrowPanel? Panel => _panel;
+    internal GoArrowNavigator? Navigator => _navigator;
     internal string LocationDownloadStatus { get; private set; } = string.Empty;
     internal string DungeonDownloadStatus { get; private set; } = string.Empty;
 
@@ -1044,26 +1045,62 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         var blocked = AtlasCorrections.BlockedStep.FromRoute(step, note);
         if (!_routeFinder.HasGraphStep(blocked))
             return $"GoArrow: Step {index + 1} ({step}) is not a stored route link and cannot be blocked.";
-        try
-        {
-            var user = _host.Storage.ReadText(CorrectionsStorageKey) is { } json
-                ? AtlasCorrections.Parse(json)
-                : new AtlasCorrections();
-            user.BlockedSteps.Add(blocked);
-            _host.Storage.WriteText(CorrectionsStorageKey, user.ToJson());
-        }
-        catch (Exception e) when (e is System.Text.Json.JsonException or ArgumentException
-            or IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            // Never replace a file the user can fix by hand.
-            return $"GoArrow: Could not update '{CorrectionsStorageKey}': {e.Message}";
-        }
-        LoadCorrections();
+        if (UpdateUserCorrections(user => user.BlockedSteps.Add(blocked)) is { } error)
+            return error;
         _navigator?.StopNavigation();
         _destination.ClearRoute();
         _indoorPathPreview?.Clear();
         _lastPreviewAt = 0; // Recalculate on the next tick.
         return $"GoArrow: Blocked step {index + 1} ({step}); the route will be recalculated without it.";
+    }
+
+    /// <summary>
+    /// Saves the arrival the navigator observed for a portal that landed far
+    /// from its listed arrival, once the user confirms it.
+    /// </summary>
+    internal string SaveObservedArrival()
+    {
+        if (_host is null || _database is null || _navigator is null)
+            return "GoArrow: Route data is unavailable.";
+        if (_navigator.PendingArrivalCorrection is not { } observed)
+            return "GoArrow: No observed portal arrival is waiting to be saved.";
+        if (!_host.Storage.IsAvailable)
+            return "GoArrow: Plugin storage is unavailable; the arrival cannot be saved.";
+        if (UpdateUserCorrections(user =>
+            {
+                user.Arrivals.RemoveAll(entry => entry.Id == observed.Id);
+                user.Arrivals.Add(observed);
+            }) is { } error)
+            return error;
+        _navigator.PendingArrivalCorrection = null;
+        // With the right arrival the portal is useful again.
+        _database.RemoveSessionBlockedSteps(observed.Id);
+        _routeFinder?.InvalidateGraph();
+        return $"GoArrow: Saved {observed.Arrival} as the arrival of '{observed.Name}'.";
+    }
+
+    /// <summary>
+    /// Changes the user's corrections file and reloads corrections. Returns
+    /// an error message, or null on success. A file that cannot be read is
+    /// left for the user to fix rather than replaced.
+    /// </summary>
+    private string? UpdateUserCorrections(Action<AtlasCorrections> change)
+    {
+        try
+        {
+            var user = _host!.Storage.ReadText(CorrectionsStorageKey) is { } json
+                ? AtlasCorrections.Parse(json)
+                : new AtlasCorrections();
+            change(user);
+            _host.Storage.WriteText(CorrectionsStorageKey, user.ToJson());
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or ArgumentException
+            or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return $"GoArrow: Could not update '{CorrectionsStorageKey}': {e.Message}";
+        }
+        LoadCorrections();
+        return null;
     }
 
     internal static string? ReadEmbeddedText(string fileName)

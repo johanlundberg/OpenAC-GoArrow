@@ -153,4 +153,34 @@ public sealed class AtlasCorrectionsTests
         Assert.DoesNotContain(before[index], plugin.GetCurrentRouteSteps());
         plugin.Disable();
     }
+
+    [Fact]
+    public void ConfirmedObservedArrivalIsSavedAndUsedByRoutes()
+    {
+        var host = new FakePluginHost { HasUiValue = false };
+        host.PluginNavigation.SnapshotValue = new PluginNavigationSnapshot(true, false, 1,
+            new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
+        host.PluginStorage.WriteText("data/warcry-atlas.xml", Atlas);
+        host.PluginStorage.WriteText(GoArrowPlugin.CorrectionsStorageKey,
+            """{ "Arrivals": [ { "Id": 1, "Arrival": "40N, 40E" } ] }""");
+        var plugin = new GoArrowPlugin();
+        plugin.Initialize(host);
+        plugin.Enable();
+        Assert.True(plugin.SetDestination("End"));
+        Assert.Contains("No observed portal arrival", plugin.SaveObservedArrival());
+        plugin.Navigator!.PendingArrivalCorrection = new AtlasCorrections.ArrivalCorrection
+        {
+            Id = 1, Name = "Portal", Arrival = "19.9N, 20.0E", Note = "Observed arrival",
+        };
+
+        Assert.StartsWith("GoArrow: Saved 19.9N, 20.0E", plugin.SaveObservedArrival());
+        host.PluginEvents.RaiseTick(0.1);
+
+        var saved = Assert.Single(AtlasCorrections.Parse(
+            host.PluginStorage.ReadText(GoArrowPlugin.CorrectionsStorageKey)!).Arrivals);
+        Assert.Equal("19.9N, 20.0E", saved.Arrival);
+        Assert.Null(plugin.Navigator.PendingArrivalCorrection);
+        Assert.Contains(plugin.GetCurrentRouteSteps(), step => step.StartsWith("Portal:", StringComparison.Ordinal));
+        plugin.Disable();
+    }
 }

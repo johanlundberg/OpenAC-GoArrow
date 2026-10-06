@@ -1413,11 +1413,13 @@ public sealed class PortalNavigationTests
             new PluginNavigationPosition(0, 0, 0, 0, 0, true), false, false);
         var db = new LocationDatabase();
         db.LoadLocationsXml("""
-            <locations>
-              <loc name="Bad Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="99" />
-              <loc name="Good Portal" type="WildernessPortal" NS="0" EW="52" exitNS="0" exitEW="99" />
-              <loc name="End" type="Town" NS="0" EW="100" />
-            </locations>
+            <atlas>
+              <location><id>7</id><latitude>0</latitude><longitude>1</longitude><name>Bad Portal</name>
+                <type>Wilderness Portal</type><arrival_latitude>0</arrival_latitude><arrival_longitude>99</arrival_longitude></location>
+              <location><id>8</id><latitude>0</latitude><longitude>52</longitude><name>Good Portal</name>
+                <type>Wilderness Portal</type><arrival_latitude>0</arrival_latitude><arrival_longitude>99</arrival_longitude></location>
+              <location><id>9</id><latitude>0</latitude><longitude>100</longitude><name>End</name><type>Town</type></location>
+            </atlas>
             """);
         var settings = new GoArrowSettings { AutoNavigate = true };
         var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
@@ -1442,6 +1444,9 @@ public sealed class PortalNavigationTests
         Assert.DoesNotContain(destination.CurrentRoute.Steps, step => step.Via == "Bad Portal");
         Assert.Contains(host.Inner.PluginChat.SystemMessages, message => message.Contains("'Bad Portal' arrived at"));
         Assert.Equal(52, host.Inner.PluginNavigation.GoToPositionCalls[^1].Position.EastWest);
+        var observed = navigator.PendingArrivalCorrection!;
+        Assert.Equal((7, "Bad Portal", "0.0N, 50.0E"), (observed.Id, observed.Name, observed.Arrival));
+        Assert.Contains(host.Inner.PluginChat.SystemMessages, message => message.Contains("/go corrections save"));
     }
 
     [Fact]
