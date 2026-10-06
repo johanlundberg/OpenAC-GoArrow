@@ -228,6 +228,18 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
     /// downloader is intentionally separate; this parser preserves the data
     /// needed when an external provider is added later.
     /// </summary>
+    /// <summary>
+    /// Known wrong Atlas arrival coordinates, keyed by Atlas id. A wrong
+    /// arrival makes the graph walk on from a place the portal never reaches,
+    /// so navigation re-plans the same portal after every arrival.
+    /// </summary>
+    private static readonly Dictionary<int, Coordinates> AtlasArrivalErrata = new()
+    {
+        // "Town Network (E R 2) to Nanto" lists 82.2S; every other portal to
+        // Nanto, and the town itself, is at 52.2S 82.5E.
+        [9341] = new Coordinates(-52.2, 82.5),
+    };
+
     public static Location FromXmlWarcry(XmlElement element)
     {
         int id = ParseInt(ChildText(element, "id"), 0);
@@ -250,6 +262,8 @@ public sealed class Location : IEquatable<Location>, IComparable<Location>
         {
             exit = new Coordinates(-arrivalNS, arrivalEW);
         }
+        if (AtlasArrivalErrata.TryGetValue(id, out Coordinates corrected))
+            exit = corrected;
 
         var location = new Location(
             id,

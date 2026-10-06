@@ -99,6 +99,23 @@ public class LocationMetadataTests
     }
 
     [Fact]
+    public void LocationDatabase_CorrectsTownNetworkNantoArrival()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml(
+            "<atlas><location><id>9341</id><latitude>99.1</latitude><longitude>8.7</longitude>"
+                + "<name>Town Network (E R 2) to Nanto</name><type>Wilderness Portal</type>"
+                + "<arrival_latitude>82.200</arrival_latitude><arrival_longitude>82.500</arrival_longitude>"
+                + "<retired>N</retired></location></atlas>"
+        );
+
+        var portal = db.FindLocation("Town Network (E R 2) to Nanto");
+
+        Assert.NotNull(portal);
+        Assert.Equal(new Coordinates(-52.2, 82.5), portal.ExitCoords);
+    }
+
+    [Fact]
     public void Location_CompactXml_RoundTripsMetadata()
     {
         var source = new Location(
