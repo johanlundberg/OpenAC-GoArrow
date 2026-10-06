@@ -413,6 +413,16 @@
       text="Back to route"
       onclick="{ShowRouteTab}"
     />
+    <button
+      x="296"
+      y="6"
+      w="116"
+      h="24"
+      anchor="right top"
+      text="Mark faulty"
+      onclick="{BlockSelectedStep}"
+      visible="{CanBlockSelectedStep}"
+    />
     <label x="8" y="38" text="{DetailsInstructionText}" />
     <label x="8" y="72" text="Location" />
     <label x="100" y="72" text="{DetailsLocationName}" />

@@ -145,13 +145,17 @@ public sealed class RouteGraph
             atlasPortals.Add((i, arrivalIndex));
         }
 
+        var blockedSteps = db.BlockedSteps;
+        bool IsBlocked(int from, int to, RouteEdgeKind kind) =>
+            blockedSteps.Any(step => step.Blocks(_locations[from], _locations[to], kind));
+
         // ── Walk edges: connect nearby locations ────────────────
         for (int i = 0; i < _locations.Count; i++)
         {
             for (int j = i + 1; j < _locations.Count; j++)
             {
                 double dist = _locations[i].DistanceTo(_locations[j]);
-                if (dist <= maxWalkDistance)
+                if (dist <= maxWalkDistance && !IsBlocked(i, j, RouteEdgeKind.Walk))
                 {
                     // Undirected: add both directions
                     _adjacency[i].Add(new RouteGraphEdge(i, j, RouteEdgeKind.Walk, dist, "Walk"));
@@ -160,7 +164,8 @@ public sealed class RouteGraph
             }
         }
 
-        foreach (var (entrance, arrival) in atlasPortals)
+        foreach (var (entrance, arrival) in atlasPortals.Where(portal =>
+            !IsBlocked(portal.entrance, portal.arrival, RouteEdgeKind.Portal)))
             _adjacency[entrance]
                 .Add(
                     new RouteGraphEdge(
@@ -186,7 +191,8 @@ public sealed class RouteGraph
                 ? pd.Destination
                 : pd.ExitLocation;
             int toIdx = GetNodeIndex(exitName);
-            if (fromIdx < 0 || toIdx < 0 || fromIdx == toIdx)
+            if (fromIdx < 0 || toIdx < 0 || fromIdx == toIdx
+                || IsBlocked(fromIdx, toIdx, RouteEdgeKind.Portal))
                 continue;
 
             _adjacency[fromIdx]
@@ -202,6 +208,8 @@ public sealed class RouteGraph
                 continue;
 
             RouteEdgeKind kind = InferEdgeKind(rs.Via);
+            if (IsBlocked(fromIdx, toIdx, kind))
+                continue;
             double cost = kind switch
             {
                 RouteEdgeKind.Walk => _locations[fromIdx].DistanceTo(_locations[toIdx]),

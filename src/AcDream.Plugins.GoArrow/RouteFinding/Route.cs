@@ -65,6 +65,7 @@ public class Route
         RouteStep first = _steps[0];
         _steps[0] = new RouteStep(first.Kind, origin, first.To, first.Distance, first.Via)
         {
+            GraphFrom = first.GraphFrom,
             ObjectId = first.ObjectId,
             ObjectCapabilities = first.ObjectCapabilities,
             InteractionTimeout = first.InteractionTimeout,
@@ -144,6 +145,12 @@ public class RouteStep
 {
     public RouteStepKind Kind { get; }
     public Location From { get; }
+
+    /// <summary>
+    /// The graph location this step leaves from. It differs from
+    /// <see cref="From"/> when the route begins at the exact origin.
+    /// </summary>
+    public Location GraphFrom { get; init; }
     public Location To { get; }
     public double Distance { get; }
     public string Via { get; }
@@ -158,6 +165,7 @@ public class RouteStep
     {
         Kind = kind;
         From = from;
+        GraphFrom = from;
         To = to;
         Distance = distance;
         Via = via ?? string.Empty;

@@ -57,6 +57,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
     private PluginNavigationPosition? _lastPreviewPosition;
     private long _lastPreviewAt;
     private const string IndoorLocationsStorageKey = "GoArrow/indoor-locations.xml";
+    internal const string CorrectionsStorageKey = "GoArrow/atlas-corrections.json";
 
     private enum PendingRouteWork
     {
@@ -121,6 +122,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         _database = new LocationDatabase();
         _atlasProvider = new WarcryAtlasDataProvider(host.Storage, url: _settings.ExternalDataUrl);
         LoadEmbeddedData();
+        LoadCorrections();
         LoadCachedAtlasData();
         LoadLayeredData();
         LoadSavedIndoorLocations();
@@ -985,6 +987,94 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
         catch (Exception e) when (e is ArgumentException or System.Text.Json.JsonException
             or IOException or UnauthorizedAccessException or NotSupportedException)
         { return $"GoArrow: Dungeon traversal {action} failed: {e.Message}"; }
+    }
+
+    /// <summary>
+    /// Loads the shipped route corrections and the user's corrections file,
+    /// whose arrivals override shipped ones. A missing user file is created
+    /// from the shipped one so it can be found, edited and shared.
+    /// </summary>
+    internal string LoadCorrections()
+    {
+        if (_host is null || _database is null)
+            return "GoArrow: Route data is unavailable.";
+        string shipped = ReadEmbeddedText("AtlasCorrections.json") ?? "{}";
+        var sources = new List<AtlasCorrections> { AtlasCorrections.Parse(shipped) };
+        var errors = new List<string>();
+        try
+        {
+            if (_host.Storage.ReadText(CorrectionsStorageKey) is { } user)
+                sources.Add(AtlasCorrections.Parse(user));
+            else if (_host.Storage.IsAvailable)
+                _host.Storage.WriteText(CorrectionsStorageKey, shipped);
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or ArgumentException
+            or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            errors.Add($"'{CorrectionsStorageKey}' could not be read: {e.Message}");
+        }
+        var arrivals = AtlasCorrections.ArrivalsById(sources, errors);
+        var blocked = sources.SelectMany(source => source.BlockedSteps).ToList();
+        _database.SetCorrections(arrivals, blocked);
+        _routeFinder?.InvalidateGraph();
+        foreach (string error in errors)
+            _host.Log.Warn($"GoArrow: {error}");
+        return $"GoArrow: Loaded {arrivals.Count} arrival corrections and {blocked.Count} blocked steps"
+            + (errors.Count == 0 ? "." : $"; {errors.Count} could not be used (see log).");
+    }
+
+    internal string CorrectionsPath =>
+        $"GoArrow: Route corrections file: {CorrectionsStorageKey} in "
+        + $"{_host?.Storage.RootPath ?? "host managed storage"}.";
+
+    /// <summary>
+    /// Saves a current route step as blocked so route searches no longer use
+    /// it, then drops the route so it is recalculated.
+    /// </summary>
+    internal string BlockRouteStep(int index, string note = "")
+    {
+        if (_host is null || _destination is null || _routeFinder is null)
+            return "GoArrow: Route data is unavailable.";
+        if (!_host.Storage.IsAvailable)
+            return "GoArrow: Plugin storage is unavailable; the step cannot be saved.";
+        var steps = _destination.CurrentRoute?.Steps;
+        if (steps is null || index < 0 || index >= steps.Count)
+            return $"GoArrow: There is no route step {index + 1}.";
+        RouteStep step = steps[index];
+        var blocked = AtlasCorrections.BlockedStep.FromRoute(step, note);
+        if (!_routeFinder.HasGraphStep(blocked))
+            return $"GoArrow: Step {index + 1} ({step}) is not a stored route link and cannot be blocked.";
+        try
+        {
+            var user = _host.Storage.ReadText(CorrectionsStorageKey) is { } json
+                ? AtlasCorrections.Parse(json)
+                : new AtlasCorrections();
+            user.BlockedSteps.Add(blocked);
+            _host.Storage.WriteText(CorrectionsStorageKey, user.ToJson());
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or ArgumentException
+            or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // Never replace a file the user can fix by hand.
+            return $"GoArrow: Could not update '{CorrectionsStorageKey}': {e.Message}";
+        }
+        LoadCorrections();
+        _navigator?.StopNavigation();
+        _destination.ClearRoute();
+        _indoorPathPreview?.Clear();
+        _lastPreviewAt = 0; // Recalculate on the next tick.
+        return $"GoArrow: Blocked step {index + 1} ({step}); the route will be recalculated without it.";
+    }
+
+    internal static string? ReadEmbeddedText(string fileName)
+    {
+        var assembly = typeof(GoArrowPlugin).Assembly;
+        string? name = assembly.GetManifestResourceNames()
+            .FirstOrDefault(res => res.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
+        if (name is null || assembly.GetManifestResourceStream(name) is not { } stream)
+            return null;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     internal async Task UpdateDungeonMapsAsync()

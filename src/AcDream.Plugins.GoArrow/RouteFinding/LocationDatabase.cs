@@ -20,6 +20,10 @@ public class LocationDatabase
     private readonly List<PortalDevice> _portalDevices = new();
     private readonly List<RouteStart> _routeStarts = new();
     private readonly object _lock = new();
+    private IReadOnlyDictionary<int, Coordinates> _atlasArrivalCorrections =
+        new Dictionary<int, Coordinates>();
+    private IReadOnlyList<AtlasCorrections.BlockedStep> _blockedSteps = [];
+    private bool _atlasLoaded;
 
     /// <summary>
     /// All locations currently loaded.
@@ -98,6 +102,31 @@ public class LocationDatabase
         }
     }
 
+    /// <summary>Route steps that route searches must not use.</summary>
+    public IReadOnlyList<AtlasCorrections.BlockedStep> BlockedSteps => _blockedSteps;
+
+    /// <summary>
+    /// Arrival coordinates, by Atlas id, that replace the Atlas values in the
+    /// loaded Atlas data and in Atlas data loaded later. Removing a correction
+    /// takes effect when the Atlas data is next loaded.
+    /// </summary>
+    public void SetCorrections(
+        IReadOnlyDictionary<int, Coordinates> arrivals,
+        IReadOnlyList<AtlasCorrections.BlockedStep> blockedSteps
+    )
+    {
+        lock (_lock)
+        {
+            _atlasArrivalCorrections = arrivals;
+            _blockedSteps = blockedSteps;
+            if (!_atlasLoaded)
+                return;
+            foreach (Location location in _locations)
+                if (arrivals.TryGetValue(location.Id, out Coordinates arrival))
+                    location.ExitCoords = arrival;
+        }
+    }
+
     /// <summary>
     /// Load locations from an XML string.
     /// Expected format: &lt;Locations&gt;&lt;Location name="..."&gt;&lt;Coords NS="..." EW="..."/&gt;&lt;/Location&gt;...&lt;/Locations&gt;
@@ -126,6 +155,11 @@ public class LocationDatabase
                 Location location = isWarcryAtlas
                     ? Location.FromXmlWarcry(element)
                     : Location.FromXml(element);
+                if (
+                    isWarcryAtlas
+                    && _atlasArrivalCorrections.TryGetValue(location.Id, out Coordinates arrival)
+                )
+                    location.ExitCoords = arrival;
                 if (location.HasCoordinates)
                     newLocations.Add(location);
             }
@@ -148,6 +182,7 @@ public class LocationDatabase
 
         lock (_lock)
         {
+            _atlasLoaded = isWarcryAtlas;
             _locations.Clear();
             _locationsByName.Clear();
             foreach (var loc in newLocations)
@@ -270,6 +305,7 @@ public class LocationDatabase
 
         lock (_lock)
         {
+            _atlasLoaded = false;
             _locations.Clear();
             _locationsByName.Clear();
             foreach (var loc in newLocations)

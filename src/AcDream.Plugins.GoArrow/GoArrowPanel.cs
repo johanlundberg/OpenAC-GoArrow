@@ -394,6 +394,17 @@ internal sealed class GoArrowPanel
             ShowDetailsTab();
         };
 
+    public bool CanBlockSelectedStep => SelectedStep is not null;
+
+    public Action BlockSelectedStep =>
+        () =>
+        {
+            if (SelectedStep is null)
+                return;
+            _host.Automation.Chat.PostSystemMessage(_plugin.BlockRouteStep(_selectedRouteStep));
+            ShowRouteTab();
+        };
+
     private static Location StepDetailsLocation(RouteStep step) =>
         step.Kind == RouteStepKind.Portal ? step.From : step.To;
 

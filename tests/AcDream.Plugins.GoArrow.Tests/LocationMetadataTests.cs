@@ -99,9 +99,12 @@ public class LocationMetadataTests
     }
 
     [Fact]
-    public void LocationDatabase_CorrectsTownNetworkNantoArrival()
+    public void ShippedCorrectionsFixTownNetworkNantoArrival()
     {
         var db = new LocationDatabase();
+        var errors = new List<string>();
+        var shipped = AtlasCorrections.Parse(GoArrowPlugin.ReadEmbeddedText("AtlasCorrections.json")!);
+        db.SetCorrections(AtlasCorrections.ArrivalsById([shipped], errors), []);
         db.LoadLocationsXml(
             "<atlas><location><id>9341</id><latitude>99.1</latitude><longitude>8.7</longitude>"
                 + "<name>Town Network (E R 2) to Nanto</name><type>Wilderness Portal</type>"
@@ -111,6 +114,7 @@ public class LocationMetadataTests
 
         var portal = db.FindLocation("Town Network (E R 2) to Nanto");
 
+        Assert.Empty(errors);
         Assert.NotNull(portal);
         Assert.Equal(new Coordinates(-52.2, 82.5), portal.ExitCoords);
     }

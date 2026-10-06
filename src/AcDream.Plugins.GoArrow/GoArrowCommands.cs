@@ -176,6 +176,31 @@ internal sealed class GoArrowCommands
                 ShowRoute();
                 break;
 
+            case "block":
+                if (args.Length < 2 || !int.TryParse(args[1], out int stepNumber))
+                {
+                    _host.Automation.Chat.PostSystemMessage(
+                        "GoArrow: Usage: /go block <step number> [note]"
+                    );
+                    break;
+                }
+                _host.Automation.Chat.PostSystemMessage(
+                    _plugin.BlockRouteStep(stepNumber - 1, string.Join(" ", args.Skip(2)))
+                );
+                break;
+
+            case "corrections":
+                string correctionsMode = args.Length > 1 ? args[1].ToLowerInvariant() : "path";
+                _host.Automation.Chat.PostSystemMessage(
+                    correctionsMode switch
+                    {
+                        "reload" => _plugin.LoadCorrections(),
+                        "path" => _plugin.CorrectionsPath,
+                        _ => "GoArrow: Usage: /go corrections [path|reload]",
+                    }
+                );
+                break;
+
             case "dungeon":
                 string mode = args.Length > 1 ? args[1].ToLowerInvariant() : "toggle";
                 if (mode is "export" or "import")
@@ -412,6 +437,8 @@ internal sealed class GoArrowCommands
             + "  /go search <term> - Search locations\n"
             + "  /go status - Show current destination\n"
             + "  /go route - Show the current route steps\n"
+            + "  /go block <step> [note] - Never use a faulty route step again\n"
+            + "  /go corrections [path|reload] - Show or reload route corrections\n"
             + "  /go dungeon [on|off|toggle|path|reload] - Manage user dungeon maps\n"
             + "  /go dungeon export|import [filename.json] - Share learned dungeon paths\n"
             + "  /go mark <name> - Save this indoor point as a named location\n"

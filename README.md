@@ -131,6 +131,48 @@ Other files in that directory contain data rather than preferences:
 `GoArrow/*.xml` can contain user supplied location files. Keep those files if
 you want to use the corresponding data without downloading or importing it again.
 
+### Route corrections
+
+`GoArrow/atlas-corrections.json` fixes route data that is wrong in the game.
+GoArrow creates it on first start from the copy shipped with the plugin. Run
+`/go corrections` to show where it is. Copy the file to share it, and run
+`/go corrections reload` after editing or replacing it.
+
+```json
+{
+  "Version": 1,
+  "Arrivals": [
+    {
+      "Id": 9341,
+      "Name": "Town Network (E R 2) to Nanto",
+      "Arrival": "52.2S, 82.5E",
+      "Note": "Atlas lists 82.2S; Nanto and every other portal to it are at 52.2S."
+    }
+  ],
+  "BlockedSteps": [
+    {
+      "Kind": "Portal",
+      "From": "Town Network (E R 2) to Nanto",
+      "FromId": 9341,
+      "To": "Town Network (E R 2) to Nanto arrival (9341)",
+      "ToId": 0,
+      "Note": "Portal is gone"
+    }
+  ]
+}
+```
+
+`Arrivals` replaces an Atlas portal's arrival point, matched by Atlas id; the
+name is only for people reading the file. Entries in your file override the
+shipped ones. Removing an arrival correction takes effect when the Atlas data
+is next loaded.
+
+`BlockedSteps` lists route steps that route searches never use. Select a step
+in the route list and press **Mark faulty**, or run `/go block <step> [note]`
+with the number from `/go route`. Each end matches a location by Atlas id when
+`FromId`/`ToId` is positive, otherwise by name. A blocked walk is blocked in
+both directions. Marking a step rewrites the file, which drops any comments.
+
 ### Learned dungeon traversals
 
 GoArrow records indoor movement while enabled, including cell IDs and floor

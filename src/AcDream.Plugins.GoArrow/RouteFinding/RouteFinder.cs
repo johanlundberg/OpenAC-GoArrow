@@ -246,6 +246,17 @@ public class RouteFinder
         return nearest;
     }
 
+    /// <summary>Whether a graph link exists that <paramref name="step"/> would block.</summary>
+    public bool HasGraphStep(AtlasCorrections.BlockedStep step)
+    {
+        EnsureGraphBuilt();
+        for (int node = 0; node < _graph.NodeCount; node++)
+            foreach (var edge in _graph.GetEdges(node))
+                if (step.Blocks(_graph.GetLocation(edge.FromIndex), _graph.GetLocation(edge.ToIndex), edge.Kind))
+                    return true;
+        return false;
+    }
+
     /// <summary>Atomically discards the graph so the next route sees a complete snapshot.</summary>
     public void InvalidateGraph() => _graphBuilt = false;
 

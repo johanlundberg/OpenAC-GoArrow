@@ -31,5 +31,6 @@
     <EmbeddedResource Include="EmbeddedResources/DefaultLocations.xml" />
     <EmbeddedResource Include="EmbeddedResources/DefaultPortalDevices.xml" />
     <EmbeddedResource Include="EmbeddedResources/DefaultRouteStarts.xml" />
+    <EmbeddedResource Include="EmbeddedResources/AtlasCorrections.json" />
   </ItemGroup>
 </Project>
