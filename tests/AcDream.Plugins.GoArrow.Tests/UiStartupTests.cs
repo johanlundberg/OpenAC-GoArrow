@@ -32,6 +32,11 @@ public sealed class UiStartupTests
         Assert.True(panel.CanPreviousRoute);
         panel.PreviousRoute();
         Assert.Contains(panel.RouteSteps, step => step.Contains("Portal A"));
+        panel.NextRoute();
+        Assert.Contains(panel.RouteSteps, step => step.Contains("Portal B"));
+        // A new search starts again from the shortest route.
+        plugin.Go();
+        Assert.Contains(panel.RouteSteps, step => step.Contains("Portal A"));
         var markup = XDocument.Load(Path.Combine(Path.GetDirectoryName(
             typeof(GoArrowPlugin).Assembly.Location)!, "goarrow-panel.xml"));
         Assert.Equal(new[] { "Go", "Stop", "Resume", "Clear" }, markup.Descendants("button")

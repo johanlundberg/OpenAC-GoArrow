@@ -269,6 +269,55 @@ public sealed class PortalNavigationTests
         Assert.Equal(new uint[] { 44 }, objects.Activated);
     }
 
+    [Fact]
+    public void PlanningInsideDungeonNeverWalksBeforeGo()
+    {
+        var host = new NavigationHost();
+        var navigation = new DungeonSearchNavigation();
+        var automation = new DungeonSearchAutomation(navigation);
+        var objects = new TestWorldObjects();
+        objects.Objects.Add(new PluginWorldObject(43, 0, "Surface Portal", PluginObjectClass.Portal, 0, 0, 0)
+        {
+            Capabilities = PluginObjectCapabilities.Portal | PluginObjectCapabilities.Interactable,
+            HasPosition = true,
+            Position = DungeonPortalSearchTests.Position(-5),
+        });
+        automation.Inner.Objects = objects;
+        host.Inner.AutomationValue = automation;
+        navigation.Inner.SnapshotValue = new(true, false, 1, DungeonPortalSearchTests.Position(0), false, false);
+        automation.Map.Cells = [new(0x02AA0230, new System.Numerics.Vector3(20, 0, 0), 0)];
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Desert March" type="PortalHub" NS="0" EW="1" dungeonId="02AA" />
+              <loc name="Desert March to Black Hill Portal" type="UndergroundPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+              <loc name="End" type="Vendor" NS="0" EW="98" />
+            </locations>
+            """);
+        var settings = new GoArrowSettings { AutoNavigate = true };
+        var destination = new GoArrowDestination(settings, db, new RouteFinder(db));
+        Assert.True(destination.SetDestination("End"));
+        using var navigator = new GoArrowNavigator(host, destination, settings);
+        navigator.Enable();
+
+        // Showing the route waits on the dungeon exit and asks the nearby
+        // portal where it leads. Neither the wait nor the answer may move
+        // the character before Go.
+        Assert.False(navigator.PlanRoute());
+        Assert.Equal(new uint[] { 43 }, objects.Identified);
+        int index = objects.Objects.FindIndex(p => p.ObjectId == 43);
+        objects.Objects[index] = objects.Objects[index] with { PortalDestination = "Black Hill" };
+        host.EventsValue.RaiseObjectChanged(new PluginObjectChange(43, PluginObjectChangeKind.IdentReceived));
+        navigator.OnTick(0.6);
+        navigator.OnTick(0.6);
+        Assert.Empty(navigation.Inner.GoToPositionCalls);
+        Assert.Empty(navigation.Inner.GoToCalls);
+        Assert.False(navigator.IsNavigating);
+
+        navigator.StartNavigation();
+        Assert.True(navigator.IsNavigating);
+    }
+
     [Theory]
     [InlineData("Black Hill", true)]
     [InlineData("Somewhere Else", false)]

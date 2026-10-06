@@ -312,9 +312,7 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
             if (_routeFromOverride is { } from)
             {
                 _navigator.StopNavigation();
-                if (_destination is { } destination
-                    && (destination.AlternativeIndex == 0 || destination.CurrentRoute is null))
-                    destination.CalculateRoute(from);
+                _destination?.CalculateRoute(from);
                 return;
             }
             if (_destination?.TargetName == "Current Location")
@@ -328,12 +326,10 @@ public sealed class GoArrowPlugin : IAcDreamPlugin
                 return;
             }
 
-            if (_navigator.IsNavigating)
-                _navigator.StopNavigation();
-            var live = _host?.Automation.Navigation.Snapshot;
-            if (_destination?.AlternativeIndex > 0 && live is { IsAvailable: true, IsPortalSpace: false }
-                && _destination.CanKeepSelectedAlternative(live.Value.Position))
-                return;
+            // A search always shows the shortest route first; an earlier
+            // choice among the alternatives is not carried into it.
+            _navigator.StopNavigation();
+            _destination?.ClearRoute();
             _navigator.PlanRoute();
         }
         finally

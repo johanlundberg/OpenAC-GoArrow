@@ -60,6 +60,10 @@ internal sealed class GoArrowNavigator : IDisposable
     private PluginNavigationPosition? _interactionOriginPosition;
     private bool _interactionSawPortalSpace;
     private string _failureReason = string.Empty;
+    // Set only by the user's Go or Resume and cleared by Stop. Planning a
+    // route to show it can pause on an indoor exit or ask a portal for its
+    // destination; neither may start walking on its own.
+    private bool _goRequested;
     private Guid _routeId;
     private int _legIndex;
     private long _transitionGeneration;
@@ -361,6 +365,7 @@ internal sealed class GoArrowNavigator : IDisposable
 
         if (_isNavigating)
             StopNavigation();
+        _goRequested = true;
         _pausedForOutdoorRoute = false;
         _indoorSurfaceExitLeg = false;
         _waitingForSurfaceExit = false;
@@ -413,6 +418,7 @@ internal sealed class GoArrowNavigator : IDisposable
         }
 
         _isNavigating = false;
+        _goRequested = false;
         _pausedForOutdoorRoute = false;
         _indoorWalk = false;
         _indoorRouteLeg = false;
@@ -577,7 +583,7 @@ internal sealed class GoArrowNavigator : IDisposable
             return;
         }
 
-        if (_pausedForOutdoorRoute)
+        if (_pausedForOutdoorRoute && _goRequested)
         {
             var snapshot = _host.Automation.Navigation.Snapshot;
             if (!snapshot.IsAvailable || snapshot.IsPortalSpace)
@@ -641,6 +647,7 @@ internal sealed class GoArrowNavigator : IDisposable
     {
         if (!CanResumeNavigation)
             return;
+        _goRequested = true;
         if (WaitingForInteraction)
         {
             ResumeAfterInteraction(startNextLeg: _settings.AutoNavigate);
@@ -744,7 +751,7 @@ internal sealed class GoArrowNavigator : IDisposable
     private void StartCurrentLeg()
     {
         var step = _destination.CurrentRoute?.Steps.FirstOrDefault();
-        if (step is null)
+        if (step is null || !_goRequested)
             return;
 
         var snapshot = _host.Automation.Navigation.Snapshot;
@@ -1643,6 +1650,8 @@ internal sealed class GoArrowNavigator : IDisposable
 
     private void StartIndoorWalk()
     {
+        if (!_goRequested)
+            return;
         PluginNavigationCommandStatus status;
         if (
             _destination.Kind == GoArrowDestinationKind.Object
@@ -2115,6 +2124,8 @@ internal sealed class GoArrowNavigator : IDisposable
         {
             _pendingPortalIdentificationObjectId = 0;
             _pendingPortalIdentificationStarted = 0;
+            if (!_goRequested)
+                return;
             if (_pausedForOutdoorRoute && _destination.CurrentRoute is { StepCount: > 0 })
                 StartCurrentLeg();
             else if (!_isNavigating && !WaitingForInteraction && _destination.HasDestination)
