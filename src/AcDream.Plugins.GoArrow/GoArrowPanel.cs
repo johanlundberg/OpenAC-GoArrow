@@ -147,6 +147,14 @@ internal sealed class GoArrowPanel
     /// <summary>Whether navigation is active.</summary>
     public bool IsNavigating => _navigator.IsNavigating || _plugin.IsComputingRoute;
 
+    private const string NeutralButtonColor = "#CC1A1A26";
+
+    /// <summary>Go button background: green while navigating.</summary>
+    public string GoButtonColor => IsNavigating ? "#E0207A35" : NeutralButtonColor;
+
+    /// <summary>Stop button background: red while not navigating.</summary>
+    public string StopButtonColor => IsNavigating ? NeutralButtonColor : "#E08A2020";
+
     /// <summary>Whether the route is paused for a manual portal/recall action.</summary>
     public bool WaitingForInteraction => _navigator.WaitingForInteraction;
 

@@ -135,6 +135,7 @@
       w="72"
       h="22"
       text="Go"
+      background="{GoButtonColor}"
       enabled="{HasDestination}"
       onclick="{StartNavigation}"
     />
@@ -144,6 +145,7 @@
       w="72"
       h="22"
       text="Stop"
+      background="{StopButtonColor}"
       enabled="{IsNavigating}"
       onclick="{StopNavigation}"
     />
