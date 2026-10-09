@@ -6,6 +6,13 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>AcDream.Plugins.GoArrow</RootNamespace>
+    <!-- The release version is passed as PluginVersion, never as a global
+         Version: a global -p:Version also renames the referenced
+         AcDream.Plugin.Abstractions build, and a plugin that asks for an
+         API assembly version the client does not ship never loads
+         ("no IAcDreamPlugin implementation found"). Only this project
+         takes the release version. -->
+    <Version Condition="'$(PluginVersion)' != ''">$(PluginVersion)</Version>
   </PropertyGroup>
 
   <ItemGroup>
