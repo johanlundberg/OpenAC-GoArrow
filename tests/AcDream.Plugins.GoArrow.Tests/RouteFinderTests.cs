@@ -42,6 +42,76 @@ public class RouteFinderTests
         Assert.Equal("Long Portal", routes[1].Steps.Single(s => s.Kind == RouteStepKind.Portal).Via);
     }
 
+    [Fact]
+    public void CoordinateDestinationUsesPortalAndWalksTheLastStretch()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Far Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+            </locations>
+            """);
+        var target = new Location("40N 97E", 0, 97);
+        var route = new RouteFinder(db).FindRoute(new Location("Player", 0, 0), target);
+        Assert.Equal(new[] { RouteStepKind.Travel, RouteStepKind.Portal, RouteStepKind.Travel },
+            route.Steps.Select(step => step.Kind));
+        Assert.Equal("Far Portal", route.Steps[1].Via);
+        Assert.Same(target, route.Steps[^1].To);
+        Assert.Equal(2, route.Steps[^1].Distance, 6);
+        Assert.Empty(route.Description);
+    }
+
+    [Fact]
+    public void NearbyCoordinateDestinationIsAPlainWalk()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Far Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+            </locations>
+            """);
+        var target = new Location("0N 3E", 0, 3);
+        var route = new RouteFinder(db).FindRoute(new Location("Player", 0, 0), target);
+        var step = Assert.Single(route.Steps);
+        Assert.Equal(RouteStepKind.Travel, step.Kind);
+        Assert.Same(target, step.To);
+        Assert.Equal(3, step.Distance, 6);
+    }
+
+    [Fact]
+    public void CoordinateDestinationAlternativesOfferWalkAndPortal()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Long Portal" type="WildernessPortal" NS="0" EW="9" exitNS="0" exitEW="9.5" />
+            </locations>
+            """);
+        var target = new Location("0N 8E", 0, 8);
+        var routes = new RouteFinder(db).FindRouteAlternatives(new Location("Player", 0, 0), target);
+        Assert.Equal(2, routes.Count);
+        Assert.Equal(0, routes[0].PortalCount);
+        Assert.Equal("Long Portal", routes[1].Steps.Single(s => s.Kind == RouteStepKind.Portal).Via);
+        Assert.All(routes, route => Assert.Same(target, route.Steps[^1].To));
+    }
+
+    [Fact]
+    public void CoordinateDestinationDoesNotWalkOutOfADungeonEntrance()
+    {
+        var db = new LocationDatabase();
+        db.LoadLocationsXml("""
+            <locations>
+              <loc name="Cave" type="Dungeon" NS="0" EW="90" />
+              <loc name="Cave Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="90" />
+            </locations>
+            """);
+        var target = new Location("0N 92E", 0, 92);
+        var route = new RouteFinder(db).FindRoute(new Location("Player", 0, 0), target);
+        Assert.Contains(route.Steps, step => step.Kind == RouteStepKind.Portal);
+        Assert.DoesNotContain(route.Steps, step => step.From.Name == "Cave");
+        Assert.Same(target, route.Steps[^1].To);
+    }
+
     private static (LocationDatabase, RouteFinder) CreateTestDb()
     {
         var db = new LocationDatabase();

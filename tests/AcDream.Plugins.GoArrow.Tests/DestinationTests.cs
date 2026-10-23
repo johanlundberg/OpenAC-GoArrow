@@ -88,4 +88,27 @@ public sealed class DestinationTests
 
         Assert.Equal(expected, destination.BearingDegrees, 6);
     }
+
+    [Fact]
+    public void CoordinateDestinationRoutesThroughAPortalInsteadOfWalking()
+    {
+        var database = new LocationDatabase();
+        database.LoadLocationsXml("""
+            <locations>
+              <loc name="Far Portal" type="WildernessPortal" NS="0" EW="1" exitNS="0" exitEW="95" />
+            </locations>
+            """);
+        var destination = new GoArrowDestination(
+            new GoArrowSettings(),
+            database,
+            new RouteFinder(database)
+        );
+        destination.SetCoordinate(0, 97, "0N 97E");
+
+        destination.CalculateRoute(new Location("Current", 0, 0));
+
+        Assert.Equal(1, destination.CurrentRoute!.PortalCount);
+        Assert.Equal("Far Portal", destination.GetImmediateTarget()!.Name);
+        Assert.Equal("0N 97E", destination.CurrentRoute.Steps[^1].To.Name);
+    }
 }

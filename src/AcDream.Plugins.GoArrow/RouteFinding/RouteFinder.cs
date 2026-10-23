@@ -73,73 +73,42 @@ public class RouteFinder
         // Connect this exact origin to all nearby graph nodes for this search.
         // Choosing one named location before Dijkstra can miss a better portal
         // or add an artificial detour at the start of the route.
-        int toIdx = _graph.GetNodeIndex(destination);
-        if (toIdx >= 0)
-        {
-            Func<RouteGraphEdge, double>? weighting =
-                profile == RouteCostProfile.ShortestWalk
-                    ? null
-                    : edge =>
-                        profile switch
-                        {
-                            RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk
-                                ? 1d
-                                : 0.1d,
-                            RouteCostProfile.PreferRecall => edge.Kind
-                                is RouteEdgeKind.Recall
-                                    or RouteEdgeKind.Lifestone
-                                ? edge.Cost * 0.1d
-                                : edge.Cost,
-                            RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk
-                                ? edge.Cost
-                                : edge.Cost * 1000d,
-                            _ => edge.Cost,
-                        };
-            var path = _graph.FindShortestPathFromPosition(
-                currentPosition,
-                toIdx,
-                _maxWalkDistance,
-                weighting
-            );
-            if (path is { Count: > 0 })
-            {
-                var connection = path[0];
-                Location entry = _graph.GetLocation(connection.ToIndex);
-                if (path.Count == 1)
-                {
-                    var directRoute = new Route(destination.Name);
-                    directRoute.AddTravelStep(
-                        currentPosition,
-                        entry,
-                        connection.Cost == 0 ? "Arrived" : "Walk"
-                    );
-                    return directRoute;
-                }
-
-                var route = _graph.ToRoute(path.Skip(1).ToList(), destination.Name);
-                if (connection.Cost > 0)
-                {
-                    route.PrependStep(
-                        new RouteStep(
-                            RouteStepKind.Travel,
-                            currentPosition,
-                            entry,
-                            connection.Cost,
-                            "Walk to start"
-                        )
-                    );
-                }
-                else
-                    route.SetFirstStepOrigin(currentPosition);
-                return route;
-            }
-        }
+        var path = FindPath(currentPosition, destination, CostSelector(profile));
+        if (path is { Count: > 0 })
+            return RouteFromPath(currentPosition, destination, path);
 
         // Fallback: direct travel (walk there).
         var fallbackRoute = new Route(destination.Name);
         fallbackRoute.AddTravelStep(currentPosition, destination, "Walk");
         fallbackRoute.Description = "Direct walk (no graph route found)";
         return fallbackRoute;
+    }
+
+    private static Func<RouteGraphEdge, double>? CostSelector(RouteCostProfile profile) =>
+        profile switch
+        {
+            RouteCostProfile.FewestInteractions => edge =>
+                edge.Kind == RouteEdgeKind.Walk ? 1d : 0.1d,
+            RouteCostProfile.PreferRecall => edge =>
+                edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone
+                    ? edge.Cost * 0.1d
+                    : edge.Cost,
+            RouteCostProfile.AvoidInteractions => edge =>
+                edge.Kind == RouteEdgeKind.Walk ? edge.Cost : edge.Cost * 1000d,
+            _ => null,
+        };
+
+    /// <summary>
+    /// Shortest path to a graph node, or for a destination outside the graph
+    /// (a coordinate or object), to any node within walking range of it.
+    /// </summary>
+    private List<RouteGraphEdge>? FindPath(Location origin, Location destination,
+        Func<RouteGraphEdge, double>? cost, IReadOnlySet<RouteGraphEdge>? bans = null)
+    {
+        int toIndex = _graph.GetNodeIndex(destination);
+        return toIndex >= 0
+            ? _graph.FindShortestPathFromPosition(origin, toIndex, _maxWalkDistance, cost, bans)
+            : _graph.FindShortestPathToPosition(origin, destination, _maxWalkDistance, cost, bans);
     }
 
     /// <summary>
@@ -153,18 +122,10 @@ public class RouteFinder
     {
         if (maximum <= 0) return [];
         EnsureGraphBuilt();
+        if (!destination.HasCoordinates) return [FindRoute(origin, destination, profile)];
         int toIndex = _graph.GetNodeIndex(destination);
-        if (toIndex < 0) return [FindRoute(origin, destination, profile)];
-        Func<RouteGraphEdge, double> cost = edge => profile switch
-        {
-            RouteCostProfile.FewestInteractions => edge.Kind == RouteEdgeKind.Walk ? 1 : 0.1,
-            RouteCostProfile.PreferRecall => edge.Kind is RouteEdgeKind.Recall or RouteEdgeKind.Lifestone
-                ? edge.Cost * 0.1 : edge.Cost,
-            RouteCostProfile.AvoidInteractions => edge.Kind == RouteEdgeKind.Walk
-                ? edge.Cost : edge.Cost * 1000,
-            _ => edge.Cost,
-        };
-        var first = _graph.FindShortestPathFromPosition(origin, toIndex, _maxWalkDistance, cost);
+        Func<RouteGraphEdge, double> cost = CostSelector(profile) ?? (edge => edge.Cost);
+        var first = FindPath(origin, destination, cost);
         if (first is null) return [FindRoute(origin, destination, profile)];
 
         var choices = new List<Route>();
@@ -183,8 +144,10 @@ public class RouteFinder
 
             if (signature.Length == 0)
             {
-                var interactive = _graph.FindShortestPathUsingInteraction(origin, toIndex,
-                    _maxWalkDistance, cost);
+                var interactive = toIndex >= 0
+                    ? _graph.FindShortestPathUsingInteraction(origin, toIndex, _maxWalkDistance, cost)
+                    : _graph.FindShortestPathUsingInteraction(origin, destination,
+                        _maxWalkDistance, cost);
                 if (interactive is not null)
                     queue.Enqueue(([], interactive), interactive.Sum(cost));
             }
@@ -195,7 +158,7 @@ public class RouteFinder
                 string key = string.Join("|", bans.Select(e =>
                     $"{e.FromIndex}:{e.ToIndex}:{e.Kind}:{e.Via}").OrderBy(s => s, StringComparer.Ordinal));
                 if (!seenBans.Add(key)) continue;
-                var path = _graph.FindShortestPathFromPosition(origin, toIndex, _maxWalkDistance, cost, bans);
+                var path = FindPath(origin, destination, cost, bans);
                 if (path is not null)
                     queue.Enqueue((bans, path), path.Sum(cost));
             }
@@ -206,6 +169,21 @@ public class RouteFinder
     private Route RouteFromPath(Location origin, Location destination, List<RouteGraphEdge> path)
     {
         var connection = path[0];
+        var final = path[^1];
+        if (final.ToIndex == RouteGraph.PositionTarget)
+        {
+            // The destination is off the graph: walk the last stretch to it.
+            if (path.Count == 1 || (path.Count == 2 && connection.Cost == 0))
+            {
+                var walk = new Route(destination.Name);
+                walk.AddTravelStep(origin, destination, final.Cost == 0 ? "Arrived" : "Walk");
+                return walk;
+            }
+            var onward = RouteFromPath(origin, destination, path.SkipLast(1).ToList());
+            if (final.Cost > 0)
+                onward.AddTravelStep(_graph.GetLocation(final.FromIndex), destination, "Walk");
+            return onward;
+        }
         var entry = _graph.GetLocation(connection.ToIndex);
         if (path.Count == 1)
         {

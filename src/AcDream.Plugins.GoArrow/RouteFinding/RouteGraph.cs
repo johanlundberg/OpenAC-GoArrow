@@ -63,6 +63,12 @@ public sealed class RouteGraph
     /// <summary>Whether <see cref="Build"/> has been called.</summary>
     private bool _built;
 
+    /// <summary>
+    /// Edge target index for the final walk to an off-graph destination,
+    /// such as a coordinate or object, in a path to a position.
+    /// </summary>
+    public const int PositionTarget = -2;
+
     // ── Public accessors ───────────────────────────────────────────
 
     /// <summary>Number of graph nodes.</summary>
@@ -258,6 +264,43 @@ public sealed class RouteGraph
     )
     {
         EnsureBuilt();
+        var seeds = PositionSeeds(position, maxConnectionDistance, costSelector);
+        return FindShortestPathCore(seeds, toIndex, costSelector, excludedEdges);
+    }
+
+    /// <summary>
+    /// Like <see cref="FindShortestPathFromPosition"/>, but to a destination
+    /// that is not a graph node. The path may leave the graph at any node
+    /// within <paramref name="maxConnectionDistance"/> of the destination;
+    /// its last edge then targets <see cref="PositionTarget"/>. Walking
+    /// straight there is always a candidate, so a path is always returned
+    /// for finite coordinates.
+    /// </summary>
+    public List<RouteGraphEdge>? FindShortestPathToPosition(
+        Location position,
+        Location destination,
+        double maxConnectionDistance,
+        Func<RouteGraphEdge, double>? costSelector = null,
+        IReadOnlySet<RouteGraphEdge>? excludedEdges = null
+    )
+    {
+        EnsureBuilt();
+        var seeds = PositionSeeds(position, maxConnectionDistance, costSelector);
+        double direct = position.DistanceTo(destination);
+        if (double.IsFinite(direct))
+        {
+            var walk = new RouteGraphEdge(-1, PositionTarget, RouteEdgeKind.Walk, direct, "Walk");
+            double cost = direct == 0 ? 0 : costSelector?.Invoke(walk) ?? direct;
+            if (double.IsFinite(cost) && cost >= 0)
+                seeds.Add(new RouteSeed(_locations.Count, walk, cost));
+        }
+        return FindShortestPathCore(seeds, _locations.Count, costSelector, excludedEdges,
+            new RouteGoal(destination, maxConnectionDistance));
+    }
+
+    private List<RouteSeed> PositionSeeds(Location position, double maxConnectionDistance,
+        Func<RouteGraphEdge, double>? costSelector)
+    {
         var seeds = new List<RouteSeed>();
         for (int i = 0; i < _locations.Count; i++)
         {
@@ -275,7 +318,19 @@ public sealed class RouteGraph
             if (double.IsFinite(cost) && cost >= 0)
                 seeds.Add(new RouteSeed(i, connection, cost));
         }
-        return FindShortestPathCore(seeds, toIndex, costSelector, excludedEdges);
+        return seeds;
+    }
+
+    /// <summary>An off-graph destination and how far from it the graph may be left.</summary>
+    private readonly record struct RouteGoal(Location Position, double Reach);
+
+    /// <summary>The final walk from a node to an off-graph goal, or null when out of reach.</summary>
+    private RouteGraphEdge? GoalEdge(int node, RouteGoal goal)
+    {
+        double distance = _locations[node].DistanceTo(goal.Position);
+        return double.IsFinite(distance) && distance <= goal.Reach
+            ? new RouteGraphEdge(node, PositionTarget, RouteEdgeKind.Walk, distance, "Walk")
+            : null;
     }
 
     /// <summary>The cheapest route that uses at least one portal or recall.</summary>
@@ -284,7 +339,26 @@ public sealed class RouteGraph
     {
         EnsureBuilt();
         if (toIndex < 0 || toIndex >= _locations.Count) return null;
-        int count = _locations.Count * 2;
+        return FindShortestPathUsingInteractionCore(position, toIndex, maxConnectionDistance,
+            costSelector, null);
+    }
+
+    /// <summary>The cheapest route to an off-graph destination that uses at least one portal or recall.</summary>
+    public List<RouteGraphEdge>? FindShortestPathUsingInteraction(Location position,
+        Location destination, double maxConnectionDistance,
+        Func<RouteGraphEdge, double>? costSelector = null)
+    {
+        EnsureBuilt();
+        return FindShortestPathUsingInteractionCore(position, _locations.Count,
+            maxConnectionDistance, costSelector, new RouteGoal(destination, maxConnectionDistance));
+    }
+
+    private List<RouteGraphEdge>? FindShortestPathUsingInteractionCore(Location position,
+        int toIndex, double maxConnectionDistance, Func<RouteGraphEdge, double>? costSelector,
+        RouteGoal? goal)
+    {
+        // With an off-graph goal, node index Count stands for the goal itself.
+        int count = (_locations.Count + (goal is null ? 0 : 1)) * 2;
         var scores = new double[count];
         var parents = new int[count];
         var parentEdges = new RouteGraphEdge?[count];
@@ -321,14 +395,18 @@ public sealed class RouteGraph
             }
             if (node == toIndex)
                 continue; // Do not pass through the destination to manufacture an alternative.
-            foreach (var edge in _adjacency[node])
+            IEnumerable<RouteGraphEdge> edges = _adjacency[node];
+            if (goal is { } target && state % 2 == 1 && GoalEdge(node, target) is { } final)
+                edges = edges.Append(final);
+            foreach (var edge in edges)
             {
                 if ((_locations[node].Type & LocationType.Dungeon) != 0
                     && edge.Kind == RouteEdgeKind.Walk)
                     continue;
                 double edgeCost = costSelector?.Invoke(edge) ?? edge.Cost;
                 if (!double.IsFinite(edgeCost) || edgeCost < 0) continue;
-                int next = edge.ToIndex * 2 + (state % 2 == 1 || edge.Kind != RouteEdgeKind.Walk ? 1 : 0);
+                int toNode = edge.ToIndex == PositionTarget ? toIndex : edge.ToIndex;
+                int next = toNode * 2 + (state % 2 == 1 || edge.Kind != RouteEdgeKind.Walk ? 1 : 0);
                 double total = score + edgeCost;
                 if (total >= scores[next]) continue;
                 scores[next] = total;
@@ -347,13 +425,15 @@ public sealed class RouteGraph
         IReadOnlyList<RouteSeed> seeds,
         int toIndex,
         Func<RouteGraphEdge, double>? costSelector,
-        IReadOnlySet<RouteGraphEdge>? excludedEdges = null
+        IReadOnlySet<RouteGraphEdge>? excludedEdges = null,
+        RouteGoal? goal = null
     )
     {
-        if (toIndex < 0 || toIndex >= _locations.Count || seeds.Count == 0)
+        // With an off-graph goal, node index Count stands for the goal itself.
+        int n = _locations.Count + (goal is null ? 0 : 1);
+        if (toIndex < 0 || toIndex >= n || seeds.Count == 0)
             return null;
 
-        int n = _locations.Count;
         var gScore = new double[n];
         var cameFrom = new int[n];
         var cameFromEdge = new RouteGraphEdge?[n];
@@ -396,7 +476,10 @@ public sealed class RouteGraph
                 return path;
             }
 
-            foreach (var edge in _adjacency[current])
+            IEnumerable<RouteGraphEdge> edges = _adjacency[current];
+            if (goal is { } target && GoalEdge(current, target) is { } final)
+                edges = edges.Append(final);
+            foreach (var edge in edges)
             {
                 if (excludedEdges?.Contains(edge) == true)
                     continue;
@@ -407,7 +490,7 @@ public sealed class RouteGraph
                     && edge.Kind == RouteEdgeKind.Walk
                     && (cameFrom[current] >= 0 || sourceEdges[origin[current]] is not null))
                     continue;
-                int neighbor = edge.ToIndex;
+                int neighbor = edge.ToIndex == PositionTarget ? toIndex : edge.ToIndex;
                 if (closed.Contains(neighbor))
                     continue;
 
