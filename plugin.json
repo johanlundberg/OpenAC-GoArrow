@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "entry": "goarrow.wasm",
   "apiVersion": "1.6",
-  "minHostVersion": "0.1.10",
+  "minHostVersion": "0.1.11",
   "permissionsVersion": 1,
   "permissions": [
     { "name": "chat", "note": "Sets a destination when you click map coordinates in chat, and answers /go in chat." },
