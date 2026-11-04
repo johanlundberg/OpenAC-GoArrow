@@ -1,0 +1,43 @@
+# GoArrow for openAC-rust: the GoArrow navigation plugin (Digero's GoArrow,
+# by way of Kaldor Greybear's VVS Edition and johanlundberg's OpenAC port)
+# as a WebAssembly plugin.
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+# The plugin SDK (MIT), from the openAC-rust repository, pinned to a commit
+# of its main branch.
+openac-plugin = { git = "https://github.com/eriknihlen/openac-rust", rev = "9bd16efeb3df25898102401e22b7d083be62f1b2" }
+# The SDK's wire records, for the tests' fake client (same commit).
+ac-plugin-abi = { git = "https://github.com/eriknihlen/openac-rust", rev = "9bd16efeb3df25898102401e22b7d083be62f1b2" }
+# The client's plugin UI state, for the window tests (same commit).
+ac-plugin-ui = { git = "https://github.com/eriknihlen/openac-rust", rev = "9bd16efeb3df25898102401e22b7d083be62f1b2" }
+# Settings, corrections and learned paths are JSON.
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+# Location data is XML (the Atlas export and GoArrow's own files).
+roxmltree = { version = "0.21.1", default-features = false, features = ["std"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# The plugin build: a panic is a trap, so the client unloads the plugin and
+# reports why.
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1

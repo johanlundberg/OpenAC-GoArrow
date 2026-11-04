@@ -1,0 +1,27 @@
+[package]
+name = "goarrow"
+description = "GoArrow as an openAC-rust WebAssembly plugin: finds a route to a named place or map coordinates over walks, portals and recalls, points the way, draws it on the map and in the world, and can walk it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib: the plugin's .wasm; rlib: the native tests link it.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+openac-plugin.workspace = true
+# The SDK's wire records, to name the theme the client reports.
+ac-plugin-abi.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+roxmltree.workspace = true
+
+[dev-dependencies]
+ac-plugin-abi = { workspace = true, features = ["ui-host"] }
+ac-plugin-ui.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,5 @@
+[toolchain]
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]
+# The plugin is built for wasm32-unknown-unknown; tests run natively.
+targets = ["wasm32-unknown-unknown"]

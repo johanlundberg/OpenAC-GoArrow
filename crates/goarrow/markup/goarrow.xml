@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GoArrow's window, the plugin's one shelf button, in the shared plugin
+     theme. Three tabs: Route (where to, from where, the route's choices and
+     steps, the selected step, Go/Stop), Places (every loaded place, nearest
+     first, filtered by kind) and Options (location data, what shows on
+     screen, walking, route fixes). The bindings are declared in
+     src/window.rs. -->
+<!-- About 620 px tall with the title bar, so it fits a 720 px screen beside
+     the map; fixed rows do not shrink, the lists take what is left. -->
+<panel title="GoArrow" theme="plugin" layout="column" padding="8" gap="8"
+       w="500" h="590" minw="460" minh="480" resizable="true">
+
+  <group layout="row" gap="2" align="center" shrink="0">
+    <tab text="Route" selected="{RouteTab}" onclick="{ShowRoute}" />
+    <tab text="Places" selected="{PlacesTab}" onclick="{ShowPlaces}" />
+    <tab text="Options" selected="{OptionsTab}" onclick="{ShowOptions}" />
+    <group w="8" h="1" />
+    <label text="{Status}" grow="1" color="theme:muted|#FFC7B98F" />
+  </group>
+
+  <!-- ==================== Route ==================== -->
+  <group layout="column" gap="6" grow="1" visible="{RouteTab}">
+    <group layout="row" gap="6" align="center" shrink="0">
+      <label text="To" w="40" minw="40" color="theme:muted|#FFC7B98F" />
+      <field grow="1" text="{ToText}" onchange="{TypeTo}" onsubmit="{SubmitTo}"
+             onup="{SuggestionUp}" ondown="{SuggestionDown}" maxlength="128"
+             tooltip="A place, or coordinates like 12.3N 41.0E; Enter picks it" />
+      <toggle text="Fav" checked="{IsFavourite}" onclick="{ToggleFavourite}"
+              tooltip="Keep the destination as a favourite" />
+    </group>
+    <group layout="row" gap="6" align="center" shrink="0">
+      <label text="From" w="40" minw="40" color="theme:muted|#FFC7B98F" />
+      <field grow="1" text="{FromText}" onchange="{TypeFrom}" onsubmit="{SubmitFrom}"
+             onup="{SuggestionUp}" ondown="{SuggestionDown}" maxlength="128"
+             tooltip="Where the route starts; Where I stand plans from your position" />
+    </group>
+    <group layout="column" gap="2" h="132" shrink="0" visible="{ShowSuggestions}">
+      <label text="{SuggestionsLabel}" color="theme:muted|#FFC7B98F" />
+      <list grow="1" rowheight="18" selectionband="true" items="{Suggestions}"
+            selected="{SuggestionSelected}" onchange="{PickSuggestion}" />
+    </group>
+
+    <group layout="column" gap="6" padding="6" shrink="0"
+           background="theme:field|#FF0C0906" border="theme:border|#FF61573B">
+      <group layout="row" gap="6" align="center">
+        <button text="&lt;" w="28" minw="28" enabled="{CanPrevious}" onclick="{Previous}"
+                tooltip="The previous route choice" />
+        <label text="{ChoiceText}" w="112" minw="90" />
+        <button text="&gt;" w="28" minw="28" enabled="{CanNext}" onclick="{Next}"
+                tooltip="The next route choice (found when asked)" />
+        <group grow="1" h="1" />
+        <label text="Prefer" color="theme:muted|#FFC7B98F" />
+        <menu w="128" minw="110" items="{Profiles}" selected="{Profile}"
+              onchange="{SetProfile}" tooltip="What a route search weighs" />
+      </group>
+      <group layout="row" gap="12" align="center">
+        <label text="{WalkChip}" />
+        <label text="{PortalChip}" />
+        <label text="{LineChip}" color="theme:muted|#FFC7B98F" />
+      </group>
+    </group>
+
+    <!-- A list's last column takes the room the others leave: the step. -->
+    <list grow="1" header="true" rowheight="26" selectionband="true" visible="{ShowSteps}"
+          selected="{SelectedStep}" onchange="{SelectStep}">
+      <column type="text" header="#" width="24" items="{StepNumbers}" />
+      <column type="icon" iconkind="did" width="30" values="{StepIcons}" onclick="{SelectStep}" />
+      <column type="text" header="Walk" width="58" items="{StepWalks}" />
+      <column type="text" header="Step" items="{StepTexts}" />
+    </list>
+    <group layout="column" gap="4" grow="1" visible="{ShowIndoor}">
+      <label text="{IndoorSummary}" color="theme:accent|#FFE8D8B0" />
+      <list grow="1" rowheight="18" items="{IndoorWaypoints}" selected="{IndoorSelected}" />
+    </group>
+
+    <group layout="column" gap="2" padding="6" h="96" shrink="0"
+           background="theme:field|#FF0C0906" border="theme:border|#FF61573B">
+      <group layout="row" gap="6" align="center">
+        <label text="{DetailTitle}" grow="1" color="theme:accent|#FFE8D8B0" />
+        <button text="Mark faulty" enabled="{CanMarkFaulty}" onclick="{MarkFaulty}"
+                tooltip="Never use this step again (saved in the route fixes)" />
+      </group>
+      <label text="{DetailWhere}" />
+      <label text="{DetailArrival}" color="theme:muted|#FFC7B98F" />
+      <label text="{DetailNote}" color="theme:muted|#FFC7B98F" />
+    </group>
+
+    <group layout="row" gap="8" align="center" shrink="0">
+      <label text="{StatusText}" grow="1" />
+      <checkbox text="Walk it" checked="{AutoNavigate}" onchange="{SetAutoNavigate}" />
+      <checkbox text="Re-plan" checked="{Recalculate}" onchange="{SetRecalculate}" />
+    </group>
+    <group layout="row" gap="6" align="center" shrink="0">
+      <button h="34" grow="1" text="{GoLabel}" enabled="{CanGo}" onclick="{GoStop}"
+              tooltip="Shows the route, and walks it when Walk it is on; press again to stop" />
+      <button h="34" w="90" text="Resume" enabled="{CanResume}" onclick="{Resume}"
+              tooltip="Carry on after a portal or recall" />
+      <button h="34" w="80" text="Clear" enabled="{HasDestination}" onclick="{Clear}"
+              tooltip="Forget the destination" />
+    </group>
+  </group>
+
+  <!-- ==================== Places ==================== -->
+  <group layout="column" gap="6" grow="1" visible="{PlacesTab}">
+    <group layout="row" gap="6" align="center" shrink="0">
+      <label text="Search places" color="theme:muted|#FFC7B98F" />
+      <field grow="1" text="{PlaceQuery}" onchange="{SetPlaceQuery}" maxlength="128"
+             tooltip="Search the places by name" />
+    </group>
+    <radio minw="440" shrink="0" items="All|Towns|Portals|Dungeons|Lifestones|People"
+           selected="{PlaceKind}" onchange="{SetPlaceKind}"
+           orientation="horizontal" style="segmented" />
+    <group layout="row" gap="8" align="center" shrink="0">
+      <checkbox text="Favourites only" checked="{FavouritesOnly}" onchange="{SetFavouritesOnly}" />
+      <group grow="1" h="1" />
+      <label text="{PlaceCount}" color="theme:muted|#FFC7B98F" />
+    </group>
+    <!-- Nearest first: how far, where, then the place in the room left. -->
+    <list grow="1" header="true" rowheight="24" selectionband="true"
+          selected="{PlaceSelected}" onchange="{SelectPlace}">
+      <column type="icon" iconkind="did" width="28" values="{PlaceIcons}" onclick="{SelectPlace}" />
+      <column type="text" header="Away" width="58" items="{PlaceAways}" />
+      <column type="text" header="Where" width="92" items="{PlaceWheres}" />
+      <column type="text" header="Place" items="{PlaceNames}" />
+    </list>
+    <group layout="row" gap="6" align="center" shrink="0">
+      <button h="30" grow="1" text="{RouteToLabel}" enabled="{HasPlace}" onclick="{RouteToPlace}"
+              tooltip="Make the selected place the destination" />
+      <button h="30" w="110" text="{PlaceFavLabel}" enabled="{HasPlace}"
+              onclick="{TogglePlaceFavourite}" tooltip="Keep the selected place as a favourite" />
+    </group>
+    <group layout="row" gap="6" align="center" shrink="0">
+      <field grow="1" text="{MarkName}" onchange="{SetMarkName}" onsubmit="{SubmitMark}"
+             maxlength="128" tooltip="Name this spot (indoors: an exact point)" />
+      <button text="Mark here" onclick="{MarkHere}"
+              tooltip="Save the indoor point you stand on as a named place" />
+    </group>
+  </group>
+
+  <!-- ==================== Options ==================== -->
+  <group layout="column" gap="6" grow="1" scroll="y" visible="{OptionsTab}">
+    <label text="Location data" color="theme:accent|#FFE8D8B0" />
+    <label text="GoArrow ships no place data. Download an Atlas file once; it is kept."
+           color="theme:muted|#FFC7B98F" />
+    <group layout="row" gap="6" align="center">
+      <field grow="1" text="{DataUrl}" onchange="{SetDataUrl}" onsubmit="{SubmitDataUrl}"
+             maxlength="1024" tooltip="The address of an Atlas XML file" />
+      <button text="Download" onclick="{Download}" tooltip="Download the places now" />
+    </group>
+    <group layout="row" gap="8" align="center">
+      <button text="Use Darktorizo's GoArrow Data" onclick="{UseSuggestedData}"
+              tooltip="Fill in the address of Darktorizo's GoArrow data" />
+      <label text="{DataStatus}" grow="1" color="theme:muted|#FFC7B98F" />
+    </group>
+    <separator />
+
+    <label text="On screen" color="theme:accent|#FFE8D8B0" />
+    <group layout="row" gap="12">
+      <group layout="column" gap="4" grow="1">
+        <checkbox text="The arrow" checked="{ShowArrow}" onchange="{SetShowArrow}" />
+        <checkbox text="The map" checked="{ShowMap}" onchange="{SetShowMap}" />
+        <checkbox text="Route line on the ground" checked="{ShowRouteLine}"
+                  onchange="{SetShowRouteLine}" />
+        <checkbox text="Places at every map zoom" checked="{ShowAllLocations}"
+                  onchange="{SetShowAllLocations}"
+                  tooltip="Show every kind of place on the map, however far out it is zoomed" />
+      </group>
+      <group layout="column" gap="4" grow="1">
+        <checkbox text="Dungeon map indoors" checked="{ShowDungeonMap}"
+                  onchange="{SetShowDungeonMap}" />
+        <checkbox text="Distance" checked="{ShowDistance}" onchange="{SetShowDistance}" />
+        <checkbox text="Bearing" checked="{ShowBearing}" onchange="{SetShowBearing}" />
+      </group>
+    </group>
+    <separator />
+
+    <label text="Walking" color="theme:accent|#FFE8D8B0" />
+    <group layout="row" gap="6" align="center">
+      <label text="Stop within" />
+      <number w="80" minw="70" value="{ArrivalDistance}" onchange="{SetArrivalDistance}"
+              min="0.1" max="50" step="0.5" decimals="1"
+              tooltip="How close a walk to each waypoint ends" />
+      <label text="metres of each waypoint" color="theme:muted|#FFC7B98F" />
+    </group>
+    <checkbox text="Let GoArrow walk (off: Go only plans the route)" checked="{UseAutomation}"
+              onchange="{SetUseAutomation}"
+              tooltip="Off: Go and Resume only plan the route, whatever Walk it says" />
+    <separator />
+
+    <label text="Route fixes" color="theme:accent|#FFE8D8B0" />
+    <label text="Atlas mistakes, fixed in GoArrow/atlas-corrections.json." color="theme:muted|#FFC7B98F" />
+    <list h="90" shrink="0" rowheight="18" items="{Fixes}" selected="{FixSelected}" />
+    <group layout="row" gap="6" align="center">
+      <button text="Reload file" onclick="{ReloadCorrections}"
+              tooltip="Read the route fixes file again" />
+      <button text="Keep last arrival" enabled="{HasPendingArrival}" onclick="{KeepArrival}"
+              tooltip="Save where the last portal really let you out" />
+      <label text="{FixesStatus}" grow="1" color="theme:muted|#FFC7B98F" />
+    </group>
+    <separator />
+
+    <label text="GoArrow for openAC · after GoArrow by Digero, Virindi's VVS Edition,"
+           color="theme:muted|#FFC7B98F" />
+    <label text="Kaldor Greybear's reference and johanlundberg's OpenAC port (MIT) · /go help"
+           color="theme:muted|#FFC7B98F" />
+  </group>
+</panel>

@@ -1,0 +1,13 @@
+{
+  "id": "openac.goarrow",
+  "displayName": "GoArrow",
+  "version": "0.1.0",
+  "entry": "goarrow.wasm",
+  "apiVersion": "1.6",
+  "minHostVersion": "0.1.10",
+  "permissionsVersion": 1,
+  "permissions": [
+    { "name": "chat", "note": "Sets a destination when you click map coordinates in chat, and answers /go in chat." },
+    { "name": "network", "note": "Downloads location data from the address you choose in the Options tab.", "hosts": ["raw.githubusercontent.com"] }
+  ]
+}

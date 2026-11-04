@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Arrivals": [
+    {
+      "Id": 9341,
+      "Name": "Town Network (E R 2) to Nanto",
+      "Arrival": "52.2S, 82.5E",
+      "Note": "Atlas lists 82.2S; Nanto and every other portal to it are at 52.2S."
+    }
+  ]
+}
