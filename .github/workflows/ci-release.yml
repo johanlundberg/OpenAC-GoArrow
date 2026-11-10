@@ -1,0 +1,161 @@
+name: CI and Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    # The wasm- prefix keeps these releases apart from the C# plugin's
+    # v<version> releases in this repository; the launcher looks for it.
+    tags:
+      - 'wasm-v*.*.*'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Check and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out GoArrow
+        uses: actions/checkout@v6
+
+      # The toolchain, rustfmt, clippy and the wasm32-unknown-unknown target
+      # all come from rust-toolchain.toml.
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+
+      # The same checks as scripts/check.ps1, with --locked so a stale
+      # Cargo.lock fails instead of being rewritten here.
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --locked
+
+      - name: Build the plugin
+        run: cargo build -p goarrow --release --locked --target wasm32-unknown-unknown
+
+      # plugincheck is the launcher's own install rules, and it loads the
+      # module to check its imports against plugin.json. Take it from the
+      # openAC-rust commit the plugin is built against. It links the client's
+      # plugin host, which needs these headers on Linux.
+      - name: Install plugincheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libssl-dev libasound2-dev
+          rev="$(sed -n 's/^openac-plugin = .*rev = "\([0-9a-f]*\)".*/\1/p' Cargo.toml)"
+          test -n "$rev"
+          cargo install --locked --git https://github.com/eriknihlen/openac-rust --rev "$rev" plugincheck
+
+      # A release that fails here would be refused by every player's launcher.
+      # The window's markup is built into the module, so this is the package.
+      - name: Pack and check the release assets
+        run: |
+          package="$RUNNER_TEMP/package"
+          mkdir "$package"
+          cp plugin.json NOTICE.md target/wasm32-unknown-unknown/release/goarrow.wasm "$package/"
+          cp LICENSE "$package/LICENSE.txt"
+          cp -r portals "$package/portals"
+          plugincheck pack "$package" "$RUNNER_TEMP/release-assets"
+
+      - name: Upload the release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: ${{ runner.temp }}/release-assets
+          if-no-files-found: error
+
+  # Check against openAC-rust main as well as the pinned commit. A breaking
+  # change on main must fail before this workflow publishes a release.
+  forward-compat:
+    name: Build and test against openAC-rust main
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out GoArrow
+        uses: actions/checkout@v6
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+
+      - name: Follow openAC-rust main
+        run: |
+          sed -i -E 's|(git = "https://github.com/eriknihlen/openac-rust"), rev = "[0-9a-f]+"|\1, branch = "main"|' Cargo.toml
+          grep -q 'branch = "main"' Cargo.toml
+
+      - name: Run tests against main
+        run: cargo test --workspace
+
+      - name: Build the plugin against main
+        run: cargo build -p goarrow --release --target wasm32-unknown-unknown
+
+  release:
+    name: Create GitHub release
+    if: startsWith(github.ref, 'refs/tags/wasm-v')
+    needs: [test, forward-compat]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Publish the exact files the test job built and checked.
+      - name: Download the release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+
+      # The launcher matches the tag to the manifest, so a tag that disagrees
+      # with plugin.json must not be published.
+      - name: Validate release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^wasm-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use wasm-vMAJOR.MINOR.PATCH, got: $tag" >&2
+            exit 1
+          fi
+          version="$(jq -r .version release-assets/plugin.json)"
+          if [[ "$tag" != "wasm-v$version" ]]; then
+            echo "Tag $tag does not match plugin.json version $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Not marked latest: the repository also holds the C# plugin's releases.
+      # The notes start at the previous wasm- tag, not a C# one.
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          previous="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' | grep '^wasm-v' | sort -V | tail -n1)"
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "GoArrow $VERSION (WebAssembly, OpenAC-rust)" \
+            --generate-notes \
+            --notes-start-tag "$previous" \
+            --latest=false

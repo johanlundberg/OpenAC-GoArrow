@@ -1,2 +1,5 @@
 /target
 /.worktrees
+/data/
+/dist/
+/reference_repos/
